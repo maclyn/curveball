@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <TextView
+        android:id="@+id/minHeight"
+        android:layout_alignParentLeft="true"
+        android:layout_centerVertical="true"
+        android:layout_width="wrap_content"
+        android:layout_marginLeft="16dp"
+        android:layout_marginRight="8dp"
+        android:layout_height="wrap_content"
+        android:textColor="@android:color/white"
+        android:text="Small"/>
+
+    <SeekBar
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:id="@+id/heightBar"
+        android:layout_toRightOf="@+id/minHeight"
+        android:layout_toLeftOf="@+id/maxHeight"
+        android:layout_centerVertical="true" />
+
+    <TextView
+        android:id="@+id/maxHeight"
+        android:layout_alignParentRight="true"
+        android:layout_centerVertical="true"
+        android:layout_width="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginRight="16dp"
+        android:layout_height="wrap_content"
+        android:textColor="@android:color/white"
+        android:text="Big"/>
+
+    <CheckBox
+        android:id="@+id/smallerMin"
+        android:layout_centerHorizontal="true"
+        android:layout_below="@+id/heightBar"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="30dp"
+        android:layout_marginRight="16dp"
+        android:buttonTint="@android:color/white"
+        android:layout_marginLeft="16dp"
+        android:textColor="@android:color/white"
+        android:button="@drawable/checkbox_material_white"
+        android:text="Override default min. size"
+        android:minWidth="150dp"
+        android:checked="false" />
+</RelativeLayout>

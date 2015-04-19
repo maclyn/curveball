@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item drawable="ic_business_white_48dp" />
+    <item drawable="ic_folder_white_48dp" />
+    <item drawable="ic_radio_white_48dp" />
+    <item drawable="ic_whatshot_white_48dp" />
+    <item drawable="ic_games_white_48dp" />
+    <item drawable="ic_cloud_white_48dp" />
+    <item drawable="ic_group_white_48dp" />
+    <item drawable="ic_info_white_48dp" />
+    <item drawable="ic_message_white_48dp" />
+    <item drawable="ic_event_white_48dp" />
+    <item drawable="ic_schedule_white_48dp" />
+    <item drawable="ic_local_airport_white_48dp" />
+    <item drawable="ic_local_restaurant_white_48dp" />
+    <item drawable="ic_location_city_white_48dp" />
+    <item drawable="ic_mail_white_48dp" />
+    <item drawable="ic_map_white_48dp" />
+    <item drawable="ic_people_white_48dp" />
+    <item drawable="ic_place_white_48dp" />
+    <item drawable="ic_question_answer_white_48dp" />
+    <item drawable="ic_school_white_48dp" />
+    <item drawable="ic_shop_white_48dp" />
+</resources>

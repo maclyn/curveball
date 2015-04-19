@@ -1,0 +1,37 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+    <PreferenceCategory
+        android:title="@string/app_defaults"
+        android:key="pref_app_defaults">
+            <Preference
+                android:title="@string/default_clock_app"
+                android:summary="@string/default_clock_summary"
+                android:key="clock_app"/>
+            <Preference
+                android:title="@string/default_calendar_app"
+                android:summary="@string/default_calendar_summary"
+                android:key="calendar_app"/>
+        </PreferenceCategory>
+    <PreferenceCategory
+        android:title="@string/widgets"
+        android:key="pref_widgets">
+            <CheckBoxPreference
+                android:defaultValue="false"
+                android:title="@string/resize_all_widgets"
+                android:summary="@string/resize_all_widgets_summary"
+                android:key="resize_all_pref" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:title="@string/replace_widget_with_clock"
+            android:summary="@string/replace_widget_with_clock_summary"
+            android:key="home_widget_pref" />
+        </PreferenceCategory>
+    <PreferenceCategory
+        android:title="@string/advanced"
+        android:key="pref_advanced">
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:title="@string/debug_modules"
+            android:summary="@string/debug_modules_summary"
+            android:key="debug_modules_pref" />
+    </PreferenceCategory>
+</PreferenceScreen>

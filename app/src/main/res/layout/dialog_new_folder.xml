@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:orientation="horizontal" android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+    <ImageButton
+        android:id="@+id/chooseIcon"
+        android:layout_width="50dp"
+        android:layout_height="50dp"
+        android:src="@drawable/ic_folder_white_48dp"
+        android:layout_margin="10dp"
+        android:scaleType="fitCenter" />
+    <EditText
+        android:id="@+id/chooseName"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:singleLine="true"
+        android:maxLength="20"
+        android:gravity="center"
+        android:textColor="@android:color/white"
+        android:textColorHint="@android:color/darker_gray"
+        android:inputType="text|textCapWords"
+        android:layout_gravity="center_vertical"
+        android:layout_marginRight="10dp"
+        android:hint="@string/name_your_folder" />
+</LinearLayout>

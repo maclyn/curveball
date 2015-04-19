@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+    <item android:id="@+id/resizeWidget"
+        android:title="@string/resize_widget"
+        android:orderInCategory="1"/>
+    <item
+        android:id="@+id/deleteWidget"
+        android:title="@string/delete"
+        android:orderInCategory="2"/>
+</menu>

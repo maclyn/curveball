@@ -1,0 +1,32 @@
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools" android:layout_width="match_parent"
+    android:layout_height="match_parent" android:paddingLeft="@dimen/activity_horizontal_margin"
+    android:paddingRight="@dimen/activity_horizontal_margin"
+    android:paddingTop="@dimen/activity_vertical_margin"
+    android:paddingBottom="@dimen/activity_vertical_margin"
+    tools:context="smartercardhome.inipage.com.usagehome.IconChooserActivity">
+
+    <Spinner
+        android:id="@+id/iconSources"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginBottom="8dp" />
+
+    <EditText
+        android:id="@+id/iconSearch"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/iconSources"
+        android:layout_alignParentStart="true"
+        android:layout_marginBottom="8dp"
+        android:hint="Search for an icon..." />
+
+    <android.support.v7.widget.RecyclerView
+        android:id="@+id/iconPreviews"
+        android:layout_below="@+id/iconSearch"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scrollbars="vertical" />
+</RelativeLayout>

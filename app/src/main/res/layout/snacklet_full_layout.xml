@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
+
+    <ImageView
+        android:id="@+id/snackletIcon"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_alignParentLeft="true"
+        android:layout_alignParentTop="true"
+        android:layout_marginLeft="10dp"
+        android:src="@drawable/ic_cloud_white_48dp" />
+
+    <ImageView
+        android:id="@+id/snackletGreaterThanOne"
+        android:layout_width="48dp"
+        android:layout_alignLeft="@+id/snackletIcon"
+        android:layout_height="6dp"
+        android:layout_below="@+id/snackletIcon"
+        android:src="@drawable/white_circle" />
+
+    <LinearLayout
+        android:layout_toLeftOf="@+id/openSnacklet"
+        android:layout_toRightOf="@+id/snackletIcon"
+        android:layout_width="match_parent"
+        android:layout_marginRight="10dp"
+        android:layout_marginLeft="10dp"
+        android:layout_alignParentTop="true"
+        android:layout_marginTop="4dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+            <TextView
+                android:id="@+id/snackletText"
+                android:textSize="18sp"
+                android:maxLines="2"
+                android:ellipsize="end"
+                android:textColor="@color/white"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/sample_text"
+                android:gravity="left" />
+
+            <TextView
+                android:id="@+id/snackletDesc"
+                android:textSize="16sp"
+                android:maxLines="3"
+                android:ellipsize="end"
+                android:gravity="left"
+                android:textColor="@color/white"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/sample_text" />
+        </LinearLayout>
+
+
+    <ImageView
+        android:id="@+id/openSnacklet"
+        android:layout_marginRight="10dp"
+        android:src="@drawable/ic_launch_white_48dp"
+        android:layout_alignParentRight="true"
+        android:layout_alignParentTop="@+id/snackletIcon"
+        android:layout_marginTop="8dp"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:contentDescription="@string/open_snacklet" />
+</RelativeLayout>

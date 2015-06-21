@@ -10,6 +10,18 @@
                 android:title="@string/default_calendar_app"
                 android:summary="@string/default_calendar_summary"
                 android:key="calendar_app"/>
+            <Preference
+                android:title="@string/default_phone_app"
+                android:summary="@string/default_phone_app_summary"
+                android:key="phone_app"/>
+            <Preference
+                android:title="@string/default_charging_app"
+                android:summary="@string/default_charging_app_summary"
+                android:key="charging_app"/>
+            <Preference
+                android:title="@string/default_low_power_app"
+                android:summary="@string/default_low_power_app_summary"
+                android:key="low_power_app"/>
         </PreferenceCategory>
     <PreferenceCategory
         android:title="@string/widgets"
@@ -19,11 +31,11 @@
                 android:title="@string/resize_all_widgets"
                 android:summary="@string/resize_all_widgets_summary"
                 android:key="resize_all_pref" />
-        <CheckBoxPreference
-            android:defaultValue="false"
-            android:title="@string/replace_widget_with_clock"
-            android:summary="@string/replace_widget_with_clock_summary"
-            android:key="home_widget_pref" />
+            <CheckBoxPreference
+                android:defaultValue="false"
+                android:title="@string/replace_widget_with_clock"
+                android:summary="@string/replace_widget_with_clock_summary"
+                android:key="home_widget_pref" />
         </PreferenceCategory>
     <PreferenceCategory
         android:title="@string/advanced"

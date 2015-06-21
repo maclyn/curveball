@@ -8,13 +8,18 @@
         <!-- Translucent status bar/navigation bar -->
         <item name="android:windowTranslucentStatus">true</item>
         <item name="android:windowTranslucentNavigation">true</item>
+
         <item name="android:fitsSystemWindows">false</item>
+
+        <!-- Interesting.. this put stuff behind it...
+        <item name="android:clipToPadding">false</item>
+        <item name="android:windowClipToOutline">false</item>
+        -->
 
         <!--
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         -->
-
         <item name="md_dark_theme">true</item>
     </style>
 </resources>

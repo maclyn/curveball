@@ -16,6 +16,7 @@
             android:layout_weight="1"
             android:padding="8dp"
             android:src="@drawable/ic_unfold_more_white_48dp"
+            android:background="?android:attr/selectableItemBackground"
             android:scaleType="fitCenter" />
         <ImageView
             android:id="@+id/deleteWidget"
@@ -24,6 +25,7 @@
             android:layout_weight="1"
             android:padding="8dp"
             android:src="@drawable/ic_delete_white_48dp"
+            android:background="?android:attr/selectableItemBackground"
             android:scaleType="fitCenter"/>
     </LinearLayout>
     <LinearLayout

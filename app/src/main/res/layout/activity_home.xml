@@ -4,6 +4,7 @@
     android:layout_height="wrap_content"
     android:layout_width="match_parent"
     android:fitsSystemWindows="false"
+    android:clipToPadding="false"
     tools:context=".HomeActivity">
 
     <View
@@ -30,7 +31,7 @@
             android:layout_width="0dp"
             android:layout_height="0dp" />
 
-        <smartercardhome.inipage.com.usagehome.ShortcutGestureView
+        <com.inipage.homelylauncher.ShortcutGestureView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="@android:color/transparent"
@@ -60,21 +61,17 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
-            android:layout_marginLeft="10dp"
             android:layout_marginTop="10dp"
-            android:clickable="false"
-            android:focusable="false"
-            android:layout_alignParentLeft="false"
             android:layout_centerHorizontal="true">
 
             <RelativeLayout
                 android:id="@+id/timeLayout"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
+                android:paddingLeft="4dp"
+                android:paddingRight="4dp"
                 android:layout_alignParentLeft="false"
-                android:clickable="false"
-                android:focusable="false"
-                android:focusableInTouchMode="false"
+                android:background="?android:attr/selectableItemBackground"
                 android:layout_centerHorizontal="true">
 
                 <TextView
@@ -87,8 +84,7 @@
                     android:text="12"
                     android:textColor="@android:color/white"
                     android:textColorHint="@android:color/black"
-                    android:textSize="68sp"
-                    android:textStyle="bold"
+                    android:textSize="80sp"
                     android:shadowColor="#000"
                     android:shadowRadius="4"
                     android:shadowDy="2"/>
@@ -120,7 +116,7 @@
                     android:text="30"
                     android:textColor="@android:color/white"
                     android:textColorHint="@android:color/black"
-                    android:textSize="68sp"
+                    android:textSize="80sp"
                     android:shadowColor="#000"
                     android:shadowRadius="4"
                     android:shadowDy="2"/>
@@ -128,6 +124,7 @@
 
             <TextView
                 android:id="@+id/date"
+                android:padding="8dp"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_below="@+id/timeLayout"
@@ -135,8 +132,9 @@
                 android:layout_alignParentLeft="false"
                 android:textColor="@android:color/white"
                 android:textColorHint="@android:color/black"
+                android:background="?android:attr/selectableItemBackground"
                 android:textSize="18sp"
-                android:layout_marginTop="-5dp"
+                android:layout_marginTop="-14dp"
                 android:layout_marginLeft="0dp"
                 android:layout_centerInParent="true"
                 android:gravity="center_vertical|center_horizontal"
@@ -192,13 +190,17 @@
             android:layout_centerHorizontal="true"
             android:layout_alignParentBottom="true"
             android:visibility="visible">
+
             <ImageView
                 android:id="@+id/dockApp1"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:padding="4dp"
+                android:background="?android:attr/selectableItemBackground"
                 android:visibility="visible"
                 android:layout_gravity="center_vertical"
-                android:layout_marginLeft="20dp" />
+                android:layout_marginLeft="16dp" />
+
             <View
                 android:layout_width="0dp"
                 android:layout_height="1dp"
@@ -207,10 +209,13 @@
 
             <ImageView
                 android:id="@+id/dockApp2"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:padding="4dp"
+                android:background="?android:attr/selectableItemBackground"
                 android:layout_gravity="center_vertical"
                 android:visibility="visible" />
+
             <View
                 android:layout_width="0dp"
                 android:layout_height="1dp"
@@ -219,10 +224,13 @@
 
             <ImageView
                 android:id="@+id/dockApp3"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:padding="4dp"
+                android:background="?android:attr/selectableItemBackground"
                 android:visibility="visible"
                 android:layout_gravity="center_vertical" />
+
             <View
                 android:layout_width="0dp"
                 android:layout_height="1dp"
@@ -231,10 +239,13 @@
 
             <ImageView
                 android:id="@+id/dockApp4"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:padding="4dp"
+                android:background="?android:attr/selectableItemBackground"
                 android:visibility="visible"
                 android:layout_gravity="center_vertical" />
+
             <View
                 android:layout_width="0dp"
                 android:layout_height="1dp"
@@ -243,11 +254,45 @@
 
             <ImageView
                 android:id="@+id/dockApp5"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:padding="4dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:visibility="visible"
+                android:layout_gravity="center_vertical"/>
+
+            <View
+                android:id="@+id/fiveToSix"
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" >
+            </View>
+
+            <ImageView
+                android:id="@+id/dockApp6"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:padding="4dp"
+                android:background="?android:attr/selectableItemBackground"
+                android:visibility="visible"
+                android:layout_gravity="center_vertical" />
+
+            <View
+                android:id="@+id/sixToSeven"
+                android:layout_width="0dp"
+                android:layout_height="1dp"
+                android:layout_weight="1" >
+            </View>
+
+            <ImageView
+                android:id="@+id/dockApp7"
+                android:layout_width="56dp"
+                android:layout_height="56dp"
+                android:padding="4dp"
+                android:background="?android:attr/selectableItemBackground"
                 android:visibility="visible"
                 android:layout_gravity="center_vertical"
-                android:layout_marginRight="20dp" />
+                android:layout_marginRight="16dp" />
         </LinearLayout>
 
         <!-- App search mode -->
@@ -262,6 +307,7 @@
             android:layout_margin="8dp">
             <ImageView
                 android:id="@+id/backToHome"
+                android:background="?attr/selectableItemBackground"
                 android:layout_alignParentLeft="true"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
@@ -290,6 +336,7 @@
             <ImageView
                 android:id="@+id/moreOptions"
                 android:layout_alignParentRight="true"
+                android:background="?attr/selectableItemBackground"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginTop="8dp"
@@ -301,6 +348,7 @@
             <ImageView
                 android:id="@+id/clearSearch"
                 android:layout_toLeftOf="@+id/moreOptions"
+                android:background="?attr/selectableItemBackground"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginTop="8dp"
@@ -400,6 +448,32 @@
             </RelativeLayout>
         </LinearLayout>
 
+        <!-- Smart bar (i.e. apps we think you'll use -->
+        <!-- Calculated via: current events, current conditions (e.g. in call),
+             last received text message, frequency of use of apps, etc. -->
+        <LinearLayout
+            android:id="@+id/smartBar"
+            android:layout_width="100dp"
+            android:layout_height="match_parent"
+            android:layout_alignParentLeft="true"
+            android:layout_alignParentTop="true"
+            android:orientation="vertical"
+            android:translationX="-100dp"
+            android:background="@drawable/right_to_left_gradient">
+            <ScrollView
+                android:layout_gravity="center_horizontal"
+                android:layout_width="wrap_content"
+                android:layout_height="match_parent"
+                android:scrollbars="none">
+                <LinearLayout
+                    android:layout_gravity="center_horizontal"
+                    android:orientation="vertical"
+                    android:id="@+id/smartBarContainer"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" />
+            </ScrollView>
+        </LinearLayout>
+
         <!-- Widget bar -->
         <LinearLayout
             android:id="@+id/widgetBar"
@@ -422,60 +496,21 @@
                     android:scrollbars="none">
                     <LinearLayout
                         android:orientation="vertical"
-                        android:id="@+id/widgetContainer"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content">
+                        <LinearLayout
+                            android:orientation="vertical"
+                            android:id="@+id/widgetContainer"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content">
+                        <LinearLayout
+                            android:orientation="vertical"
+                            android:id="@+id/snackletContainer"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content" />
+                        </LinearLayout>
                     </LinearLayout>
                 </ScrollView>
             </LinearLayout>
-
-        <!-- Snacklets bar -->
-        <RelativeLayout
-            android:id="@+id/snackletsBar"
-            android:layout_width="320dp"
-            android:layout_height="match_parent"
-            android:layout_alignParentLeft="true"
-            android:layout_alignParentTop="true"
-            android:translationX="-320dp"
-            android:background="@drawable/right_to_left_gradient">
-
-            <TextView
-                android:id="@+id/noSnackletsFound"
-                android:layout_margin="20dp"
-                android:textColor="@color/white"
-                android:textSize="16sp"
-                android:text="@string/no_snacklets_found"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_centerInParent="true"
-                android:gravity="center_horizontal" />
-
-            <ScrollView
-                android:layout_centerVertical="true"
-                android:layout_alignParentLeft="true"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:scrollbars="none">
-                <LinearLayout
-                    android:orientation="vertical"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-                    <TextView
-                        android:id="@+id/clearSnacklets"
-                        android:text="@string/clear_all"
-                        android:textSize="20sp"
-                        android:visibility="gone"
-                        android:gravity="center"
-                        android:textColor="@android:color/white"
-                        android:layout_height="wrap_content"
-                        android:layout_width="match_parent"/>
-                    <LinearLayout
-                        android:orientation="vertical"
-                        android:id="@+id/snackletContainer"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content" />
-                </LinearLayout>
-            </ScrollView>
-        </RelativeLayout>
     </RelativeLayout>
 </RelativeLayout>

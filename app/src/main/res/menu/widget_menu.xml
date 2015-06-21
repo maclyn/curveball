@@ -1,14 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
       xmlns:app="http://schemas.android.com/apk/res-auto">
-    <item android:id="@+id/addWidget"
-        android:icon="@drawable/ic_add_circle_outline_white_48dp"
-        android:title="@string/add_widget"
-        android:orderInCategory="3"
+    <item android:id="@+id/clearSnacklets"
+        android:icon="@drawable/ic_clear_all_white_48dp"
+        android:title="@string/clear_snacklets"
+        android:orderInCategory="1"
+        android:visible="false"
         app:showAsAction="ifRoom"/>
     <item android:id="@+id/editWidgets"
         android:icon="@drawable/ic_create_white_48dp"
         android:title="@string/edit_widget"
         android:orderInCategory="2"
         app:showAsAction="ifRoom" />
+    <item android:id="@+id/addWidget"
+        android:icon="@drawable/ic_add_circle_outline_white_48dp"
+        android:title="@string/add_widget"
+        android:orderInCategory="3"
+        app:showAsAction="ifRoom"/>
 </menu>

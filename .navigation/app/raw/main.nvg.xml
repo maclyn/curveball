@@ -6,7 +6,7 @@
     <statePointEntry>
       <state      
         class = "com.android.tools.idea.editors.navigation.model.ActivityState"      
-        className = "smartercardhome.inipage.com.usagehome.HomeActivity"/>
+        className = "com.inipage.homelylauncher.HomeActivity"/>
       <point      
         x = "480"      
         y = "160"/>

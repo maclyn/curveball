@@ -11,9 +11,11 @@
 # Generated files
 bin/
 gen/
+app/build/
 
 # Gradle files
 .gradle/
+.idea/
 build/
 
 # Local configuration file (sdk path, etc)

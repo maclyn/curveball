@@ -40,7 +40,7 @@
         </activity>
         <activity
             android:name="com.inipage.homelylauncher.SettingsActivity"
-            android:label="@string/title_activity_settings"
+            android:label="Settings"
             android:parentActivityName="com.inipage.homelylauncher.HomeActivity"
             android:theme="@style/AppTheme" >
             <meta-data

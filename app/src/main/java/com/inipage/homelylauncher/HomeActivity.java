@@ -34,6 +34,7 @@ import android.os.AsyncTask;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.preference.PreferenceManager;
 import android.provider.CalendarContract;
 import android.provider.Settings;
@@ -57,6 +58,7 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
+import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -211,6 +213,9 @@ public class HomeActivity extends ActionBarActivity {
     String resourceName;
     String cachedPref;
 
+    Handler testHandler;
+    List<AppWidgetHostView> testRef = new ArrayList<>();
+
     //Tell when things have changed
     BroadcastReceiver packageReceiver;
     BroadcastReceiver storageReceiver;
@@ -219,6 +224,14 @@ public class HomeActivity extends ActionBarActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
+
+        testHandler = new Handler();
+        testHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                spillWidgets();
+            }
+        }, 5000);
 
         if(Utilities.isSmallTablet(this)){
             size = ScreenSize.SMALL_TABLET;
@@ -617,15 +630,55 @@ public class HomeActivity extends ActionBarActivity {
         filter.addAction(Intent.ACTION_PACKAGE_CHANGED);
         filter.addDataScheme("package");
         registerReceiver(packageReceiver, filter);
-        filter = new IntentFilter();
-        filter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
-        filter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
-        filter.addAction(Intent.ACTION_LOCALE_CHANGED);
-        filter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
-        registerReceiver(storageReceiver, filter);
+
+        IntentFilter storageFilter = new IntentFilter();
+        storageFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
+        storageFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
+        storageFilter.addAction(Intent.ACTION_LOCALE_CHANGED);
+        storageFilter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
+        registerReceiver(storageReceiver, storageFilter);
 
         //Setup app drawer
         updateRowCount(getResources().getConfiguration().orientation);
+    }
+
+    private void spillWidgets() {
+        /*
+        Log.d(TAG, "Spilling widgets...");
+        String line = "";
+        for(AppWidgetHostView refs : testRef) {
+            line += getTextData(refs);
+        }
+        Log.d(TAG, "Line: " + line);
+
+        testHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                spillWidgets();
+            }
+        }, 5000);
+        */
+    }
+
+    private String getTextData(ViewGroup layout){
+        if(layout == null) return "";
+
+        String toReturn = "";
+        for(int i = 0; i < layout.getChildCount(); i++){
+            View child = layout.getChildAt(0);
+            if(child instanceof ViewGroup){
+                ViewGroup childGroup = (ViewGroup) child;
+                toReturn += getTextData(childGroup);
+            } else if (child instanceof Button){
+                Button childButton = (Button) child;
+                toReturn += childButton.getText() + ":::";
+            } else if (child instanceof TextView) {
+                TextView childTextView = (TextView) child;
+                toReturn += childTextView.getText() + ":::";
+            }
+        }
+
+        return toReturn;
     }
 
     private void loadHiddenApps(List<Pair<String, String>> hiddenApps) {
@@ -702,7 +755,12 @@ public class HomeActivity extends ActionBarActivity {
                         R.layout.application_icon_hidden, apps);
 
                 new MaterialDialog.Builder(HomeActivity.this)
-                        .adapter(adapter)
+                        .adapter(adapter, new MaterialDialog.ListCallback() {
+                            @Override
+                            public void onSelection(MaterialDialog materialDialog, View view, int i, CharSequence charSequence) {
+                                //Do nothing
+                            }
+                        })
                         .title(R.string.hideApps)
                         .positiveText(R.string.done)
                         .negativeText(R.string.cancel)
@@ -892,7 +950,12 @@ public class HomeActivity extends ActionBarActivity {
                     WidgetAddAdapter(HomeActivity.this, R.layout.widget_preview, matchingProviders);
 
             final MaterialDialog md = new MaterialDialog.Builder(HomeActivity.this)
-                    .adapter(adapter)
+                    .adapter(adapter, new MaterialDialog.ListCallback() {
+                        @Override
+                        public void onSelection(MaterialDialog materialDialog, View view, int i, CharSequence charSequence) {
+                            //Do nothing
+                        }
+                    })
                     .title("Choose a Widget")
                     .negativeText("Cancel")
                     .build();
@@ -1394,6 +1457,8 @@ public class HomeActivity extends ActionBarActivity {
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             final int appsAddedCount = appsAdded;
 
+            //TODO: Make this more useful
+
             new AsyncTask<Void, Void, List<String>>() {
                 @Override
                 protected List<String> doInBackground(Void... params) {
@@ -1479,15 +1544,20 @@ public class HomeActivity extends ActionBarActivity {
         } else { //Get running tasks as a fallback for usage stats
             ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
             List<ActivityManager.RunningTaskInfo> runningApps = am.getRunningTasks(10);
+            List<String> handledPackages = new ArrayList<>(10);
 
-            if(runningApps.size() < 1) return;
+            if(runningApps.isEmpty()) return;
 
             addSmartbarHeader(R.drawable.ic_whatshot_white_48dp);
             for(ActivityManager.RunningTaskInfo rti : runningApps){
                 if(appsAdded > mostApps)
                     break;
-                addSmartbarApp(rti.baseActivity.getPackageName(), rti.baseActivity.getClassName());
-                appsAdded++;
+                Intent launchIntent = getPackageManager().getLaunchIntentForPackage(rti.baseActivity.getPackageName());
+                if(launchIntent != null && !handledPackages.contains(launchIntent.getPackage())) {
+                    handledPackages.add(launchIntent.getPackage());
+                    addSmartbarApp(launchIntent.getPackage(), launchIntent.getClass().getName());
+                    appsAdded++;
+                }
             }
         }
     }
@@ -1680,6 +1750,7 @@ public class HomeActivity extends ActionBarActivity {
 
         final AppWidgetHostView hostView = widgetHost.createView(this, appWidgetId, awpi);
         hostView.setAppWidget(appWidgetId, awpi);
+        testRef.add(hostView);
 
         //Set to minHeight
         int resultDp;

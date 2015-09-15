@@ -14,6 +14,7 @@ public class Constants {
     public static final String HOME_WIDGET_ID_PREFERENCE = "home_widget_id_pref";
     public static final String SMART_BAR_NUM_PREFERENCE = "smart_bar_num_pref";
     public static final String PHONE_APP_PREFERENCE = "phone_app_pref";
+    public static final String IS_PHONE_PREFERENCE = "is_phone_pref";
 
     public static final String DEBUG_MODULES = "debug_modules_pref";
 

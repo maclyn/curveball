@@ -82,4 +82,6 @@
     <string name="cheer_up">Cheer up! We have swipe-y gestures and pretty colors.</string>
     <string name="done">Done</string>
     <string name="no_batch_rows">No rows to batch open. Add one by long pressing on an icon in the app drawer.</string>
+    <string name="i_am_a_phone">This device is a phone</string>
+    <string name="phone_pref_summary">Check this bock if your device is accidently recognized as tablet, but it\'s really a phone (rare; mostly affects devices with build.prop modifications).</string>
 </resources>

@@ -45,5 +45,10 @@
             android:title="@string/debug_modules"
             android:summary="@string/debug_modules_summary"
             android:key="debug_modules_pref" />
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:title="@string/i_am_a_phone"
+            android:summary="@string/phone_pref_summary"
+            android:key="is_phone_pref" />
     </PreferenceCategory>
 </PreferenceScreen>

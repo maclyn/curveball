@@ -10,7 +10,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     //Database basics
     public static final String DATABASE_NAME = "database.db";
-    public static final int DATABASE_VERSION = 2;
+    public static final int DATABASE_VERSION = 3;
 
     //Base columns
     public static final String COLUMN_ID = "_id";
@@ -34,6 +34,11 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final String COLUMN_POSITION = "widget_position";
     public static final String COLUMN_SIZE_DP = "widget_size_dp";
 
+    //Smartapps table
+    public static final String TABLE_SMARTAPPS = "smartapps_table";
+    //Re-uses: COLUMN_PACKAGE and COLUMN_ACTIVITY_NAME
+    public static final String COLUMN_WHEN_TO_SHOW = "when_to_show";
+
     //Functions for creating it
     private static final String ROWS_TABLE_CREATE = "create table "
             + TABLE_ROWS +
@@ -48,13 +53,18 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             "(" + COLUMN_ID + " integer primary key autoincrement, "
             + COLUMN_PACKAGE + " text not null, "
             + COLUMN_ACTIVITY_NAME + " text not null);";
-
     private static final String WIDGET_TABLE_CREATE = "create table "
             + TABLE_WIDGETS +
             "(" + COLUMN_ID + " integer primary key autoincrement, "
             + COLUMN_WIDGET_ID + " integer not null, "
             + COLUMN_POSITION + " integer not null, "
             + COLUMN_SIZE_DP + " integer not null" + ");";
+    private static final String SMARTAPPS_TABLE_CREATE = "create table "
+            + TABLE_SMARTAPPS +
+            "(" + COLUMN_ID + " integer primary key autoincrement, "
+            + COLUMN_PACKAGE + " text not null, "
+            + COLUMN_ACTIVITY_NAME + " text not null, "
+            + COLUMN_WHEN_TO_SHOW + " integer not null" + ");";
 
     public DatabaseHelper(Context context){
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -66,6 +76,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             db.execSQL(ROWS_TABLE_CREATE);
             db.execSQL(WIDGET_TABLE_CREATE);
             db.execSQL(HIDDEN_APPS_TABLE_CREATE);
+            db.execSQL(SMARTAPPS_TABLE_CREATE);
             Log.d(TAG, "Created!");
         } catch (Exception e) {
             Log.d(TAG, "Failed to create!");
@@ -77,5 +88,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
         if(oldVersion == 1) //v1 didn't have a widget table
             db.execSQL(WIDGET_TABLE_CREATE);
+        else if (oldVersion == 2) //v2 didn't have a smartapps table
+            db.execSQL(SMARTAPPS_TABLE_CREATE);
     }
 }

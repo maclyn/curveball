@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
+import android.preference.PreferenceManager;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
@@ -70,6 +71,9 @@ public class Utilities {
     }
 
     public static boolean isSmallTablet(Context context){
+        if(PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean(Constants.IS_PHONE_PREFERENCE, false)) return false;
+
         double screenSize = getScreenSize(context);
         if(screenSize >= 6.5 && screenSize <= 8.8){
             return true;
@@ -78,6 +82,9 @@ public class Utilities {
     }
 
     public static boolean isLargeTablet(Context context){
+        if(PreferenceManager.getDefaultSharedPreferences(context)
+                .getBoolean(Constants.IS_PHONE_PREFERENCE, false)) return false;
+
         double screenSize = getScreenSize(context);
         if(screenSize > 8.8){
             return true;

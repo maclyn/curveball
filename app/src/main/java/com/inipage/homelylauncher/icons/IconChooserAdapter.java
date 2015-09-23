@@ -1,4 +1,4 @@
-package com.inipage.homelylauncher;
+package com.inipage.homelylauncher.icons;
 
 import android.app.Activity;
 import android.content.Intent;

@@ -4,6 +4,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.CornerPathEffect;
@@ -900,6 +901,10 @@ public class ShortcutGestureView extends View {
         return choice;
     }
 
+    //TODO: Use IconCache to optimize grabDrawable calls by turning them into
+    //grabBitmap(...) calls, which we'll then draw ourselves (much more optimized than working
+    //with drawables alone)
+
     private Drawable grabDrawable(int resId){
         String key = getContext().getPackageName() + "_internal_" + resId;
         if(drawableMap.containsKey(key)){
@@ -1013,10 +1018,12 @@ public class ShortcutGestureView extends View {
 
         if(text.length() > 20) text = text.substring(0, 20) + "...";
 
-        d.setBounds((int) x, (int) y, (int)(x + iconSize), (int)(y + iconSize));
+        d.setBounds((int) x, (int) y, (int) (x + iconSize), (int) (y + iconSize));
         d.setAlpha(selected ? 255 : 180);
         d.draw(c);
         d.setAlpha(255);
+
+        Bitmap b = Bitmap.createBitmap(3, 3, Bitmap.Config.ARGB_8888);
 
         x += iconSize;
         x += margin;

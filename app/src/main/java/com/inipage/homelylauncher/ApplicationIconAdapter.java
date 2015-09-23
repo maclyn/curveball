@@ -17,6 +17,8 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.inipage.homelylauncher.icons.IconCache;
+
 import java.util.List;
 import java.util.Map;
 
@@ -24,7 +26,6 @@ public class ApplicationIconAdapter extends
         RecyclerView.Adapter<ApplicationIconAdapter.AppIconHolder> {
     List<ApplicationIcon> apps;
     Context ctx;
-    Map<ApplicationIcon, Drawable> drawableMap;
 
     private float iconSize;
 
@@ -45,7 +46,6 @@ public class ApplicationIconAdapter extends
                                   Map<ApplicationIcon, Drawable> drawableMap) {
         this.apps = apps;
         this.ctx = context;
-        this.drawableMap = drawableMap; //Recycle the drawableMap -- useful
 
         if (Utilities.isSmallTablet(context)){
             iconSize = Utilities.convertDpToPixel(64, context);
@@ -54,8 +54,6 @@ public class ApplicationIconAdapter extends
         } else {
             iconSize = Utilities.convertDpToPixel(48, context);
         }
-
-        preCache();
     }
 
     @Override
@@ -81,11 +79,7 @@ public class ApplicationIconAdapter extends
         viewHolder.icon.setTag(ai);
         viewHolder.icon.setImageDrawable(null);
 
-        if(!drawableMap.containsKey(ai)){
-            cacheEntry(ai, viewHolder.icon);
-        } else {
-            viewHolder.icon.setImageDrawable(drawableMap.get(ai));
-        }
+        IconCache.getInstance().setIcon(ai.getPackageName(), ai.getActivityName(), viewHolder.icon);
 
         //Set launch
         viewHolder.mainView.setOnClickListener(new View.OnClickListener() {
@@ -131,45 +125,5 @@ public class ApplicationIconAdapter extends
         if(apps.size() > 0){
             startApp(apps.get(0), ctx);
         }
-    }
-
-    private void preCache(){ //Cache all the things
-        new AsyncTask<Void, Void, Void>(){
-            @Override
-            protected Void doInBackground(Void... params) {
-                for(ApplicationIcon ai : apps){
-                    cacheEntry(ai, null);
-                }
-                return null;
-            }
-        }.execute();
-    }
-
-    synchronized private void cacheEntry(final ApplicationIcon ai, final ImageView iv){
-        new AsyncTask<Object, Void, Drawable>(){
-            @Override
-            protected Drawable doInBackground(Object... params) {
-                PackageManager pm = (PackageManager) params[0];
-                Resources r = (Resources) params[1];
-                Drawable d;
-                try {
-                    ComponentName cm = new ComponentName(ai.getPackageName(), ai.getActivityName());
-                    d = pm.getActivityIcon(cm);
-                } catch (Exception e) {
-                    d = r.getDrawable(android.R.drawable.sym_def_app_icon);
-                }
-                drawableMap.put(ai, d);
-                return d;
-            }
-
-            @Override
-            protected void onPostExecute(Drawable result){
-                if(iv == null) return;
-                ApplicationIcon taggedApp = (ApplicationIcon) iv.getTag();
-                if(taggedApp.equals(ai)){
-                    iv.setImageDrawable(result);
-                }
-            }
-        }.execute(ctx.getPackageManager(), ctx.getResources());
     }
 }

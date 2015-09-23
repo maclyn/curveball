@@ -1,4 +1,4 @@
-package com.inipage.homelylauncher;
+package com.inipage.homelylauncher.widgets;
 
 import android.appwidget.AppWidgetProviderInfo;
 import android.content.Context;
@@ -12,6 +12,8 @@ import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+
+import com.inipage.homelylauncher.R;
 
 import java.util.List;
 

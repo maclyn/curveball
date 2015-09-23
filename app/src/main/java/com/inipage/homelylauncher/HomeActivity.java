@@ -74,6 +74,12 @@ import android.widget.Toast;
 
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.google.gson.Gson;
+import com.inipage.homelylauncher.background.SequentialLauncherService;
+import com.inipage.homelylauncher.icons.IconCache;
+import com.inipage.homelylauncher.icons.IconChooserActivity;
+import com.inipage.homelylauncher.widgets.UpdateItem;
+import com.inipage.homelylauncher.widgets.WidgetAddAdapter;
+import com.inipage.homelylauncher.widgets.WidgetContainer;
 import com.mobeta.android.dslv.DragSortListView;
 
 import java.text.SimpleDateFormat;
@@ -1326,12 +1332,7 @@ public class HomeActivity extends ActionBarActivity {
             }
         });
 
-        try {
-            Drawable icon = getPackageManager().getApplicationIcon(packageName);
-            ((ImageView)v.findViewById(R.id.appIconSmall)).setImageDrawable(icon);
-        } catch (Exception e) {
-            ((ImageView)v.findViewById(R.id.appIconSmall)).setImageDrawable(getResources().getDrawable(android.R.drawable.sym_def_app_icon));
-        }
+        IconCache.getInstance().setSmartbarIcon(packageName, ((ImageView)v.findViewById(R.id.appIconSmall)));
 
         smartBarContainer.addView(v);
     }
@@ -1354,12 +1355,7 @@ public class HomeActivity extends ActionBarActivity {
             }
         });
 
-        try {
-            Drawable icon = getPackageManager().getActivityIcon(new ComponentName(packageName, className));
-            ((ImageView)v.findViewById(R.id.appIconSmall)).setImageDrawable(icon);
-        } catch (Exception e) {
-            ((ImageView)v.findViewById(R.id.appIconSmall)).setImageDrawable(getResources().getDrawable(android.R.drawable.sym_def_app_icon));
-        }
+        IconCache.getInstance().setDockIcon(packageName, className, ((ImageView) v.findViewById(R.id.appIconSmall)));
 
         smartBarContainer.addView(v);
     }
@@ -2082,6 +2078,8 @@ public class HomeActivity extends ActionBarActivity {
     }
 
     public void resetAppsList(final String query){
+        IconCache.getInstance().cancelPendingIconTasks();
+
         new AsyncTask<PackageManager, Void, List<ApplicationIcon>>(){
             @Override
             protected List<ApplicationIcon> doInBackground(PackageManager... params) {

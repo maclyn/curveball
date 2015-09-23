@@ -19,6 +19,7 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:name="com.inipage.homelylauncher.ApplicationClass">
+
         <activity
             android:name="com.inipage.homelylauncher.HomeActivity"
             android:label="@string/app_name"
@@ -28,31 +29,31 @@
             android:windowSoftInputMode="stateHidden|adjustResize" >
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
         <activity
-            android:name="com.inipage.homelylauncher.IconChooserActivity"
+            android:name=".icons.IconChooserActivity"
             android:label="@string/title_activity_icon_chooser"
             android:theme="@style/AppThemeDarkNoActionBar" >
         </activity>
+
         <activity
             android:name="com.inipage.homelylauncher.SettingsActivity"
             android:label="Settings"
             android:parentActivityName="com.inipage.homelylauncher.HomeActivity"
-            android:theme="@style/AppTheme" >
+            android:theme="@style/SettingsTheme" >
             <meta-data
                 android:name="android.support.PARENT_ACTIVITY"
                 android:value="com.inipage.homelylauncher.HomeActivity" />
         </activity>
 
         <service
-            android:name="com.inipage.homelylauncher.SequentialLauncherService"
+            android:name=".background.SequentialLauncherService"
             android:enabled="true"
             android:exported="false" >
         </service>
     </application>
-
 </manifest>

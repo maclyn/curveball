@@ -1,4 +1,4 @@
-package com.inipage.homelylauncher;
+package com.inipage.homelylauncher.background;
 
 import android.app.Service;
 import android.content.Intent;
@@ -9,6 +9,10 @@ import android.os.IBinder;
 import android.util.Log;
 import android.util.Pair;
 import android.widget.Toast;
+
+import com.inipage.homelylauncher.ApplicationClass;
+import com.inipage.homelylauncher.DatabaseHelper;
+import com.inipage.homelylauncher.R;
 
 import java.util.ArrayList;
 import java.util.List;

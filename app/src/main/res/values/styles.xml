@@ -4,6 +4,11 @@
         <item name="md_dark_theme">true</item>
     </style>
 
+    <!-- Settings theme -->
+    <style name="SettingsTheme" parent="Theme.AppCompat">
+        <item name="md_dark_theme">true</item>
+    </style>
+
     <style name="AppThemeNoActionBar" parent="Theme.AppCompat.Light.NoActionBar" />
     <style name="AppThemeDarkNoActionBar" parent="Theme.AppCompat.NoActionBar" />
 

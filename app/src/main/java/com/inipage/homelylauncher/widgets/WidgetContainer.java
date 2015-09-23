@@ -1,4 +1,4 @@
-package com.inipage.homelylauncher;
+package com.inipage.homelylauncher.widgets;
 
 public class WidgetContainer{
     private int widgetId;

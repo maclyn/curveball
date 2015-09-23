@@ -1,4 +1,4 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    tools:context="com.inipage.homelylauncher.IconChooserActivity">
+    tools:context="com.inipage.homelylauncher.icons.IconChooserActivity">
 </menu>

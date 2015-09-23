@@ -1,8 +1,10 @@
-package com.inipage.homelylauncher;
+package com.inipage.homelylauncher.widgets;
 
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.drawable.Drawable;
+
+import com.inipage.homelylauncher.Constants;
 
 import java.util.ArrayList;
 import java.util.List;

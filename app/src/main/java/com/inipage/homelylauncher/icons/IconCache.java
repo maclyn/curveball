@@ -128,6 +128,10 @@ public class IconCache {
         return iconCache.get(packageName + "|" + componentName);
     }
 
+    public void invalidateCaches() {
+        iconCache.evictAll();
+    }
+
     private void setIconImpl(String packageName, String componentName, ImageView place, int taskType){
         final String key = packageName + "|" + componentName;
         place.setTag(key);

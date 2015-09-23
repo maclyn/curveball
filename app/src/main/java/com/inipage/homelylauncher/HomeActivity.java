@@ -618,6 +618,7 @@ public class HomeActivity extends ActionBarActivity {
                 if(searchBox != null) searchBox.setText("");
                 resetAppsList("");
                 sgv.invalidateCaches();
+                IconCache.getInstance().invalidateCaches();
                 verifyWidgets();
             }
         };
@@ -625,9 +626,11 @@ public class HomeActivity extends ActionBarActivity {
         storageReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                if(searchBox != null) searchBox.setText("");
-                resetAppsList("");
-                verifyWidgets();
+                if(intent.getAction() != null) {
+                    if (searchBox != null) searchBox.setText("");
+                    resetAppsList("");
+                    verifyWidgets();
+                }
             }
         };
 
@@ -641,7 +644,7 @@ public class HomeActivity extends ActionBarActivity {
         storageFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
         storageFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
         storageFilter.addAction(Intent.ACTION_LOCALE_CHANGED);
-        storageFilter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
+        //storageFilter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
         registerReceiver(storageReceiver, storageFilter);
 
         //Setup app drawer
@@ -721,38 +724,42 @@ public class HomeActivity extends ActionBarActivity {
     }
 
     private void showHideAppsMenu() {
-        new AsyncTask<PackageManager, Void, List<ApplicationHiderIcon>>(){
+        new AsyncTask<Void, Void, List<ApplicationHiderIcon>>(){
             @Override
-            protected List<ApplicationHiderIcon> doInBackground(PackageManager... params) {
+            protected List<ApplicationHiderIcon> doInBackground(Void... params) {
                 List<ApplicationHiderIcon> applicationIcons = new ArrayList<>();
 
                 //Grab all matching applications
-                final Intent allAppsIntent = new Intent(Intent.ACTION_MAIN, null);
-                allAppsIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-                final List<ResolveInfo> packageList = params[0].queryIntentActivities(allAppsIntent, 0);
-                for(ResolveInfo ri : packageList){
-                    try {
-                        String name = (String) ri.loadLabel(params[0]);
-                        if (hiddenApps.contains(new Pair<>(ri.activityInfo.packageName,
-                                ri.activityInfo.name))) {
-                            applicationIcons.add(new ApplicationHiderIcon(ri.activityInfo.packageName,
-                                    name, ri.activityInfo.name, true));
-                        } else {
-                            applicationIcons.add(new ApplicationHiderIcon(ri.activityInfo.packageName,
-                                    name, ri.activityInfo.name, false));
+                try {
+                    final Intent allAppsIntent = new Intent(Intent.ACTION_MAIN, null);
+                    allAppsIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                    final List<ResolveInfo> packageList = getPackageManager().queryIntentActivities(allAppsIntent, 0);
+                    for (ResolveInfo ri : packageList) {
+                        try {
+                            String name = (String) ri.loadLabel(getPackageManager());
+                            if (hiddenApps.contains(new Pair<>(ri.activityInfo.packageName,
+                                    ri.activityInfo.name))) {
+                                applicationIcons.add(new ApplicationHiderIcon(ri.activityInfo.packageName,
+                                        name, ri.activityInfo.name, true));
+                            } else {
+                                applicationIcons.add(new ApplicationHiderIcon(ri.activityInfo.packageName,
+                                        name, ri.activityInfo.name, false));
+                            }
+                        } catch (Exception e) {
+                            //Failed to add one.
                         }
-                    } catch (Exception e) {
-                        //Failed to add one.
                     }
-                }
 
-                Collections.sort(applicationIcons, new Comparator<ApplicationIcon>() {
-                    @Override
-                    public int compare(ApplicationIcon lhs, ApplicationIcon rhs) {
-                        return lhs.getName().compareToIgnoreCase(rhs.getName());
-                    }
-                });
-                return applicationIcons;
+                    Collections.sort(applicationIcons, new Comparator<ApplicationIcon>() {
+                        @Override
+                        public int compare(ApplicationIcon lhs, ApplicationIcon rhs) {
+                            return lhs.getName().compareToIgnoreCase(rhs.getName());
+                        }
+                    });
+                    return applicationIcons;
+                } catch (RuntimeException packageManagerDiedException){
+                    return new ArrayList<>();
+                }
             }
 
             @Override
@@ -779,7 +786,7 @@ public class HomeActivity extends ActionBarActivity {
                             }
                         }).show();
             }
-        }.execute(this.getPackageManager());
+        }.execute();
     }
 
     private void persistHidden(List<ApplicationHiderIcon> apps) {
@@ -1186,9 +1193,8 @@ public class HomeActivity extends ActionBarActivity {
 
             try {
                 getPackageManager()
-                        .getResourcesForApplication(
-                                widgetManager.getAppWidgetInfo(wc.getWidgetId())
-                                        .provider.getPackageName());
+                        .getResourcesForApplication(widgetManager.getAppWidgetInfo(wc.getWidgetId())
+                                .provider.getPackageName());
             } catch (Exception e){
                 Log.d(TAG, wc.getWidgetId() + " @ height " + wc.getWidgetHeight() +
                         " isn't installed...");

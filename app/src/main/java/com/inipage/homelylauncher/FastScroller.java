@@ -10,10 +10,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-/**
- * Seriously: what the heck Google. I know RecyclerView is lightweight, but this is basic.
- * At least throw something in the support libraries.
- */
 public class FastScroller {
     final String TAG = "FastScroller";
     class SectionElement {

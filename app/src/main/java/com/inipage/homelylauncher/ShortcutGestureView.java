@@ -126,8 +126,6 @@ public class ShortcutGestureView extends View {
 
     Runnable touchEventRunnable;
 
-    //Map for caching drawables
-    Map<String, Drawable> drawableMap;
     //Map for caching the "color" of these drawables
     Map<String, Integer> colorMap;
     //Map for caching the "label" of apps
@@ -241,7 +239,6 @@ public class ShortcutGestureView extends View {
 
         hint = getContext().getString(R.string.drop_icon_hint);
 
-        drawableMap = new HashMap<>();
         labelMap = new HashMap<>();
         colorMap = new HashMap<>();
     }
@@ -522,7 +519,8 @@ public class ShortcutGestureView extends View {
                         return;
                     } else if (selectedY == -2){ //"Cancel" position flag
                         drawColor(canvas, Color.RED, LEFT_SIDE);
-                        drawAbsoluteLineInternalLeftJustified(canvas, grabDrawable(R.drawable.ic_clear_white_48dp),
+                        drawAbsoluteLineInternalLeftJustified(canvas,
+                                IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_clear_white_48dp, bigIconSize, retrievalInterface),
                                 "Cancel", edgeSlop, getHeight() / 2 - (iconSize / 2), iconSize, textSize,
                                 iconPadding, true);
                         return;
@@ -628,11 +626,9 @@ public class ShortcutGestureView extends View {
                         }
                     }
 
-                    Pair<String, String> selectedApp = packages.get(selectedY);
-                    ComponentName selectedCm = new ComponentName(selectedApp.first, selectedApp.second);
-                    Drawable selectedD = grabDrawable(selectedCm);
                     //Draw selected icon "glow"
-                    drawColor(canvas, getIconColor(selectedCm, selectedD), RIGHT_SIDE);
+                    drawColor(canvas, getIconColorForApp(packages.get(selectedY).first,
+                            packages.get(selectedY).second), RIGHT_SIDE);
 
                     for(int i = 0; i < numIcons; i++){ //Package name/activity name
                         Pair<Float, Float> sizes = sizeQueue.remove(0);
@@ -640,11 +636,12 @@ public class ShortcutGestureView extends View {
                         Pair<String, String> app = packages.get(i);
                         ComponentName cm = new ComponentName(app.first, app.second);
 
-                        Drawable d = grabDrawable(cm);
+                        Bitmap b = IconCache.getInstance().getSwipeCacheAppIcon(app.first,
+                                app.second, bigIconSize, retrievalInterface);
                         String label = grabLabel(cm);
 
                         //Right-justify the icons
-                        drawAbsoluteLineInternalRightJustified(canvas, d, label, getWidth() - edgeSlop,
+                        drawAbsoluteLineInternalRightJustified(canvas, b, label, getWidth() - edgeSlop,
                                 iconsStartY, sizes.first, sizes.second, iconPadding, selectedY == i);
 
                         iconsStartY += sizes.first + iconPadding;
@@ -766,7 +763,7 @@ public class ShortcutGestureView extends View {
                         for (int i = 0; i < data.size(); i++) {
                             Pair<Float, Float> sizes = sizeQueue.remove(0);
                             drawAbsoluteLineInternalLeftJustified(canvas,
-                                    grabDrawable(data.get(i).getDrawablePackage(), data.get(i).getDrawableName()),
+                                    IconCache.getInstance().getSwipeCacheIcon(data.get(i).getDrawablePackage(), data.get(i).getDrawableName(), bigIconSize, retrievalInterface),
                                     data.get(i).getTitle(), edgeSlop, yPosition, sizes.first,
                                     sizes.second, iconPadding, selectedY == i);
                             yPosition += (sizes.first + iconPadding);
@@ -821,25 +818,8 @@ public class ShortcutGestureView extends View {
     }
 
     public void invalidateCaches() {
-        drawableMap.clear();
         colorMap.clear();
         labelMap.clear();
-    }
-
-    private Drawable grabDrawable(ComponentName cm){
-        Drawable d;
-        String key = cm.getPackageName() + cm.getClassName() + "-1";
-        if(drawableMap.containsKey(key)){
-            d = drawableMap.get(key);
-        } else {
-            try {
-                d = getContext().getPackageManager().getActivityIcon(cm);
-            } catch (Exception e) {
-                d = getContext().getResources().getDrawable(android.R.drawable.sym_def_app_icon);
-            }
-            drawableMap.put(key, d);
-        }
-        return d;
     }
 
     private int getIconColor(String packageName, String resourceName){
@@ -848,21 +828,10 @@ public class ShortcutGestureView extends View {
             return colorMap.get(key);
         }
 
-        Drawable fallback = grabDrawable(packageName, resourceName);
-        Bitmap toDecode;
-        if (fallback instanceof BitmapDrawable) {
-            toDecode = ((BitmapDrawable) fallback).getBitmap();
-        } else if (fallback instanceof ColorDrawable){
-            return ((ColorDrawable)fallback).getColor();
-        } else {
-            Bitmap bitmap = Bitmap.createBitmap(fallback.getIntrinsicWidth(),
-                    fallback.getIntrinsicHeight(),
-                    Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(bitmap);
-            fallback.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
-            fallback.draw(canvas);
-
-            toDecode = bitmap;
+        Bitmap toDecode = IconCache.getInstance().getSwipeCacheIcon(packageName, resourceName,
+                bigIconSize, retrievalInterface);
+        if(toDecode == IconCache.getInstance().dummyBitmap){ //Wait until we have something valid to find the color of
+            return Color.WHITE;
         }
 
         Palette p = Palette.generate(toDecode);
@@ -872,34 +841,21 @@ public class ShortcutGestureView extends View {
         return choice;
     }
 
-    private int getIconColor(ComponentName cm, Drawable fallback) {
-        String key = cm.getPackageName() + cm.getClassName() + "-1";
+    private int getIconColorForApp(String packageName, String activityName) {
+        String key = packageName + "_app_" + activityName;
         if(colorMap.containsKey(key)){
             return colorMap.get(key);
         }
 
-        if(fallback == null){
-            fallback = grabDrawable(cm);
-        }
-
-        Bitmap toDecode;
-        if (fallback instanceof BitmapDrawable) {
-            toDecode = ((BitmapDrawable) fallback).getBitmap();
-        } else if (fallback instanceof ColorDrawable){
-            return ((ColorDrawable)fallback).getColor();
-        } else {
-            Bitmap bitmap = Bitmap.createBitmap(fallback.getIntrinsicWidth(),
-                                                fallback.getIntrinsicHeight(),
-                                                Bitmap.Config.ARGB_8888);
-            Canvas canvas = new Canvas(bitmap);
-            fallback.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
-            fallback.draw(canvas);
-
-            toDecode = bitmap;
+        Bitmap toDecode = IconCache.getInstance().getSwipeCacheAppIcon(packageName, activityName,
+                bigIconSize, retrievalInterface);
+        if(toDecode == IconCache.getInstance().dummyBitmap){ //Wait until we have something valid to find the color of
+            return Color.WHITE;
         }
 
         Palette p = Palette.generate(toDecode);
         int choice = grabFromPalette(p);
+
         colorMap.put(key, choice);
         return choice;
     }
@@ -922,34 +878,6 @@ public class ShortcutGestureView extends View {
         return choice;
     }
 
-    //TODO: Use IconCache to optimize grabDrawable calls by turning them into
-    //grabBitmap(...) calls, which we'll then draw ourselves (much more optimized than working
-    //with drawables alone)
-
-    private Bitmap grabBitmap(int resourceId){
-
-
-        return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
-    }
-
-    private Drawable grabDrawable(int resId){
-        String key = getContext().getPackageName() + "_internal_" + resId;
-        if(drawableMap.containsKey(key)){
-            return drawableMap.get(key);
-        }
-
-        Drawable d;
-        try {
-            d = getResources().getDrawable(resId);
-        } catch (Exception e){
-            d = getResources().getDrawable(android.R.drawable.sym_def_app_icon);
-        }
-        d.setAlpha(255);
-        drawableMap.put(key, d);
-
-        return d;
-    }
-
     private String grabLabel(ComponentName cm){
         String key = cm.getPackageName() + cm.getClassName() + "-1";
         if(labelMap.containsKey(key)){
@@ -968,38 +896,17 @@ public class ShortcutGestureView extends View {
         return label;
     }
 
-    private Drawable grabDrawable(String packageName, String resource){
-        if(!drawableMap.containsKey(packageName + resource)){
-            //log("Finding drawable...");
-            try {
-                int resourceId = getContext().getPackageManager()
-                        .getResourcesForApplication(packageName)
-                        .getIdentifier(resource, "drawable", packageName);
-                Drawable d = getContext().getPackageManager().getResourcesForApplication(packageName)
-                        .getDrawable(resourceId);
-                drawableMap.put(packageName + resource, d);
-            } catch (Exception e) {
-                Drawable d = getResources().getDrawable(android.R.drawable.sym_def_app_icon);
-                drawableMap.put(packageName + resource, d);
-            }
-        } else {
-            //log("Loading cached drawable");
-        }
-
-        Drawable d = drawableMap.get(packageName + resource);
-        d.setAlpha(255); //Reset alpha
-        return d;
-    }
-
     private int drawCenteredLine(Canvas c, int resId, String text, int x, int y, boolean selected){
-        return drawCenteredLine(c, grabDrawable(resId), text, x, y, selected);
+        return drawCenteredLine(c, IconCache.getInstance().getSwipeCacheIcon(resId,
+                bigIconSize, retrievalInterface), text, x, y, selected);
     }
 
     private int drawCenteredLine(Canvas c, String packageName, String resource, String text, int x, int y, boolean selected){
-        return drawCenteredLine(c, grabDrawable(packageName, resource), text, x, y, selected);
+        return drawCenteredLine(c, IconCache.getInstance().getSwipeCacheIcon(packageName,
+                resource, bigIconSize, retrievalInterface), text, x, y, selected);
     }
 
-    private int drawCenteredLine(Canvas c, Drawable d, String text, int x, int y, boolean selected){
+    private int drawCenteredLine(Canvas c, Bitmap bitmap, String text, int x, int y, boolean selected){
         float totalHeight = 0;
         float totalWidth = 0;
 
@@ -1021,10 +928,10 @@ public class ShortcutGestureView extends View {
         int iconXStart = (int) (x - (totalWidth / 2));
         int iconXEnd = (int) (iconXStart + iconSize);
         //log("X s/e, Y s/e: " + iconXStart + " " + iconXEnd + " " + iconYStart + " " + iconYEnd);
-        d.setBounds(iconXStart, iconYStart, iconXEnd, iconYEnd);
-        d.setAlpha(selected ? 255 : 180);
-        d.draw(c);
-        d.setAlpha(255);
+
+        transparencyPaint.setAlpha(selected ? 255 : 180);
+        c.drawBitmap(bitmap, new Rect(0, 0, bitmap.getWidth(), bitmap.getHeight()),
+                new Rect(iconXStart, iconYStart, iconXEnd, iconYEnd), transparencyPaint);
 
         //Draw text too
         int textXStart = (int) (iconXEnd + touchSlop);
@@ -1038,19 +945,16 @@ public class ShortcutGestureView extends View {
     }
 
     /* Draw a line. The line isn't centered by x, but the text is centered relative to the icon. */
-    private void drawAbsoluteLineInternalLeftJustified(Canvas c, Drawable d, String text, float xStart, float yStart,
+    private void drawAbsoluteLineInternalLeftJustified(Canvas c, Bitmap b, String text, float xStart, float yStart,
                                          float iconSize, float textSize, float margin, boolean selected){
         float x = xStart;
         float y = yStart;
 
         if(text.length() > 20) text = text.substring(0, 20) + "...";
 
-        d.setBounds((int) x, (int) y, (int) (x + iconSize), (int) (y + iconSize));
-        d.setAlpha(selected ? 255 : 180);
-        d.draw(c);
-        d.setAlpha(255);
-
-        Bitmap b = Bitmap.createBitmap(3, 3, Bitmap.Config.ARGB_8888);
+        transparencyPaint.setAlpha(255);
+        c.drawBitmap(b, new Rect(0, 0, b.getWidth(), b.getHeight()), new Rect((int) x,
+                (int) y, (int) (x + iconSize), (int) (y + iconSize)), transparencyPaint);
 
         x += iconSize;
         x += margin;
@@ -1067,7 +971,7 @@ public class ShortcutGestureView extends View {
     }
 
     /* Draw a line. The line isn't centered by x (aligned right, actually, but the text is centered relative to the icon. */
-    private void drawAbsoluteLineInternalRightJustified(Canvas c, Drawable d, String text, float xStart, float yStart,
+    private void drawAbsoluteLineInternalRightJustified(Canvas c, Bitmap b,  String text, float xStart, float yStart,
                                           float iconSize, float textSize, float margin, boolean selected){
         log("Xstart/Ystart: " + xStart + " " + yStart, false);
         float x = xStart;
@@ -1075,11 +979,9 @@ public class ShortcutGestureView extends View {
 
         if(text.length() > 20) text = text.substring(0, 20) + "...";
 
-        d.setBounds((int) (x - iconSize), (int) y, (int) x, (int)(y + iconSize));
-        log("Drawing at: " + (x - iconSize) + " " + y + " " + x + " " + (y + iconSize), false);
-        d.setAlpha(selected ? 255 : 180);
-        d.draw(c);
-        d.setAlpha(255);
+        transparencyPaint.setAlpha(255);
+        c.drawBitmap(b, new Rect(0, 0, b.getWidth(), b.getHeight()), new Rect((int) (x - iconSize),
+                (int) y, (int) (x), (int) (y + iconSize)), transparencyPaint);
 
         x -= iconSize;
         x -= margin;

@@ -28,7 +28,8 @@ public class IconCache {
     public static final int DOCK_TASK = 2;
     public static final int SWIPE_ICON_LOCAL_RESOURCE_TASK = 3;
     public static final int SWIPE_ICON_ICON_PACK_TASK = 4;
-    public static final int SMARTBAR_ICON_TASK = 5;
+    public static final int SWIPE_ICON_APP_ICON_TASK = 5;
+    public static final int SMARTBAR_ICON_TASK = 6;
 
     //Needed tools
     Resources baseResources;
@@ -43,7 +44,7 @@ public class IconCache {
     private static IconCache instance;
 
     //Dummy bitmap to use while still retrieving bitmaps
-    Bitmap dummyBitmap;
+    public Bitmap dummyBitmap;
 
     private class BitmapRetrievalTask extends AsyncTask<Object, Void, Boolean> {
         Pair<Integer, BitmapRetrievalTask> taskRef;
@@ -70,10 +71,15 @@ public class IconCache {
                         String componentName = (String) params[6];
                         ComponentName cm = new ComponentName(packageName, componentName);
                         d = pm.getActivityIcon(cm);
-                    } else if (taskType == SMARTBAR_ICON_TASK){
+                    } else if (taskType == SMARTBAR_ICON_TASK) {
                         //We're just grabbing the package icon
                         location = (ImageView) params[5];
                         d = pm.getApplicationIcon(packageName);
+                    } else if (taskType == SWIPE_ICON_APP_ICON_TASK){
+                        String componentName = (String) params[5];
+                        retrievalInterface = (ItemRetrievalInterface) params[6];
+                        ComponentName cm = new ComponentName(packageName, componentName);
+                        d = pm.getActivityIcon(cm);
                     } else if (taskType == SWIPE_ICON_ICON_PACK_TASK){
                         String resourceName = (String) params[5];
                         retrievalInterface = (ItemRetrievalInterface) params[6];
@@ -84,7 +90,6 @@ public class IconCache {
                     } else if (taskType == SWIPE_ICON_LOCAL_RESOURCE_TASK){
                         Integer resourceId = (Integer) params[5];
                         retrievalInterface = (ItemRetrievalInterface) params[6];
-
                         d = baseResources.getDrawable(resourceId);
                     } else {
                         d = pm.getApplicationIcon(packageName);
@@ -102,7 +107,12 @@ public class IconCache {
                     d.draw(canvas);
                 }
 
-                iconCache.put(tag, toDraw);
+                if(taskType == APP_DRAWER_TASK || taskType ==  DOCK_TASK || taskType == SMARTBAR_ICON_TASK) {
+                    iconCache.put(tag, toDraw);
+                } else if (taskType == SWIPE_ICON_ICON_PACK_TASK || taskType == SWIPE_ICON_LOCAL_RESOURCE_TASK ||
+                        taskType == SWIPE_ICON_APP_ICON_TASK) {
+                    swipeCache.put(tag, toDraw);
+                }
                 return true;
             } catch (Exception e) {
                 return false;
@@ -124,9 +134,10 @@ public class IconCache {
                     } else {
                         location.setImageResource(android.R.drawable.sym_def_app_icon);
                     }
-                } else if (taskType == SWIPE_ICON_ICON_PACK_TASK || taskType == SWIPE_ICON_LOCAL_RESOURCE_TASK){
+                } else if (taskType == SWIPE_ICON_ICON_PACK_TASK || taskType == SWIPE_ICON_LOCAL_RESOURCE_TASK
+                        || taskType == SWIPE_ICON_APP_ICON_TASK){
                     Bitmap bmpResult = result ? swipeCache.get(tag) : swipeCache.put(tag, dummyBitmap);
-                    retrievalInterface.onRetrievalComplete(bmpResult);
+                    if(retrievalInterface != null) retrievalInterface.onRetrievalComplete(bmpResult);
                 }
             } catch (Error memoryError) {
                 //Sobs.
@@ -210,7 +221,7 @@ public class IconCache {
         setIconImpl(packageName, componentName, place, APP_DRAWER_TASK);
     }
 
-    public Bitmap getSwipeCacheIcon(int resource, int sizeHint, ItemRetrievalInterface callback){
+    public Bitmap getSwipeCacheIcon(int resource, float sizeHint, ItemRetrievalInterface callback){
         String key = "-1|" + resource;
         Bitmap cachedCopy = swipeCache.get(key);
         if(cachedCopy != null && !cachedCopy.isRecycled()){
@@ -224,12 +235,12 @@ public class IconCache {
             taskList.add(pair);
             taskMap.put(key, getter);
             getter.execute(SWIPE_ICON_LOCAL_RESOURCE_TASK, key, "com.inipage.homelylauncher", pair,
-                    sizeHint, resource, callback );
+                    (int) sizeHint, resource, callback);
         }
         return dummyBitmap;
     }
 
-    public Bitmap getSwipeCacheIcon(String iconPackPackage, String resource, int sizeHint, ItemRetrievalInterface callback){
+    public Bitmap getSwipeCacheIcon(String iconPackPackage, String resource, float sizeHint, ItemRetrievalInterface callback){
         String key = iconPackPackage + "|" + resource;
         Bitmap cachedCopy = swipeCache.get(key);
         if(cachedCopy != null && !cachedCopy.isRecycled()){
@@ -242,8 +253,27 @@ public class IconCache {
             Pair<Integer, BitmapRetrievalTask> pair = new Pair<>(SWIPE_ICON_LOCAL_RESOURCE_TASK, getter);
             taskList.add(pair);
             taskMap.put(key, getter);
-            getter.execute(SWIPE_ICON_LOCAL_RESOURCE_TASK, key, iconPackPackage, pair,
-                    sizeHint, resource, callback);
+            getter.execute(SWIPE_ICON_ICON_PACK_TASK, key, iconPackPackage, pair,
+                    (int) sizeHint, resource, callback);
+        }
+        return dummyBitmap;
+    }
+
+    public Bitmap getSwipeCacheAppIcon(String iconPackPackage, String activityName, float sizeHint, ItemRetrievalInterface callback){
+        String key = iconPackPackage + "|" + activityName;
+        Bitmap cachedCopy = swipeCache.get(key);
+        if(cachedCopy != null && !cachedCopy.isRecycled()){
+            return cachedCopy;
+        }
+
+        //Start a task if needed
+        if(!taskMap.containsKey(key)) {
+            BitmapRetrievalTask getter = new BitmapRetrievalTask();
+            Pair<Integer, BitmapRetrievalTask> pair = new Pair<>(SWIPE_ICON_APP_ICON_TASK, getter);
+            taskList.add(pair);
+            taskMap.put(key, getter);
+            getter.execute(SWIPE_ICON_APP_ICON_TASK, key, iconPackPackage, pair,
+                    (int) sizeHint, activityName, callback);
         }
         return dummyBitmap;
     }

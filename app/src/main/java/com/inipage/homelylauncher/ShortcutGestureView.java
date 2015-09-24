@@ -32,6 +32,8 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.widget.Toast;
 
+import com.inipage.homelylauncher.icons.IconCache;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -84,6 +86,7 @@ public class ShortcutGestureView extends View {
     Paint labelPaint; //Paint for the text on each icon
     Paint touchPaint; //Paint for touch trail
     Paint glowPaint; //Paint for side glows
+    Paint transparencyPaint; //Paint for drawing "transparent" bitmaps
 
     Rect outRect = new Rect(); //Rectangle used for centering
 
@@ -129,6 +132,20 @@ public class ShortcutGestureView extends View {
     Map<String, Integer> colorMap;
     //Map for caching the "label" of apps
     Map<String, String> labelMap;
+
+    //Interface to pass to IconCache(...) after it's found a given Bitmap (only run if the Bitmap we wan't hasn't
+    //been cached yet)
+    private IconCache.ItemRetrievalInterface retrievalInterface = new IconCache.ItemRetrievalInterface() {
+        @Override
+        public void onRetrievalStarted() {
+            //Nothing happens.
+        }
+
+        @Override
+        public void onRetrievalComplete(Bitmap result) {
+            invalidate();
+        }
+    };
 
     //Mode we're in
     private SGTypes sgt;
@@ -217,6 +234,10 @@ public class ShortcutGestureView extends View {
         glowPaint.setAntiAlias(true);
         glowPaint.setColor(getResources().getColor(android.R.color.white));
         glowPaint.setStyle(Paint.Style.FILL_AND_STROKE);
+
+        transparencyPaint = new Paint();
+        transparencyPaint.setAntiAlias(true);
+        transparencyPaint.setAlpha(255);
 
         hint = getContext().getString(R.string.drop_icon_hint);
 
@@ -904,6 +925,12 @@ public class ShortcutGestureView extends View {
     //TODO: Use IconCache to optimize grabDrawable calls by turning them into
     //grabBitmap(...) calls, which we'll then draw ourselves (much more optimized than working
     //with drawables alone)
+
+    private Bitmap grabBitmap(int resourceId){
+
+
+        return Bitmap.createBitmap(1, 1, Bitmap.Config.ARGB_8888);
+    }
 
     private Drawable grabDrawable(int resId){
         String key = getContext().getPackageName() + "_internal_" + resId;

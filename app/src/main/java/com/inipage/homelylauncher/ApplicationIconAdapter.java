@@ -72,6 +72,9 @@ public class ApplicationIconAdapter extends
         viewHolder.title.setText(ai.getName());
 
         //Set customIcon
+        if(viewHolder.icon.getTag() != null){
+            IconCache.getInstance().cancelPendingIconTaskIfRunning((String) viewHolder.icon.getTag());
+        }
         RelativeLayout.LayoutParams rllp = new RelativeLayout.LayoutParams((int) iconSize,
                 (int) iconSize);
         rllp.addRule(RelativeLayout.CENTER_HORIZONTAL);

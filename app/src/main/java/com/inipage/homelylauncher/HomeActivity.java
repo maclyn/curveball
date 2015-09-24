@@ -615,8 +615,11 @@ public class HomeActivity extends ActionBarActivity {
         packageReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                if(searchBox != null) searchBox.setText("");
-                resetAppsList("");
+                if(searchBox != null) {
+                    searchBox.setText(""); //The TextWatcher resets the app list in this case
+                } else {
+                    resetAppsList("");
+                }
                 sgv.invalidateCaches();
                 IconCache.getInstance().invalidateCaches();
                 verifyWidgets();
@@ -627,8 +630,11 @@ public class HomeActivity extends ActionBarActivity {
             @Override
             public void onReceive(Context context, Intent intent) {
                 if(intent.getAction() != null) {
-                    if (searchBox != null) searchBox.setText("");
-                    resetAppsList("");
+                    if (searchBox != null){
+                        searchBox.setText(""); //The TextWatcher resets the app list in this case
+                    } else {
+                        resetAppsList("");
+                    }
                     verifyWidgets();
                 }
             }

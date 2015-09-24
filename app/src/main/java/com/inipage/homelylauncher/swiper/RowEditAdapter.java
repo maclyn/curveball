@@ -1,4 +1,4 @@
-package com.inipage.homelylauncher;
+package com.inipage.homelylauncher.swiper;
 
 import android.content.Context;
 import android.view.LayoutInflater;
@@ -7,6 +7,8 @@ import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
 
+import com.inipage.homelylauncher.R;
+import com.inipage.homelylauncher.TypeCard;
 import com.mobeta.android.dslv.DragSortListView;
 
 import java.util.List;

@@ -4,7 +4,6 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.CornerPathEffect;
@@ -16,9 +15,6 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.ColorDrawable;
-import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.v7.graphics.Palette;
@@ -32,6 +28,7 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.widget.Toast;
 
+import com.inipage.homelylauncher.drawer.ApplicationIcon;
 import com.inipage.homelylauncher.icons.IconCache;
 
 import java.util.ArrayList;

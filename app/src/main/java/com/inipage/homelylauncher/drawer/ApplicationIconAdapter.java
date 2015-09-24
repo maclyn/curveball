@@ -1,13 +1,9 @@
-package com.inipage.homelylauncher;
+package com.inipage.homelylauncher.drawer;
 
 import android.content.ClipData;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
-import android.content.res.Resources;
 import android.graphics.drawable.Drawable;
-import android.os.AsyncTask;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -17,6 +13,9 @@ import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.inipage.homelylauncher.HomeActivity;
+import com.inipage.homelylauncher.R;
+import com.inipage.homelylauncher.Utilities;
 import com.inipage.homelylauncher.icons.IconCache;
 
 import java.util.List;

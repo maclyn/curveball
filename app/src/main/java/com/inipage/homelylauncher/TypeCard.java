@@ -16,7 +16,7 @@ public class TypeCard {
     private List<Pair<String, String>> apps;
     private TypeCardType type;
 
-    TypeCard(String title, String drawableName, List<Pair<String, String>> apps) {
+    public TypeCard(String title, String drawableName, List<Pair<String, String>> apps) {
         this.title = title;
         this.drawablePackage = getClass().getPackage().getName();
         this.drawableName = drawableName;
@@ -24,7 +24,7 @@ public class TypeCard {
         this.type = TypeCardType.ROW;
     }
 
-    TypeCard(Pair<String, String> appName){
+    public TypeCard(Pair<String, String> appName){
         this.title = "";
         this.drawablePackage = getClass().getPackage().getName();
         this.drawableName = "ic_launcher";
@@ -33,7 +33,7 @@ public class TypeCard {
         this.type = TypeCardType.APP;
     }
 
-    TypeCard(String title, String drawablePackage, String drawableName, List<Pair<String, String>> apps) {
+    public TypeCard(String title, String drawablePackage, String drawableName, List<Pair<String, String>> apps) {
         this.title = title;
         this.drawablePackage = drawablePackage;
         this.drawableName = drawableName;

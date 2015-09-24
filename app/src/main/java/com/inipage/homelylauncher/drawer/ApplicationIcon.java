@@ -1,4 +1,4 @@
-package com.inipage.homelylauncher;
+package com.inipage.homelylauncher.drawer;
 
 public class ApplicationIcon {
     private String name;

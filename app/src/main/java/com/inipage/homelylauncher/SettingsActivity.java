@@ -13,6 +13,7 @@ import android.view.MenuItem;
 import android.widget.Toast;
 
 import com.google.gson.Gson;
+import com.inipage.homelylauncher.drawer.ApplicationIcon;
 
 public class SettingsActivity extends ActionBarActivity {
     private static final int REQUEST_CHOOSE_APPLICATION = 500;

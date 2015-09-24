@@ -1,4 +1,4 @@
-package com.inipage.homelylauncher;
+package com.inipage.homelylauncher.swiper;
 /*
 * Copyright 2013 Google Inc.
 *

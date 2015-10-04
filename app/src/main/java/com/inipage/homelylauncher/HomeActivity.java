@@ -1309,27 +1309,32 @@ public class HomeActivity extends ActionBarActivity {
         populateSmartBar();
     }
 
-    private void addSmartbarHeader(int resource){
+    private void addSmartbarHeader(int resource, final int stringResource){
         ImageView header = (ImageView) LayoutInflater.from(HomeActivity.this).inflate(R.layout.popular_header,
                 smartBarContainer, false);
         header.setImageResource(resource);
+        header.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Toast.makeText(v.getContext(), stringResource, Toast.LENGTH_SHORT).show();
+            }
+        });
         smartBarContainer.addView(header);
     }
 
-    private boolean addSmartbarAppFromPref(String prefName){
+    private ApplicationIcon addSmartbarAppFromPref(String prefName){
         String existingData = reader.getString(prefName, "null");
         if(!existingData.equals("null")){
             Log.d(TAG, "Existing data: " + existingData);
             Gson gson = new Gson();
             try {
                 ApplicationIcon ai = gson.fromJson(existingData, ApplicationIcon.class);
-                addSmartbarApp(ai.getPackageName(), ai.getActivityName());
+                return ai;
             } catch (Exception ignored) {
-                return false;
+                return null;
             }
-            return true;
         } else {
-            return false;
+            return null;
         }
     }
 
@@ -1350,7 +1355,7 @@ public class HomeActivity extends ActionBarActivity {
             }
         });
 
-        IconCache.getInstance().setSmartbarIcon(packageName, ((ImageView)v.findViewById(R.id.appIconSmall)));
+        IconCache.getInstance().setSmartbarIcon(packageName, ((ImageView) v.findViewById(R.id.appIconSmall)));
 
         smartBarContainer.addView(v);
     }
@@ -1392,9 +1397,12 @@ public class HomeActivity extends ActionBarActivity {
         TelephonyManager tm = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
         int state = tm.getCallState();
         if(state == TelephonyManager.CALL_STATE_OFFHOOK){ //In call
-            addSmartbarHeader(R.drawable.ic_call_white_48dp);
-            if(addSmartbarAppFromPref(Constants.PHONE_APP_PREFERENCE))
+            ApplicationIcon ai = addSmartbarAppFromPref(Constants.PHONE_APP_PREFERENCE);
+            if(ai != null){
+                addSmartbarHeader(R.drawable.ic_call_white_48dp, R.string.call_desc);
+                addSmartbarApp(ai.getPackageName(), ai.getActivityName());
                 appsAdded++;
+            }
         }
 
         //(2) Check if we're in a calendar event
@@ -1429,9 +1437,12 @@ public class HomeActivity extends ActionBarActivity {
                 if(System.currentTimeMillis() > startTime && System.currentTimeMillis() < endTime){
                     Log.d(TAG, "In event!");
 
-                    addSmartbarHeader(R.drawable.ic_event_white_48dp);
-                    if(addSmartbarAppFromPref(Constants.CALENDAR_APP_PREFERENCE))
+                    ApplicationIcon ai = addSmartbarAppFromPref(Constants.CALENDAR_APP_PREFERENCE);
+                    if(ai != null){
+                        addSmartbarHeader(R.drawable.ic_event_white_48dp, R.string.calendar_desc);
+                        addSmartbarApp(ai.getPackageName(), ai.getActivityName());
                         appsAdded++;
+                    }
                 }
 
                 c.close();
@@ -1453,13 +1464,19 @@ public class HomeActivity extends ActionBarActivity {
             boolean isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL;
 
             if (batteryPercent < 0.2 && !isCharging) {
-                addSmartbarHeader(R.drawable.ic_battery_alert_white_48dp);
-                if(addSmartbarAppFromPref(Constants.LOW_POWER_APP_PREFERENCE))
+                ApplicationIcon ai = addSmartbarAppFromPref(Constants.LOW_POWER_APP_PREFERENCE);
+                if(ai != null){
+                    addSmartbarHeader(R.drawable.ic_battery_alert_white_48dp, R.string.battery_desc);
+                    addSmartbarApp(ai.getPackageName(), ai.getActivityName());
                     appsAdded++;
+                }
             } else if (isCharging) {
-                addSmartbarHeader(R.drawable.ic_battery_charging_50_white_48dp);
-                if(addSmartbarAppFromPref(Constants.CHARGING_APP_PREFERENCE))
+                ApplicationIcon ai = addSmartbarAppFromPref(Constants.CHARGING_APP_PREFERENCE);
+                if(ai != null){
+                    addSmartbarHeader(R.drawable.ic_battery_charging_50_white_48dp, R.string.battery_desc);
+                    addSmartbarApp(ai.getPackageName(), ai.getActivityName());
                     appsAdded++;
+                }
             }
         }
 
@@ -1541,7 +1558,7 @@ public class HomeActivity extends ActionBarActivity {
                         Log.d(TAG, "Success!");
 
                         //Add to popular apps
-                        addSmartbarHeader(R.drawable.ic_whatshot_white_48dp);
+                        addSmartbarHeader(R.drawable.ic_apps_white_48dp, R.string.recent_apps_desc);
 
                         int appsAddedInner = appsAddedCount;
                         for(final String packageName : result){
@@ -1562,14 +1579,17 @@ public class HomeActivity extends ActionBarActivity {
 
             if(runningApps.isEmpty()) return;
 
-            addSmartbarHeader(R.drawable.ic_whatshot_white_48dp);
+            addSmartbarHeader(R.drawable.ic_apps_white_48dp, R.string.recent_apps_desc);
             for(ActivityManager.RunningTaskInfo rti : runningApps){
                 if(appsAdded > mostApps)
                     break;
                 Intent launchIntent = getPackageManager().getLaunchIntentForPackage(rti.baseActivity.getPackageName());
                 if(launchIntent != null && !handledPackages.contains(launchIntent.getPackage())) {
+                    String packageName = launchIntent.getComponent().getPackageName();
+                    String className = launchIntent.getComponent().getClassName();
+
                     handledPackages.add(launchIntent.getPackage());
-                    addSmartbarApp(launchIntent.getPackage(), launchIntent.getClass().getName());
+                    addSmartbarApp(packageName, className);
                     appsAdded++;
                 }
             }

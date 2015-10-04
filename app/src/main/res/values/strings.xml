@@ -84,4 +84,8 @@
     <string name="no_batch_rows">No rows to batch open. Add one by long pressing on an icon in the app drawer.</string>
     <string name="i_am_a_phone">This device is a phone</string>
     <string name="phone_pref_summary">Check this bock if your device is accidentally recognized as tablet, but it\'s really a phone (rare; mostly affects devices with build.prop modifications).</string>
+    <string name="recent_apps_desc">Apps you\'ve used recently.</string>
+    <string name="calendar_desc">A suggested app because you\'re in a calendar event.</string>
+    <string name="call_desc">A suggested app because you\'re in a call.</string>
+    <string name="battery_desc">A suggested app because of your battery\'s status.</string>
 </resources>

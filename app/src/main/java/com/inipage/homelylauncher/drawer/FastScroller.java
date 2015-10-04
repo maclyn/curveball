@@ -10,8 +10,12 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
+/**
+ * Class for setting up a scrollbar.
+ */
 public class FastScroller {
     final String TAG = "FastScroller";
+
     class SectionElement {
         String name;
         int count;
@@ -59,12 +63,17 @@ public class FastScroller {
         this.startLetter = startLetter;
         this.endLetter = endLetter;
         this.popup = popup;
-        mappings = new ArrayList<SectionElement>();
+        mappings = new ArrayList<>();
     }
 
-    public void pushMapping(String name, int position) throws Exception{
+    /**
+     * Used to associate an element of the RecyclerView we're scrolling with a position in the list.
+     * @param name The name of the element, or null if it has none (it'll be assigned "?").
+     * @param position Its position.
+     */
+    public void pushMapping(String name, int position) {
         if(name == null || name.length() == 0){
-            throw new Exception("Improper name!");
+            name = "?";
         }
 
         name = name.substring(0, 1);
@@ -79,7 +88,7 @@ public class FastScroller {
 
     public void setupScrollbar(){
         //Here, we sort all those lovely SectionElements (IMPORTANT: WE ASSUME THE LIST IS ALSO
-        //SORTED THE SAME WAY) by name, and then get %
+        //SORTED THE SAME WAY) by name, and then get their % in the overall list
         Collections.sort(mappings, new Comparator<SectionElement>() {
             @Override
             public int compare(SectionElement lhs, SectionElement rhs) {
@@ -95,7 +104,7 @@ public class FastScroller {
 
         //Set start zone and end zone in all the elements
         float currentEnd = 0;
-        maxTranslation = bar.getHeight();
+        maxTranslation = bar.getWidth();
         if(mappings.size() > 0){
             startLetter.setText(mappings.get(0).getName());
             endLetter.setText(mappings.get(mappings.size()-1).getName());
@@ -110,8 +119,8 @@ public class FastScroller {
 
         int[] barCoordinates = new int[2];
         bar.getLocationOnScreen(barCoordinates);
-        final int startBar = barCoordinates[1];
-        final int endBar = startBar + (int)maxTranslation;
+        final int startBar = barCoordinates[0];
+        final int endBar = startBar + (int) maxTranslation;
         bar.setOnTouchListener(new View.OnTouchListener() {
             @Override
             public boolean onTouch(View v, MotionEvent event) {
@@ -119,10 +128,23 @@ public class FastScroller {
                 switch(event.getAction()){
                     case MotionEvent.ACTION_MOVE:
                         //Log.d(TAG, "Move event with Y " + event.getRawY());
-                        float rawY = event.getRawY();
-                        if(rawY > (float)startBar && rawY < (float)endBar){
-                            setScrollbar(rawY - startBar);
+                        float rawX = event.getRawX();
+                        if(rawX > (float)startBar && rawX < (float)endBar){
+                            float place = rawX - startBar;
+
+                            int position = 0;
+                            for(SectionElement se : mappings){
+                                if(se.startZone <= place && se.endZone >= place){
+                                    position = se.start;
+                                    popup.setText(se.getName());
+                                    break;
+                                }
+                            }
+                            scrollview.scrollToPosition(position);
                         }
+                        return true;
+                    case MotionEvent.ACTION_CANCEL:
+                        popup.setVisibility(View.GONE);
                         return true;
                     case MotionEvent.ACTION_DOWN:
                         popup.setVisibility(View.VISIBLE);
@@ -142,17 +164,5 @@ public class FastScroller {
             if(se.name.equals(name)) return se;
         }
         return null;
-    }
-
-    private void setScrollbar(float place){
-        int position = 0;
-        for(SectionElement se : mappings){
-            if(se.startZone <= place && se.endZone >= place){
-                position = se.start;
-                popup.setText(se.getName());
-                break;
-            }
-        }
-        scrollview.scrollToPosition(position);
     }
 }

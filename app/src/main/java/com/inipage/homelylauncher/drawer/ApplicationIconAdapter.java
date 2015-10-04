@@ -41,8 +41,7 @@ public class ApplicationIconAdapter extends
         }
     }
 
-    public ApplicationIconAdapter(List<ApplicationIcon> apps, Context context,
-                                  Map<ApplicationIcon, Drawable> drawableMap) {
+    public ApplicationIconAdapter(List<ApplicationIcon> apps, Context context) {
         this.apps = apps;
         this.ctx = context;
 

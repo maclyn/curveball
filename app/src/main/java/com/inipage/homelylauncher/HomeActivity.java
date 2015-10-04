@@ -79,6 +79,7 @@ import com.inipage.homelylauncher.drawer.ApplicationHideAdapter;
 import com.inipage.homelylauncher.drawer.ApplicationHiderIcon;
 import com.inipage.homelylauncher.drawer.ApplicationIcon;
 import com.inipage.homelylauncher.drawer.ApplicationIconAdapter;
+import com.inipage.homelylauncher.drawer.FastScroller;
 import com.inipage.homelylauncher.icons.IconCache;
 import com.inipage.homelylauncher.icons.IconChooserActivity;
 import com.inipage.homelylauncher.swiper.AppEditAdapter;
@@ -101,6 +102,9 @@ import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
 
+import butterknife.Bind;
+import butterknife.ButterKnife;
+
 @SuppressWarnings("unchecked")
 public class HomeActivity extends ActionBarActivity {
     public static final String TAG = "HomeActivity";
@@ -120,25 +124,35 @@ public class HomeActivity extends ActionBarActivity {
         PHONE, SMALL_TABLET, LARGE_TABLET
     }
 
+    //Dock states
     ScreenSize size;
-
     DockbarState currentState = DockbarState.STATE_HOME;
 
     //Apps stuff
+    @Bind(R.id.allAppsContainer)
     RelativeLayout allAppsContainer;
+    @Bind(R.id.allAppsLayout)
     RecyclerView allAppsScreen;
-    Map<ApplicationIcon, Drawable> drawableMap;
     int cachedHash;
 
     //Dockbar background
+    @Bind(R.id.dockBar)
     View dockBar;
 
-    //Dates
+    //Date stuff
+    @Bind(R.id.timeDateContainer)
     View timeDateContainer;
+    @Bind(R.id.date)
     TextView date;
+    @Bind(R.id.hour)
     TextView hour;
+    @Bind(R.id.minute)
     TextView minute;
+    @Bind(R.id.timeLayout)
     View timeLayout;
+    @Bind(R.id.timeColon)
+    TextView timeColon;
+
     SimpleDateFormat minutes;
     SimpleDateFormat hours;
     Typeface light;
@@ -147,32 +161,51 @@ public class HomeActivity extends ActionBarActivity {
     Timer timer;
 
     //Main widget host
+    @Bind(R.id.homeWidget)
     FrameLayout homeWidget;
     boolean addingHomescreenWidget = false;
 
     //Home dockbar
+    @Bind(R.id.dockApps)
     LinearLayout dockbarApps;
+    @Bind(R.id.dockApp1)
     ImageView db1;
+    @Bind(R.id.dockApp2)
     ImageView db2;
+    @Bind(R.id.dockApp3)
     ImageView db3;
+    @Bind(R.id.dockApp4)
     ImageView db4;
+    @Bind(R.id.dockApp5)
     ImageView db5;
+    @Bind(R.id.dockApp6)
     ImageView db6;
+    @Bind(R.id.dockApp7)
     ImageView db7;
 
     //Search/menu
+    @Bind(R.id.searchActionBar)
     RelativeLayout searchActionBar;
+    @Bind(R.id.backToHome)
     ImageView backToHome;
+    @Bind(R.id.moreOptions)
     ImageView allAppsMenu;
+    @Bind(R.id.clearSearch)
     ImageView clearSearch;
+    @Bind(R.id.searchBox)
     EditText searchBox;
 
     //Drop layout
+    @Bind(R.id.dropLayout)
     LinearLayout dropLayout;
     //App drop layout
+    @Bind(R.id.appDropIcons)
     RelativeLayout appDropLayout;
+    @Bind(R.id.addToDock)
     View addToDock;
+    @Bind(R.id.uninstallApp)
     View uninstallApp;
+    @Bind(R.id.appInfo)
     View appInfo;
 
     //Database saving/loading
@@ -180,18 +213,23 @@ public class HomeActivity extends ActionBarActivity {
     SQLiteDatabase db;
 
     //A view which exists just to listen to respond to drop events properly
+    @Bind(R.id.dropListener)
     View dragListener;
 
     //A view for fading behind nav
+    @Bind(R.id.statusBarBackdrop)
     View bigTint;
 
     //A view for catching strange touches
+    @Bind(R.id.strayTouchShield)
     View strayTouchCatch;
 
     //GestureView for opening/closing apps
+    @Bind(R.id.sgv)
     ShortcutGestureView sgv;
 
     //Snacklets are in the widget bar
+    @Bind(R.id.snackletContainer)
     LinearLayout snackletContainer;
 
     BroadcastReceiver snackletReceiver;
@@ -199,12 +237,17 @@ public class HomeActivity extends ActionBarActivity {
     List<String> handledPackages;
 
     //Widget stuff
+    @Bind(R.id.widgetBar)
     View widgetBar;
+    @Bind(R.id.widgetToolbar)
     Toolbar widgetToolbar;
+    @Bind(R.id.widgetContainer)
     LinearLayout widgetContainer;
 
     //Smartbar stuff
+    @Bind(R.id.smartBar)
     View smartBar;
+    @Bind(R.id.smartBarContainer)
     LinearLayout smartBarContainer;
 
     boolean editingWidget = false;
@@ -236,6 +279,8 @@ public class HomeActivity extends ActionBarActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
+
+        ButterKnife.bind(this);
 
         testHandler = new Handler();
         testHandler.postDelayed(new Runnable() {
@@ -274,14 +319,9 @@ public class HomeActivity extends ActionBarActivity {
         regular = Typeface.createFromAsset(this.getAssets(), "Roboto-Regular.ttf");
         condensed = Typeface.createFromAsset(this.getAssets(), "Roboto-Condensed.ttf");
 
-        timeLayout = this.findViewById(R.id.timeLayout);
-        date = (TextView) this.findViewById(R.id.date);
-        //date.setTypeface(condensed);
-        hour = (TextView) this.findViewById(R.id.hour);
-        minute = (TextView) this.findViewById(R.id.minute);
         hour.setTypeface(light);
         minute.setTypeface(light);
-        ((TextView) this.findViewById(R.id.timeColon)).setTypeface(light);
+        timeColon.setTypeface(light);
         timeLayout.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -294,20 +334,12 @@ public class HomeActivity extends ActionBarActivity {
                 handleDedicatedAppButton(Constants.CALENDAR_APP_PREFERENCE, false);
             }
         });
-        timeDateContainer = this.findViewById(R.id.timeDateContainer);
-        homeWidget = (FrameLayout) this.findViewById(R.id.homeWidget);
 
         samples = new ArrayList<>();
         widgets = new ArrayList<>();
         hiddenApps = new ArrayList<>();
 
-        dockBar = this.findViewById(R.id.dockBar);
-        bigTint = this.findViewById(R.id.statusBarBackdrop);
-
         //Set up all apps button
-        allAppsContainer = (RelativeLayout) this.findViewById(R.id.allAppsContainer);
-        allAppsScreen = (RecyclerView) this.findViewById(R.id.allAppsLayout);
-        drawableMap = new HashMap<>();
         cachedHash = -1;
 
         //Allow tablet to rotate
@@ -316,12 +348,7 @@ public class HomeActivity extends ActionBarActivity {
         }
 
         //Set up dockbar apps
-        dockbarApps = (LinearLayout) this.findViewById(R.id.dockApps);
-        db1 = (ImageView) dockbarApps.findViewById(R.id.dockApp1);
-        db2 = (ImageView) dockbarApps.findViewById(R.id.dockApp2);
-        db3 = (ImageView) dockbarApps.findViewById(R.id.dockApp3);
-        db4 = (ImageView) dockbarApps.findViewById(R.id.dockApp4);
-        db5 = (ImageView) dockbarApps.findViewById(R.id.dockApp5);
+
         setupDockbarTarget(db1, 1);
         setupDockbarTarget(db2, 2);
         setupDockbarTarget(db3, 3);
@@ -333,8 +360,6 @@ public class HomeActivity extends ActionBarActivity {
 
             dockbarApps.findViewById(R.id.fiveToSix).setVisibility(View.GONE);
             dockbarApps.findViewById(R.id.sixToSeven).setVisibility(View.GONE);
-            db6 = (ImageView) dockbarApps.findViewById(R.id.dockApp6);
-            db7 = (ImageView) dockbarApps.findViewById(R.id.dockApp7);
             db6.setVisibility(View.GONE);
             db7.setVisibility(View.GONE);
 
@@ -347,27 +372,21 @@ public class HomeActivity extends ActionBarActivity {
         } else { //Two extra spots for tablets
             Log.d(TAG, "Is tablet");
 
-            db6 = (ImageView) dockbarApps.findViewById(R.id.dockApp6);
-            db7 = (ImageView) dockbarApps.findViewById(R.id.dockApp7);
             setupDockbarTarget(db6, 6);
             setupDockbarTarget(db7, 7);
 
             dockbarApps.requestLayout();
         }
 
-        sgv = (ShortcutGestureView) this.findViewById(R.id.sgv);
         sgv.setActivity(this);
 
         //Search action bar
-        strayTouchCatch = this.findViewById(R.id.strayTouchShield);
         strayTouchCatch.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 //Do nothing
             }
         });
-        searchActionBar = (RelativeLayout) this.findViewById(R.id.searchActionBar);
-        backToHome = (ImageView) searchActionBar.findViewById(R.id.backToHome);
         backToHome.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -376,13 +395,12 @@ public class HomeActivity extends ActionBarActivity {
                 setDockbarState(DockbarState.STATE_HOME, true);
             }
         });
-        allAppsMenu = (ImageView) searchActionBar.findViewById(R.id.moreOptions);
         allAppsMenu.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 PopupMenu pm = new PopupMenu(v.getContext(), v);
                 pm.inflate(R.menu.popup_menu);
-                if(!reader.getBoolean(Constants.HOME_WIDGET_PREFERENCE, false))
+                if (!reader.getBoolean(Constants.HOME_WIDGET_PREFERENCE, false))
                     pm.getMenu().findItem(R.id.changeHomeWidget).setVisible(false);
                 pm.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
                     @Override
@@ -420,7 +438,6 @@ public class HomeActivity extends ActionBarActivity {
                 pm.show();
             }
         });
-        clearSearch = (ImageView) searchActionBar.findViewById(R.id.clearSearch);
         clearSearch.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -428,7 +445,6 @@ public class HomeActivity extends ActionBarActivity {
                 hideKeyboard();
             }
         });
-        searchBox = (EditText) searchActionBar.findViewById(R.id.searchBox);
         searchBox.addTextChangedListener(new TextWatcher() {
             @Override
             public void beforeTextChanged(CharSequence s, int start, int count, int after) {
@@ -448,21 +464,15 @@ public class HomeActivity extends ActionBarActivity {
             @Override
             public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
                 boolean handled = false;
-                if(actionId == EditorInfo.IME_ACTION_GO){
+                if (actionId == EditorInfo.IME_ACTION_GO) {
                     //Try and open app
-                    ((ApplicationIconAdapter)allAppsScreen.getAdapter()).launchTop();
+                    ((ApplicationIconAdapter) allAppsScreen.getAdapter()).launchTop();
                 }
                 return handled;
             }
         });
 
         //Set drag type of dockbar
-        dropLayout = (LinearLayout) this.findViewById(R.id.dropLayout);
-        appDropLayout = (RelativeLayout) dropLayout.findViewById(R.id.appDropIcons);
-        addToDock = appDropLayout.findViewById(R.id.addToDock);
-        uninstallApp = appDropLayout.findViewById(R.id.uninstallApp);
-        appInfo = appDropLayout.findViewById(R.id.appInfo);
-
         uninstallApp.setOnDragListener(new View.OnDragListener() {
             @Override
             public boolean onDrag(View v, DragEvent event) {
@@ -511,7 +521,6 @@ public class HomeActivity extends ActionBarActivity {
         });
 
         //Listener for drags on the homescreen
-        dragListener = this.findViewById(R.id.dropListener);
         dragListener.setOnDragListener(new View.OnDragListener() {
             @Override
             public boolean onDrag(View v, DragEvent event) {
@@ -535,7 +544,6 @@ public class HomeActivity extends ActionBarActivity {
         //Set up snacklets
         handledPackages = new ArrayList<>();
         updates = new ArrayList<>();
-        snackletContainer = (LinearLayout) findViewById(R.id.snackletContainer);
 
         //Set up receiver for getting data back
         snackletReceiver = new BroadcastReceiver() {
@@ -573,9 +581,6 @@ public class HomeActivity extends ActionBarActivity {
         registerReceiver(snackletReceiver, intentFilter);
 
         //Set up widgets
-        widgetBar = findViewById(R.id.widgetBar);
-        widgetToolbar = (Toolbar) this.findViewById(R.id.widgetToolbar);
-        widgetContainer = (LinearLayout) this.findViewById(R.id.widgetContainer);
         widgetToolbar.inflateMenu(R.menu.widget_menu);
         widgetToolbar.setOnMenuItemClickListener(new Toolbar.OnMenuItemClickListener() {
             @Override
@@ -596,9 +601,6 @@ public class HomeActivity extends ActionBarActivity {
         });
 
         //Set up smartbar
-        smartBar = findViewById(R.id.smartBar);
-        smartBarContainer = (LinearLayout) findViewById(R.id.smartBarContainer);
-
         smartBarContainer.setTranslationX(-smartBarContainer.getWidth());
 
         //Move the screen as needed
@@ -2158,8 +2160,14 @@ public class HomeActivity extends ActionBarActivity {
                     //Compare old "apps" with cached apps -- if the same, don't reset
                     int newHash = apps.hashCode();
                     if(newHash != cachedHash) {
-                        allAppsScreen.setAdapter(new ApplicationIconAdapter(apps, HomeActivity.this,
-                                drawableMap));
+                        allAppsScreen.setAdapter(new ApplicationIconAdapter(apps, HomeActivity.this));
+/*
+                        FastScroller scroller = new FastScroller(allAppsScreen, null, null, null, null);
+                        for(int i = 0; i < apps.size(); i++) {
+                            scroller.pushMapping(apps.get(i).getName(), i);
+                        }
+                        scroller.setupScrollbar();
+                        */
                         cachedHash = newHash;
                     }
                 }

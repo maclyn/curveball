@@ -20,6 +20,16 @@ import java.util.List;
 public class SequentialLauncherService extends Service {
     private static final String TAG = "SequentialLauncherServ";
 
+    private static List<Pair<String, String>> pairs;
+
+    public static void storePairs(List<Pair<String, String>> pairs){
+        pairs = pairs;
+    }
+
+    public static List<Pair<String, String>> getPairs(){
+        return pairs;
+    }
+
     public SequentialLauncherService() {
     }
 
@@ -57,10 +67,8 @@ public class SequentialLauncherService extends Service {
                     appRow.moveToNext();
                 }
 
-                if (!paPairs.isEmpty()) { //Actually go and launch the app(s)
-                    //"Cached" paPairs in the application
-                    //I'm sorry
-                    ((ApplicationClass)getApplication()).storePairs(paPairs);
+                if (!paPairs.isEmpty()) {
+                    storePairs(paPairs);
                     Intent launchApp = new Intent(this, SequentialLauncherService.class);
                     launchApp.putExtra("index_in_group", 0);
                     this.startService(launchApp);
@@ -72,7 +80,7 @@ public class SequentialLauncherService extends Service {
             return START_NOT_STICKY;
         } else if (intent.getExtras().containsKey("index_in_group")) {
             int index = intent.getIntExtra("index_in_group", 0);
-            List<Pair<String, String>> appsToLaunch = ((ApplicationClass)getApplication()).getPairs();
+            List<Pair<String, String>> appsToLaunch = getPairs();
             if(index < appsToLaunch.size()){
                 Pair<String, String> appToLaunch = appsToLaunch.get(index);
                 Intent appLaunch = new Intent();

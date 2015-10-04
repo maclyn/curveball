@@ -142,6 +142,16 @@ public class ShortcutGestureView extends View {
         }
     };
 
+    private IconCache.ItemRetrievalInterface dummyInterface = new IconCache.ItemRetrievalInterface() {
+        @Override
+        public void onRetrievalStarted() {
+        }
+
+        @Override
+        public void onRetrievalComplete(Bitmap result) {
+        }
+    };
+
     //Mode we're in
     private SGTypes sgt;
 
@@ -275,6 +285,7 @@ public class ShortcutGestureView extends View {
                             data.get(selectedY).getPackages().add(new Pair<>
                                     (ai.getPackageName(), ai.getActivityName()));
                             ha.persistList(ha.samples);
+                            preloadCard(data.get(selectedY));
                         }
                     }
                     resetState(1, 300);
@@ -1191,8 +1202,33 @@ public class ShortcutGestureView extends View {
         log("resetState() finished", true);
     }
 
+    private void preloadCard(TypeCard card){
+        IconCache.getInstance().getSwipeCacheIcon(card.getDrawablePackage(), card.getDrawableName(),
+                bigIconSize, retrievalInterface);
+        for(Pair<String, String> icon : card.getPackages()){
+            IconCache.getInstance().getSwipeCacheAppIcon(icon.first, icon.second,
+                    bigIconSize, retrievalInterface);
+        }
+    }
+
+    private void preCache(){
+        //Grab all the icons
+        if(data == null) return;
+        for(TypeCard card : data){
+            preloadCard(card);
+        }
+
+        IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_add_circle_outline_white_48dp,
+                bigIconSize, retrievalInterface);
+        IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_info_white_48dp,
+                bigIconSize, retrievalInterface);
+        IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_clear_white_48dp,
+                bigIconSize, retrievalInterface);
+    }
+
     public void setCards(List<TypeCard> cards){
         this.data = cards;
+        preCache();
     }
 
     private void log(String text, boolean hasFocus){

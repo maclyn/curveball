@@ -5,7 +5,9 @@
 
     <permission
         android:name="com.inipage.homelylauncher.RECEIVE_DATA_PERMISSION"
-        android:label="This permission is used to ensure only Homely Launcher can receive module data." />
+        android:icon="@mipmap/ic_launcher"
+        android:protectionLevel="normal"
+        android:label="This permission is used to ensure only Curveball Launcher can receive module data." />
 
     <uses-permission android:name="smartercardhome.inipage.com.usagehome.RECEIVE_DATA_PERMISSION" />
 

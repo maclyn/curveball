@@ -101,7 +101,8 @@ public class SettingsActivity extends ActionBarActivity {
                 findPreference("home_widget_pref").setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
                     @Override
                     public boolean onPreferenceChange(Preference preference, Object newValue) {
-                        Toast.makeText(MainFragment.this.getActivity(), R.string.home_widget_change,
+                        if((Boolean) newValue)
+                            Toast.makeText(MainFragment.this.getActivity(), R.string.home_widget_change,
                                 Toast.LENGTH_SHORT).show();
                         return true;
                     }

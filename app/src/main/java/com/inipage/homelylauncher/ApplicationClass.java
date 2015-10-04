@@ -11,16 +11,6 @@ public class ApplicationClass extends Application {
 
     private static ApplicationClass instance;
 
-    private List<Pair<String, String>> pairs;
-
-    public void storePairs(List<Pair<String, String>> pairs){
-        this.pairs = pairs;
-    }
-
-    public List<Pair<String, String>> getPairs(){
-        return this.pairs;
-    }
-
     public static ApplicationClass getInstance() {
         return instance;
     }

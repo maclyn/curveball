@@ -166,12 +166,76 @@
                 android:background="@drawable/all_apps_bg">
 
                 <!-- Layout for the apps grid (vertically scrolling list) -->
-                <android.support.v7.widget.RecyclerView
-                    android:id="@+id/allAppsLayout"
-                    android:layout_alignParentTop="true"
+                <RelativeLayout
+                    android:layout_above="@+id/scrollerContainer"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:scrollbars="none"/>
+                    android:layout_height="match_parent">
+
+                    <android.support.v7.widget.RecyclerView
+                        android:id="@+id/allAppsLayout"
+                        android:layout_width="match_parent"
+                        android:layout_height="match_parent"
+                        android:scrollbars="vertical"/>
+
+                    <TextView
+                        android:text="A"
+                        android:background="@drawable/all_apps_bg"
+                        android:id="@+id/popup"
+                        android:textSize="48sp"
+                        android:textColor="@color/white"
+                        android:layout_centerInParent="true"
+                        android:layout_width="80dp"
+                        android:layout_height="80dp"
+                        android:gravity="center"
+                        android:visibility="gone" />
+                </RelativeLayout>
+
+                <RelativeLayout
+                    android:id="@+id/scrollerContainer"
+                    android:layout_alignParentBottom="true"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginLeft="8dp"
+                    android:layout_marginRight="8dp">
+                        <TextView
+                            android:id="@+id/startLetter"
+                            android:layout_alignParentLeft="true"
+                            android:text="A"
+                            android:layout_centerVertical="true"
+                            android:textColor="@color/white"
+                            android:gravity="center"
+                            android:textSize="18sp"
+                            android:layout_width="30dp"
+                            android:layout_height="32dp" />
+
+                        <RelativeLayout
+                            android:id="@+id/scrollerBar"
+                            android:layout_marginRight="8dp"
+                            android:layout_marginLeft="8dp"
+                            android:layout_centerVertical="true"
+                            android:layout_toRightOf="@+id/startLetter"
+                            android:layout_toLeftOf="@+id/endLetter"
+                            android:layout_width="match_parent"
+                            android:layout_height="32dp">
+
+                            <View
+                                android:background="#d0ffffff"
+                                android:layout_centerVertical="true"
+                                android:layout_width="match_parent"
+                                android:layout_height="2dp" />
+                        </RelativeLayout>
+
+                        <TextView
+                            android:id="@+id/endLetter"
+                            android:layout_alignParentRight="true"
+                            android:text="Z"
+                            android:layout_centerVertical="true"
+                            android:textColor="@color/white"
+                            android:gravity="center"
+                            android:textSize="18sp"
+                            android:layout_width="30dp"
+                            android:layout_height="32dp" />
+                </RelativeLayout>
             </RelativeLayout>
         </RelativeLayout>
 

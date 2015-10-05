@@ -133,6 +133,15 @@ public class HomeActivity extends ActionBarActivity {
     RelativeLayout allAppsContainer;
     @Bind(R.id.allAppsLayout)
     RecyclerView allAppsScreen;
+    @Bind(R.id.scrollerBar)
+    View scrollerBar;
+    @Bind(R.id.startLetter)
+    TextView startLetter;
+    @Bind(R.id.endLetter)
+    TextView endLetter;
+    @Bind(R.id.popup)
+    TextView popup;
+
     int cachedHash;
 
     //Dockbar background
@@ -2161,13 +2170,14 @@ public class HomeActivity extends ActionBarActivity {
                     int newHash = apps.hashCode();
                     if(newHash != cachedHash) {
                         allAppsScreen.setAdapter(new ApplicationIconAdapter(apps, HomeActivity.this));
-/*
-                        FastScroller scroller = new FastScroller(allAppsScreen, null, null, null, null);
+
+                        FastScroller scroller = new FastScroller(allAppsScreen, scrollerBar, startLetter,
+                                endLetter, popup);
                         for(int i = 0; i < apps.size(); i++) {
                             scroller.pushMapping(apps.get(i).getName(), i);
                         }
                         scroller.setupScrollbar();
-                        */
+
                         cachedHash = newHash;
                     }
                 }

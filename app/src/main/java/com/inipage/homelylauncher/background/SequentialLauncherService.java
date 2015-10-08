@@ -22,12 +22,12 @@ public class SequentialLauncherService extends Service {
 
     private static List<Pair<String, String>> pairs;
 
-    public static void storePairs(List<Pair<String, String>> pairs){
-        pairs = pairs;
+    public static void storePairs(List<Pair<String, String>> newPairs){
+        pairs = newPairs;
     }
 
     public static List<Pair<String, String>> getPairs(){
-        return pairs;
+        return pairs != null ? pairs : new ArrayList<Pair<String, String>>();
     }
 
     public SequentialLauncherService() {

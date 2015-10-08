@@ -1212,12 +1212,14 @@ public class ShortcutGestureView extends View {
     }
 
     private void preCache(){
-        //Grab all the icons
         if(data == null) return;
+
+        //Grab all the icons for folder icons + app icons
         for(TypeCard card : data){
             preloadCard(card);
         }
 
+        //Grab the icons we get from internal sources
         IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_add_circle_outline_white_48dp,
                 bigIconSize, retrievalInterface);
         IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_info_white_48dp,

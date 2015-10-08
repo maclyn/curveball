@@ -127,4 +127,9 @@ public class ApplicationIconAdapter extends
             startApp(apps.get(0), ctx);
         }
     }
+
+    @Override
+    public long getItemId(int position) {
+        return apps.get(position).hashCode();
+    }
 }

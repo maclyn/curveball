@@ -13,6 +13,7 @@ import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
 import android.support.v4.util.Pair;
 import android.util.LruCache;
+import android.util.TypedValue;
 import android.widget.ImageView;
 
 import com.inipage.homelylauncher.ApplicationClass;
@@ -30,6 +31,8 @@ public class IconCache {
     public static final int SWIPE_ICON_ICON_PACK_TASK = 4;
     public static final int SWIPE_ICON_APP_ICON_TASK = 5;
     public static final int SMARTBAR_ICON_TASK = 6;
+
+    private int DEFAULT_ICON_SIZE = 48;
 
     //Needed tools
     Resources baseResources;
@@ -129,6 +132,8 @@ public class IconCache {
 
             try {
                 if(taskType == APP_DRAWER_TASK || taskType == DOCK_TASK || taskType == SMARTBAR_ICON_TASK) {
+                    if(location == null) return; //We're done here
+
                     if (result && location.getTag() != null && location.getTag().equals(tag)) {
                         location.setImageBitmap(iconCache.get(tag));
                     } else {
@@ -170,6 +175,9 @@ public class IconCache {
         p.setColor(Color.WHITE);
         p.setAlpha(180);
         c.drawCircle(dimens / 2, dimens / 2, dimens / 2, p);
+
+        DEFAULT_ICON_SIZE = (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, 48,
+                ApplicationClass.getInstance().getResources().getDisplayMetrics());
     }
 
     public static IconCache getInstance(){
@@ -191,12 +199,12 @@ public class IconCache {
 
     private void setIconImpl(String packageName, String componentName, ImageView place, int taskType){
         final String key = packageName + "|" + componentName;
-        place.setTag(key);
+        if(place != null) place.setTag(key);
 
         Bitmap icon = iconCache.get(key);
         if(icon != null){
             try {
-                place.setImageBitmap(icon);
+                if(place != null) place.setImageBitmap(icon);
                 return;
             } catch (Exception ignored){ //This means the bitmap has been recycled
             }
@@ -208,14 +216,15 @@ public class IconCache {
         taskList.add(pair);
         taskMap.put(key, getter);
 
-        getter.execute(taskType, key, packageName, pair, place.getWidth(), place, componentName);
+        getter.execute(taskType, key, packageName, pair, place != null ?
+                place.getWidth() : DEFAULT_ICON_SIZE, place, componentName);
     }
 
     /**
      * Set the icon for a given drawable on an icon. Begins a set of tasks for setting icons.
      * @param packageName The package of the icon.
      * @param componentName The component of the icon.
-     * @param place Where to set it.
+     * @param place Where to set it (can be null just to cache it).
      */
     public void setIcon(String packageName, String componentName, ImageView place){
         setIconImpl(packageName, componentName, place, APP_DRAWER_TASK);

@@ -5,6 +5,7 @@ import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
+import android.app.AlarmManager;
 import android.app.usage.UsageEvents;
 import android.app.usage.UsageStatsManager;
 import android.appwidget.AppWidgetHost;
@@ -94,6 +95,7 @@ import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
@@ -115,6 +117,7 @@ public class HomeActivity extends ActionBarActivity {
     private static final int REQUEST_PICK_APP_WIDGET = 204;
 
     public static final int HOST_ID = 505;
+    private static final long ONE_DAY_MILLIS = 1000 * 60 * 60 * 24;
 
     public enum DockbarState {
         STATE_HOME, STATE_APPS, STATE_DROP
@@ -133,7 +136,7 @@ public class HomeActivity extends ActionBarActivity {
     RelativeLayout allAppsContainer;
     @Bind(R.id.allAppsLayout)
     RecyclerView allAppsScreen;
-    @Bind(R.id.scrollerBar)
+    @Bind(R.id.scrollerContainer)
     View scrollerBar;
     @Bind(R.id.startLetter)
     TextView startLetter;
@@ -153,6 +156,8 @@ public class HomeActivity extends ActionBarActivity {
     View timeDateContainer;
     @Bind(R.id.date)
     TextView date;
+    @Bind(R.id.alarm)
+    TextView alarm;
     @Bind(R.id.hour)
     TextView hour;
     @Bind(R.id.minute)
@@ -164,6 +169,7 @@ public class HomeActivity extends ActionBarActivity {
 
     SimpleDateFormat minutes;
     SimpleDateFormat hours;
+    SimpleDateFormat alarmTime = new SimpleDateFormat("h:mm aa", Locale.getDefault());
     Typeface light;
     Typeface regular;
     Typeface condensed;
@@ -462,7 +468,7 @@ public class HomeActivity extends ActionBarActivity {
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 String change = s.toString();
-                resetAppsList(change);
+                resetAppsList(change, false);
             }
 
             @Override
@@ -635,7 +641,7 @@ public class HomeActivity extends ActionBarActivity {
                 if(searchBox != null) {
                     searchBox.setText(""); //The TextWatcher resets the app list in this case
                 } else {
-                    resetAppsList("");
+                    resetAppsList("", false);
                 }
                 sgv.invalidateCaches();
                 IconCache.getInstance().invalidateCaches();
@@ -650,7 +656,7 @@ public class HomeActivity extends ActionBarActivity {
                     if (searchBox != null){
                         searchBox.setText(""); //The TextWatcher resets the app list in this case
                     } else {
-                        resetAppsList("");
+                        resetAppsList("", false);
                     }
                     verifyWidgets();
                 }
@@ -805,7 +811,7 @@ public class HomeActivity extends ActionBarActivity {
                             public void onPositive(MaterialDialog dialog) {
                                 persistHidden(adapter.getApps());
                                 loadHiddenApps(hiddenApps);
-                                resetAppsList("");
+                                resetAppsList("", false);
                             }
                         }).show();
             }
@@ -869,7 +875,7 @@ public class HomeActivity extends ActionBarActivity {
 
         GridLayoutManager glm = new GridLayoutManager(this, columnCount);
         allAppsScreen.setLayoutManager(glm);
-        resetAppsList("");
+        resetAppsList("", true);
     }
 
     private void showTutorial() {
@@ -2126,7 +2132,7 @@ public class HomeActivity extends ActionBarActivity {
         }
     }
 
-    public void resetAppsList(final String query){
+    public void resetAppsList(final String query, final boolean preCacheIcons){
         IconCache.getInstance().cancelPendingIconTasks();
 
         new AsyncTask<PackageManager, Void, List<ApplicationIcon>>(){
@@ -2169,7 +2175,16 @@ public class HomeActivity extends ActionBarActivity {
                     //Compare old "apps" with cached apps -- if the same, don't reset
                     int newHash = apps.hashCode();
                     if(newHash != cachedHash) {
-                        allAppsScreen.setAdapter(new ApplicationIconAdapter(apps, HomeActivity.this));
+                        ApplicationIconAdapter adapter = new ApplicationIconAdapter(apps, HomeActivity.this);
+                        adapter.setHasStableIds(true);
+                        allAppsScreen.setAdapter(adapter);
+
+                        if(preCacheIcons && reader.getBoolean("aggresive_caching_pref", true)){
+                            for(ApplicationIcon ai : apps){
+                                IconCache.getInstance().setIcon(ai.getPackageName(), ai.getActivityName(),
+                                        null);
+                            }
+                        }
 
                         FastScroller scroller = new FastScroller(allAppsScreen, scrollerBar, startLetter,
                                 endLetter, popup);
@@ -2653,7 +2668,7 @@ public class HomeActivity extends ActionBarActivity {
                 SimpleDateFormat sdfDay = new SimpleDateFormat("EEEE", Locale.US);
                 SimpleDateFormat sdfMonth = new SimpleDateFormat("MMMM", Locale.US);
                 SimpleDateFormat sdfDayOfMonth = new SimpleDateFormat("d", Locale.US);
-                //check battery -- if charging, then add percent to left of clock
+                //Check battery -- if charging, then add percent to left of clock
                 IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
                 Intent status = registerReceiver(null, filter);
                 if(status != null) {
@@ -2666,6 +2681,29 @@ public class HomeActivity extends ActionBarActivity {
                         date.setText(sdfDay.format(cal.getTime())
                                 + ", " + sdfMonth.format(cal.getTime())
                                 + " " + sdfDayOfMonth.format(cal.getTime()));
+                    }
+                }
+
+                //Check if there's an alarm set
+                if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                    AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+                    final AlarmManager.AlarmClockInfo aci = am.getNextAlarmClock();
+
+                    if(aci != null && (aci.getTriggerTime() - System.currentTimeMillis() < ONE_DAY_MILLIS)) {
+                        alarm.setVisibility(View.VISIBLE);
+                        alarm.setText(getString(R.string.next_alarm_at) + " " + alarmTime.format(new Date(aci.getTriggerTime())));
+                        alarm.setOnClickListener(new View.OnClickListener() {
+                            @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+                            @Override
+                            public void onClick(View v) {
+                                try {
+                                    aci.getShowIntent().send();
+                                } catch (Exception ignored) {
+                                }
+                            }
+                        });
+                    } else {
+                        alarm.setVisibility(View.GONE);
                     }
                 }
             }

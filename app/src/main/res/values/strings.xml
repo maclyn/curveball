@@ -29,7 +29,7 @@
     <string name="default_calendar_app">Calendar shortcut</string>
     <string name="default_calendar_summary">App to launch when clicking the calendar.</string>
     <string name="default_search_app">Search shortcut</string>
-    <string name="default_search_summary">App to launch when swiping right on the homescreen.</string>
+    <string name="default_search_summary">App to launch when swiping right on the homescreen...</string>
     <string name="widgets">Widgets</string>
     <string name="resize_all_widgets">Resize All Widgets</string>
     <string name="resize_all_widgets_summary">Resize any widget if desired, regardless of widget\'s capability to support resizing. May produced undesirable effects on certain widgets.</string>
@@ -88,4 +88,7 @@
     <string name="calendar_desc">A suggested app because you\'re in a calendar event.</string>
     <string name="call_desc">A suggested app because you\'re in a call.</string>
     <string name="battery_desc">A suggested app because of your battery\'s status.</string>
+    <string name="next_alarm_at">Next alarm at</string>
+    <string name="aggresive_icon_caching">Aggresive icon caching</string>
+    <string name="aggresive_icon_caching_summary">Fetch launcher icons when we start. Provides a better experience, but may harm startup performance on low-end devices.</string>
 </resources>

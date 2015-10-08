@@ -141,6 +141,25 @@
                 android:shadowColor="#000"
                 android:shadowRadius="4"
                 android:shadowDy="2"/>
+
+            <TextView
+                android:id="@+id/alarm"
+                android:padding="8dp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_below="@+id/date"
+                android:text="Next alarm at 8:30 P.M."
+                android:textColor="@android:color/white"
+                android:textColorHint="@android:color/black"
+                android:background="?android:attr/selectableItemBackground"
+                android:textSize="14sp"
+                android:layout_marginTop="-14dp"
+                android:layout_centerInParent="true"
+                android:gravity="center_vertical|center_horizontal"
+                android:shadowColor="#000"
+                android:shadowRadius="4"
+                android:shadowDy="2"
+                android:visibility="gone" />
         </RelativeLayout>
 
         <View
@@ -179,10 +198,10 @@
 
                     <TextView
                         android:text="A"
-                        android:background="@drawable/all_apps_bg"
+                        android:background="@drawable/quick_scroll_bg"
                         android:id="@+id/popup"
                         android:textSize="48sp"
-                        android:textColor="@color/white"
+                        android:textColor="#101010"
                         android:layout_centerInParent="true"
                         android:layout_width="80dp"
                         android:layout_height="80dp"
@@ -209,7 +228,6 @@
                             android:layout_height="32dp" />
 
                         <RelativeLayout
-                            android:id="@+id/scrollerBar"
                             android:layout_marginRight="8dp"
                             android:layout_marginLeft="8dp"
                             android:layout_centerVertical="true"

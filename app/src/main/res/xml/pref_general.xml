@@ -50,5 +50,10 @@
             android:title="@string/i_am_a_phone"
             android:summary="@string/phone_pref_summary"
             android:key="is_phone_pref" />
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:title="@string/aggresive_icon_caching"
+            android:summary="@string/aggresive_icon_caching_summary"
+            android:key="aggresive_caching_pref" />
     </PreferenceCategory>
 </PreferenceScreen>

@@ -8,8 +8,8 @@ android {
         applicationId "com.inipage.homelylauncher"
         minSdkVersion 15
         targetSdkVersion 22
-        versionCode 5
-        versionName "0.2.2"
+        versionCode 6
+        versionName "0.2.3"
     }
     buildTypes {
         release {
@@ -25,6 +25,7 @@ android {
 
 repositories {
     maven { url 'https://dl.bintray.com/drummer-aidan/maven' }
+    maven { url "https://oss.sonatype.org/content/repositories/snapshots/" }
 }
 
 dependencies {
@@ -39,6 +40,7 @@ dependencies {
     compile 'com.google.code.gson:gson:2.3.1'
     compile 'com.android.support:support-v4:22.0+'
     compile 'asia.ivity.android:drag-sort-listview:1.0'
+    compile 'com.vanniktech:vntnumberpickerpreference:0.2.0-SNAPSHOT'
 
     //Convenience libraries
     compile 'com.jakewharton:butterknife:7.0.1'

@@ -1,4 +1,6 @@
-<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android">
+<PreferenceScreen
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:num_picker="http://schemas.android.com/apk/res-auto">
     <PreferenceCategory
         android:title="@string/app_defaults"
         android:key="pref_app_defaults">
@@ -37,6 +39,31 @@
                 android:summary="@string/replace_widget_with_clock_summary"
                 android:key="home_widget_pref" />
         </PreferenceCategory>
+    <PreferenceCategory
+        android:title="@string/gesture_swipe"
+        android:key="pref_gestures" />
+        <com.vanniktech.vntnumberpickerpreference.VNTNumberPickerPreference
+            android:defaultValue="60"
+            android:key="element_size_pref"
+            android:title="@string/element_size_title"
+            android:summary="@string/element_size"
+            num_picker:vnt_maxValue="120"
+            num_picker:vnt_minValue="20"
+            num_picker:vnt_setWrapSelectorWheel="false"/>
+        <com.vanniktech.vntnumberpickerpreference.VNTNumberPickerPreference
+            android:defaultValue="48"
+            android:key="icon_size_pref"
+            android:title="@string/icon_size_small"
+            num_picker:vnt_maxValue="80"
+            num_picker:vnt_minValue="32"
+            num_picker:vnt_setWrapSelectorWheel="false"/>
+        <com.vanniktech.vntnumberpickerpreference.VNTNumberPickerPreference
+            android:defaultValue="60"
+            android:key="big_icon_size_pref"
+            android:title="@string/icon_size_pref"
+            num_picker:vnt_maxValue="100"
+            num_picker:vnt_minValue="40"
+            num_picker:vnt_setWrapSelectorWheel="false"/>
     <PreferenceCategory
         android:title="@string/advanced"
         android:key="pref_advanced">

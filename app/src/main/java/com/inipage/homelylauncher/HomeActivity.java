@@ -36,6 +36,7 @@ import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.provider.CalendarContract;
 import android.provider.Settings;
@@ -85,6 +86,7 @@ import com.inipage.homelylauncher.icons.IconCache;
 import com.inipage.homelylauncher.icons.IconChooserActivity;
 import com.inipage.homelylauncher.swiper.AppEditAdapter;
 import com.inipage.homelylauncher.swiper.RowEditAdapter;
+import com.inipage.homelylauncher.utils.Utilities;
 import com.inipage.homelylauncher.widgets.UpdateItem;
 import com.inipage.homelylauncher.widgets.WidgetAddAdapter;
 import com.inipage.homelylauncher.widgets.WidgetContainer;
@@ -1293,6 +1295,7 @@ public class HomeActivity extends ActionBarActivity {
     @Override
     public void onResume(){
         super.onResume();
+        updateDisplay();
 
         //Ask for snacklet data
         Intent getData = new Intent();
@@ -1300,13 +1303,14 @@ public class HomeActivity extends ActionBarActivity {
         sendBroadcast(getData);
 
         //Update most parts on timer
-        updateDisplay();
         TimerTask t = new TimerTask(){
             @Override
             public void run() {
                 updateDisplay();
             }
         };
+        timer = new Timer();
+        timer.scheduleAtFixedRate(t, 0, 1000);
 
         //Set the homescreen widget if it's valid
         if(reader.getBoolean(Constants.HOME_WIDGET_PREFERENCE, false)) {
@@ -1320,8 +1324,7 @@ public class HomeActivity extends ActionBarActivity {
             timeDateContainer.setVisibility(View.VISIBLE);
         }
 
-        timer = new Timer();
-        timer.scheduleAtFixedRate(t, 0, 1000);
+        sgv.onActivityResumed();
 
         populateSmartBar();
     }
@@ -1431,7 +1434,7 @@ public class HomeActivity extends ActionBarActivity {
         ContentUris.appendId(builder, System.currentTimeMillis() + (1000l * 60l * 60l * 24l));
         Cursor c = cr.query(builder.build(), columns, null, null, CalendarContract.Instances.DTSTART + " asc");
         calendarBlock: {
-            if (c.moveToFirst()){
+            if (c != null && c.moveToFirst()){
                 Log.d(TAG, "Calendar block move to first!");
 
                 int startCol = c.getColumnIndex(CalendarContract.Instances.DTSTART);
@@ -2657,8 +2660,9 @@ public class HomeActivity extends ActionBarActivity {
 
     //Update clock
     void updateDisplay(){
-        this.runOnUiThread(new Runnable(){
-            public void run(){
+        Runnable runnable = new Runnable() {
+            @Override
+            public void run() {
                 Calendar cal = GregorianCalendar.getInstance();
 
                 hour.setText(hours.format(cal.getTime()));
@@ -2707,6 +2711,12 @@ public class HomeActivity extends ActionBarActivity {
                     }
                 }
             }
-        });
+        };
+
+        if(Thread.currentThread() == Looper.getMainLooper().getThread()) {
+            runnable.run();
+        } else {
+            this.runOnUiThread(runnable);
+        }
     }
 }

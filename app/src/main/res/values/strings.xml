@@ -91,4 +91,11 @@
     <string name="next_alarm_at">Next alarm at</string>
     <string name="aggresive_icon_caching">Aggresive icon caching</string>
     <string name="aggresive_icon_caching_summary">Fetch launcher icons when we start. Provides a better experience, but may harm startup performance on low-end devices.</string>
+    <string name="element_size">Max amount needed to move between each element of swipe view.</string>
+    <string name="element_size_descriptions">Affects the main gesture view.</string>
+    <string name="gesture_swipe">Gesture Swiping</string>
+    <string name="element_size_title">Distance between elements</string>
+    <string name="icon_size_small">Small icon size</string>
+    <string name="icon_size_pref">Big icon size</string>
+    <string name="preferences_name">Preferences</string>
 </resources>

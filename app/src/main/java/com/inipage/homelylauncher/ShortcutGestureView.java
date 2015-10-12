@@ -21,7 +21,6 @@ import android.support.v7.graphics.Palette;
 import android.util.AttributeSet;
 import android.util.Log;
 import android.util.Pair;
-import android.util.TypedValue;
 import android.view.DragEvent;
 import android.view.MotionEvent;
 import android.view.View;
@@ -30,6 +29,9 @@ import android.widget.Toast;
 
 import com.inipage.homelylauncher.drawer.ApplicationIcon;
 import com.inipage.homelylauncher.icons.IconCache;
+import com.inipage.homelylauncher.utils.AttributeApplier;
+import com.inipage.homelylauncher.utils.SizeAttribute;
+import com.inipage.homelylauncher.utils.Utilities;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -43,32 +45,39 @@ public class ShortcutGestureView extends View {
         MODE_ADD_ICON, MODE_SELECT_ICON, MODE_SHOW_WIDGETS, MODE_SHOW_SMARTBAR, MODE_NONE
     }
 
-    private static final int ICON_SIZE = 48;
-    private static final int TEXT_SIZE = 22;
-    private static final int VERTICAL_OFFSET = 10;
-    private static final int VERTICAL_PADDING = 12;
-    private static final int STROKE_WIDTH = 10;
-    private static final int ICON_PADDING = 8;
-    private static final int BIG_ICON_SIZE = 60;
-    private static final int BIG_TEXT_SIZE = 28;
-    private static final int MAX_TOUCH_ELEMENT_SIZE = 80;
-    private static final int NEEDED_HORIZONTAL_DX = 80;
-
-    private static final int LEFT_SIDE = 1;
-    private static final int RIGHT_SIDE = 2;
+    public enum ScreenSide {
+        LEFT_SIDE, RIGHT_SIDE
+    }
 
     private static final boolean NEEDLE = true; //For debug purposes
 
     //Size in DiPs of needed things
+    //Size of drawables onscreen
+    @SizeAttribute(value = 48, setting = "icon_size_pref")
     float iconSize;
-    float textSize;
+    @SizeAttribute(value = 60, setting = "big_icon_size_pref")
+    float bigIconSize;
+    @SizeAttribute(10)
+    float strokeWidth;
+
+    //Movement values
+    @SizeAttribute(value = 60, setting = "element_size_pref")
     float maxTouchElementSize;
-    float verticalOffset;
-    float verticalPadding;
-    float iconPadding;
+    @SizeAttribute(80)
     float horizontalDx;
 
-    float bigIconSize;
+    //Layout values
+    @SizeAttribute(10)
+    float verticalOffset;
+    @SizeAttribute(12)
+    float verticalPadding;
+    @SizeAttribute(8)
+    float iconPadding;
+
+    //Size of text onscreen
+    @SizeAttribute(attrType = SizeAttribute.AttributeType.SP, value = 22)
+    float textSize;
+    @SizeAttribute(attrType = SizeAttribute.AttributeType.SP, value = 28)
     float bigTextSize;
 
     float iconSizeDifference;
@@ -195,24 +204,7 @@ public class ShortcutGestureView extends View {
             }
         };
 
-        iconSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, ICON_SIZE,
-                getContext().getResources().getDisplayMetrics());
-        maxTouchElementSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP,
-                MAX_TOUCH_ELEMENT_SIZE, getContext().getResources().getDisplayMetrics());
-        textSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, TEXT_SIZE,
-                getContext().getResources().getDisplayMetrics());
-        verticalOffset = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, VERTICAL_OFFSET,
-                getContext().getResources().getDisplayMetrics());
-        verticalPadding = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, VERTICAL_PADDING,
-                getContext().getResources().getDisplayMetrics());
-        iconPadding = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, ICON_PADDING,
-                getContext().getResources().getDisplayMetrics());
-        bigIconSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, BIG_ICON_SIZE,
-                getContext().getResources().getDisplayMetrics());
-        bigTextSize = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, BIG_TEXT_SIZE,
-                getContext().getResources().getDisplayMetrics());
-        horizontalDx = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP, NEEDED_HORIZONTAL_DX,
-                getContext().getResources().getDisplayMetrics());
+        AttributeApplier.ApplyDensity(this, getContext());
 
         iconSizeDifference = bigIconSize - iconSize;
         textSizeDifference = bigTextSize - textSize;
@@ -230,11 +222,9 @@ public class ShortcutGestureView extends View {
         touchPaint.setColor(getResources().getColor(R.color.white));
         touchPaint.setStrokeCap(Paint.Cap.ROUND);
         touchPaint.setStyle(Paint.Style.STROKE);
-        touchPaint.setStrokeWidth(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP,
-                STROKE_WIDTH, getContext().getResources().getDisplayMetrics()));
-        touchPaint.setPathEffect(new CornerPathEffect(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP,
-                STROKE_WIDTH / 2, getContext().getResources().getDisplayMetrics())));
+        touchPaint.setStrokeWidth(strokeWidth);
 
+        touchPaint.setPathEffect(new CornerPathEffect(strokeWidth / 2));
         glowPaint = new Paint();
         glowPaint.setAntiAlias(true);
         glowPaint.setColor(getResources().getColor(android.R.color.white));
@@ -248,6 +238,10 @@ public class ShortcutGestureView extends View {
 
         labelMap = new HashMap<>();
         colorMap = new HashMap<>();
+    }
+
+    public void onActivityResumed(){
+        AttributeApplier.ApplyDensity(this, getContext());
     }
 
     @Override
@@ -526,7 +520,7 @@ public class ShortcutGestureView extends View {
                                 getWidth() / 2, getHeight() / 2, true);
                         return;
                     } else if (selectedY == -2){ //"Cancel" position flag
-                        drawColor(canvas, Color.RED, LEFT_SIDE);
+                        drawColor(canvas, Color.RED, ScreenSide.LEFT_SIDE);
                         drawAbsoluteLineInternalLeftJustified(canvas,
                                 IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_clear_white_48dp, bigIconSize, retrievalInterface),
                                 "Cancel", edgeSlop, getHeight() / 2 - (iconSize / 2), iconSize, textSize,
@@ -636,7 +630,7 @@ public class ShortcutGestureView extends View {
 
                     //Draw selected icon "glow"
                     drawColor(canvas, getIconColorForApp(packages.get(selectedY).first,
-                            packages.get(selectedY).second), RIGHT_SIDE);
+                            packages.get(selectedY).second), ScreenSide.RIGHT_SIDE);
 
                     for(int i = 0; i < numIcons; i++){ //Package name/activity name
                         Pair<Float, Float> sizes = sizeQueue.remove(0);
@@ -766,7 +760,7 @@ public class ShortcutGestureView extends View {
 
                         drawColor(canvas,
                                 getIconColor(data.get(selectedY).getDrawablePackage(), data.get(selectedY).getDrawableName()),
-                                LEFT_SIDE);
+                                ScreenSide.LEFT_SIDE);
 
                         for (int i = 0; i < data.size(); i++) {
                             Pair<Float, Float> sizes = sizeQueue.remove(0);
@@ -785,13 +779,14 @@ public class ShortcutGestureView extends View {
         }
     }
 
-    private void drawColor(Canvas c, int iconColor, int side) {
+    private void drawColor(Canvas c, int iconColor, ScreenSide side) {
         int xStart;
         int xEnd;
         int quarter = getWidth()/ 4;
         int eighth = getWidth() / 8;
         int sixteenth = getWidth() / 16;
-        if(side == LEFT_SIDE){
+
+        if(side == ScreenSide.LEFT_SIDE){
             xStart = -(eighth + sixteenth);
             xEnd = eighth;
         } else {
@@ -809,9 +804,9 @@ public class ShortcutGestureView extends View {
                 Shader.TileMode.REPEAT);
 
         Shader linear = new LinearGradient(
-                side == LEFT_SIDE ? 0 : getWidth(),
+                side == ScreenSide.LEFT_SIDE ? 0 : getWidth(),
                 getHeight() / 2,
-                side == LEFT_SIDE ? eighth : getWidth() - eighth,
+                side == ScreenSide.LEFT_SIDE ? eighth : getWidth() - eighth,
                 getHeight() / 2,
                 Color.argb(120, Color.red(iconColor), Color.green(iconColor), Color.blue(iconColor)),
                 transparentColor,

@@ -28,14 +28,14 @@ public class ApplicationIconAdapter extends
 
     public static class AppIconHolder extends RecyclerView.ViewHolder {
         RelativeLayout mainView;
-        ImageView icon;
+        StickyImageView icon;
         TextView title;
 
         public AppIconHolder(RelativeLayout mainView) {
             super(mainView);
             this.mainView = mainView;
             this.title = (TextView) mainView.findViewById(R.id.appIconName);
-            this.icon = (ImageView) mainView.findViewById(R.id.appIconImage);
+            this.icon = (StickyImageView) mainView.findViewById(R.id.appIconImage);
         }
     }
 
@@ -61,7 +61,7 @@ public class ApplicationIconAdapter extends
 
     //Set up specific customIcon with data
     @Override
-    public void onBindViewHolder(AppIconHolder viewHolder, int i) {
+    public void onBindViewHolder(final AppIconHolder viewHolder, int i) {
         final ApplicationIcon ai = apps.get(i);
 
         //Set title
@@ -76,7 +76,7 @@ public class ApplicationIconAdapter extends
         rllp.addRule(RelativeLayout.CENTER_HORIZONTAL);
         viewHolder.icon.setLayoutParams(rllp);
         viewHolder.icon.setTag(ai);
-        viewHolder.icon.setImageDrawable(null);
+        viewHolder.icon.setImageBitmap(null);
 
         IconCache.getInstance().setIcon(ai.getPackageName(), ai.getActivityName(), viewHolder.icon);
 
@@ -94,7 +94,9 @@ public class ApplicationIconAdapter extends
             public boolean onLongClick(View v) {
                 //Start drag
                 ClipData cd = ClipData.newPlainText("description", "Passing app customIcon");
-                v.startDrag(cd, new View.DragShadowBuilder(v.findViewById(R.id.appIconImage)), ai, 0);
+                View.DragShadowBuilder dsb  = new View.DragShadowBuilder(v.findViewById(R.id.appIconImage));
+                v.startDrag(cd, dsb, new ApplicationIcon(ai.getPackageName(), ai.getName(),
+                                ai.getActivityName()), 0);
                 return true;
             }
         });

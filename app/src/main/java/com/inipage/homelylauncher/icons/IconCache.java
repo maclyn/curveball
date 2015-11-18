@@ -10,21 +10,28 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
+import android.media.Image;
 import android.os.AsyncTask;
 import android.support.v4.util.Pair;
 import android.util.Log;
 import android.util.LruCache;
 import android.util.TypedValue;
+import android.view.View;
 import android.widget.ImageView;
 
 import com.inipage.homelylauncher.ApplicationClass;
 import com.inipage.homelylauncher.ShortcutGestureView;
+import com.inipage.homelylauncher.drawer.StickyImageView;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * Class for maintaining icons in a memory cache. Very similar to an LRU, although manually
+ * tweaked for the application's purposes. Net effect is to great reduce icon redraws.
+ */
 public class IconCache {
     private static final String TAG = "IconCache";
 
@@ -38,7 +45,7 @@ public class IconCache {
     private int DEFAULT_ICON_SIZE = 48;
 
     //For memory management
-    int memoryPressureLimit;
+    long memoryPressureLimit;
 
     //Needed tools
     Resources baseResources;
@@ -58,7 +65,7 @@ public class IconCache {
     private class BitmapRetrievalTask extends AsyncTask<Object, Void, Boolean> {
         Pair<Integer, BitmapRetrievalTask> taskRef;
         String tag;
-        ImageView location;
+        View location;
         Integer taskType;
         ItemRetrievalInterface retrievalInterface;
 
@@ -76,7 +83,11 @@ public class IconCache {
                 Bitmap toDraw;
                 try {
                     if(taskType == APP_DRAWER_TASK || taskType ==  DOCK_TASK) {
-                        location = (ImageView) params[5];
+                        if(taskType == DOCK_TASK) {
+                            location = (ImageView) params[5];
+                        } else {
+                            location = (StickyImageView) params[5];
+                        }
                         String componentName = (String) params[6];
                         ComponentName cm = new ComponentName(packageName, componentName);
                         d = pm.getActivityIcon(cm);
@@ -117,9 +128,7 @@ public class IconCache {
                 }
 
                 //Check if over memory pressure limit; if so, evict the least used element
-                if(Runtime.getRuntime().maxMemory() - Runtime.getRuntime().freeMemory() > memoryPressureLimit){ //Used > pressure value
-                    evictUntilFree(toDraw.getByteCount());
-                }
+                evictUntilFree(toDraw.getByteCount());
 
                 if(taskType == APP_DRAWER_TASK || taskType ==  DOCK_TASK || taskType == SMARTBAR_ICON_TASK) {
                     iconCache.put(tag, new Pair<>(1, toDraw));
@@ -137,55 +146,91 @@ public class IconCache {
         }
 
         @Override
-        protected void onPostExecute(Boolean result){
+        protected void onPostExecute(Boolean result) {
             //Remove task from list & map
             taskMap.remove(tag);
             taskList.remove(taskRef);
 
-            try {
-                if(taskType == APP_DRAWER_TASK || taskType == DOCK_TASK || taskType == SMARTBAR_ICON_TASK) {
-                    if(location == null) return; //We're done here
+            synchronized (iconCache) {
+                try {
+                    if (taskType == APP_DRAWER_TASK || taskType == DOCK_TASK || taskType == SMARTBAR_ICON_TASK) {
+                        if (location == null) return; //We're done here
 
-                    if (result && location.getTag() != null && location.getTag().equals(tag)) {
-                        location.setImageBitmap(iconCache.get(tag).second);
-                    } else {
-                        location.setImageResource(android.R.drawable.sym_def_app_icon);
+                        if (result && location.getTag() != null && location.getTag().equals(tag)) {
+                            Pair<Integer, Bitmap> res = iconCache.get(tag);
+                            if (res != null){
+                                if(taskType == DOCK_TASK || taskType == SMARTBAR_ICON_TASK)
+                                    ((ImageView)location).setImageBitmap(res.second);
+                                else
+                                    ((StickyImageView)location).setImageBitmap(res.second);
+                            }
+                        } else {
+                            //TODO: Better errors?
+                        }
+                    } else if (taskType == SWIPE_ICON_ICON_PACK_TASK || taskType == SWIPE_ICON_LOCAL_RESOURCE_TASK
+                            || taskType == SWIPE_ICON_APP_ICON_TASK) {
+                        Bitmap bmpResult = result ? swipeCache.get(tag).second :
+                                swipeCache.put(tag, new Pair<>(1, dummyBitmap)).second;
+                        if (retrievalInterface != null)
+                            retrievalInterface.onRetrievalComplete(bmpResult);
                     }
-                } else if (taskType == SWIPE_ICON_ICON_PACK_TASK || taskType == SWIPE_ICON_LOCAL_RESOURCE_TASK
-                        || taskType == SWIPE_ICON_APP_ICON_TASK){
-                    Bitmap bmpResult = result ? swipeCache.get(tag).second :
-                            swipeCache.put(tag, new Pair<>(1, dummyBitmap)).second;
-                    if(retrievalInterface != null) retrievalInterface.onRetrievalComplete(bmpResult);
+                } catch (Error memoryError) {
+                    //Sobs.
                 }
-            } catch (Error memoryError) {
-                //Sobs.
             }
         }
     }
 
     //Only evicts from app cache.
     private void evictUntilFree(int byteCount) {
-        int bytesFreed = 0;
+        Log.d(TAG, "Checking if space present for " + byteCount + " bytes");
 
-        int usageNumberPass = 0;
-        List<String> toEvict = new ArrayList<>();
-        usageLoop: {
-            while (bytesFreed < byteCount || usageNumberPass > 5) { //Run until we've freed enough space or
-                // gotten to stuff that's been used 5 times
-                for (Map.Entry<String, Pair<Integer, Bitmap>> entry : iconCache.entrySet()) {
-                    if (entry.getValue().first == usageNumberPass) {
-                        toEvict.add(entry.getKey());
-                        bytesFreed += entry.getValue().first;
-                    }
-
-                    if (bytesFreed >= byteCount) break usageLoop;
-                }
-                usageNumberPass++;
-            }
+        long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
+        if(usedMemory < memoryPressureLimit){ //Used > pressure value
+            Log.d(TAG, "Only " + usedMemory + " bytes used; pressure fine for now");
+            return;
+        } else {
+            Log.d(TAG, "Memory pressure tight; trying to evict");
         }
 
-        for(String s : toEvict){
-            iconCache.remove(s);
+        synchronized (iconCache) {
+            int bytesFreed = 0;
+            int maximumUsageNumber = 0;
+            int usageNumberPass = 1;
+            List<String> toEvict = new ArrayList<>();
+
+            //Get max usage
+            for (Map.Entry<String, Pair<Integer, Bitmap>> entry : iconCache.entrySet()) {
+                if (entry.getValue().first > maximumUsageNumber)
+                    maximumUsageNumber = entry.getValue().first;
+            }
+
+            Log.d(TAG, "Most used element has been used " + maximumUsageNumber + " times");
+
+            usageLoop:
+            {
+                while (bytesFreed < byteCount && usageNumberPass <= maximumUsageNumber) { //Run until we've freed enough space or at last
+                    for (Map.Entry<String, Pair<Integer, Bitmap>> entry : iconCache.entrySet()) {
+                        int usageCount = entry.getValue().first;
+
+                        if (usageCount == usageNumberPass) {
+                            toEvict.add(entry.getKey());
+                            bytesFreed += entry.getValue().second.getByteCount();
+                        }
+
+                        if (bytesFreed >= byteCount) break usageLoop;
+                    }
+
+                    usageNumberPass++;
+                }
+            }
+
+            Log.d(TAG, toEvict.size() + " elements removed to free " + bytesFreed + " bytes");
+
+            for (String s : toEvict) {
+                Log.d(TAG, "Evicting: " + s);
+                iconCache.remove(s);
+            }
         }
     }
 
@@ -195,7 +240,7 @@ public class IconCache {
     }
 
     private IconCache(){
-        memoryPressureLimit = (int) (Runtime.getRuntime().maxMemory() * 0.7f); //Max memory in kilobytes
+        memoryPressureLimit = (long) (Runtime.getRuntime().maxMemory() * 0.8f); //Max memory in kilobytes
 
         iconCache =  new HashMap<>();
         swipeCache = new HashMap<>();
@@ -236,14 +281,19 @@ public class IconCache {
 
     }
 
-    private void setIconImpl(String packageName, String componentName, ImageView place, int taskType){
+    private void setIconImpl(String packageName, String componentName, View place, int taskType){
         final String key = packageName + "|" + componentName;
         if(place != null) place.setTag(key);
 
-        Bitmap icon = iconCache.get(key).second;
+        Bitmap icon = iconCache.get(key) == null ? null : iconCache.get(key).second;
         if(icon != null){
             try {
-                if(place != null) place.setImageBitmap(icon);
+                if(place != null){
+                    if(taskType == DOCK_TASK || taskType == SMARTBAR_ICON_TASK)
+                        ((ImageView)place).setImageBitmap(icon);
+                    else
+                        ((StickyImageView)place).setImageBitmap(icon);
+                }
                 return;
             } catch (Exception ignored){ //This means the bitmap has been recycled
             }
@@ -265,7 +315,7 @@ public class IconCache {
      * @param componentName The component of the icon.
      * @param place Where to set it (can be null just to cache it).
      */
-    public void setIcon(String packageName, String componentName, ImageView place){
+    public void setIcon(String packageName, String componentName, StickyImageView place){
         setIconImpl(packageName, componentName, place, APP_DRAWER_TASK);
     }
 
@@ -349,10 +399,10 @@ public class IconCache {
         final String key = packageName + "|" + "-1";
         place.setTag(key);
 
-        Bitmap icon = iconCache.get(key).second;
-        if(icon != null){
+        Pair<Integer, Bitmap> entry = iconCache.get(key);
+        if(entry != null && entry.second != null){
             try {
-                place.setImageBitmap(icon);
+                place.setImageBitmap(entry.second);
                 return;
             } catch (Exception ignored){ //This means the bitmap has been recycled
             }

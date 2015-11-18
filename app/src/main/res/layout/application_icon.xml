@@ -5,7 +5,7 @@
     android:layout_margin="6dp"
     android:background="?android:attr/selectableItemBackground" >
 
-    <ImageView
+    <com.inipage.homelylauncher.drawer.StickyImageView
         android:id="@+id/appIconImage"
         android:layout_width="48dp"
         android:layout_height="48dp"

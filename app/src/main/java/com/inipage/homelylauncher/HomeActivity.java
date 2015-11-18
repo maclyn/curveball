@@ -28,7 +28,9 @@ import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Color;
 import android.graphics.Typeface;
+import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -493,8 +495,12 @@ public class HomeActivity extends ActionBarActivity {
         uninstallApp.setOnDragListener(new View.OnDragListener() {
             @Override
             public boolean onDrag(View v, DragEvent event) {
+                //We only can operate an "apps"
+                if (event.getLocalState() == null ||
+                        !(event.getLocalState() instanceof ApplicationIcon)) return false;
+
+                ApplicationIcon ai  = (ApplicationIcon) event.getLocalState();
                 if (event.getAction() == DragEvent.ACTION_DROP) {
-                    ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
                     try {
                         Uri uri = Uri.parse("package:" + ai.getPackageName());
                         Intent uninstallIntent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE, uri);
@@ -504,6 +510,13 @@ public class HomeActivity extends ActionBarActivity {
                         Toast.makeText(v.getContext(),
                                 "The app is unable to be removed.", Toast.LENGTH_LONG).show();
                     }
+                } else if (event.getAction() == DragEvent.ACTION_DRAG_ENTERED){
+                    //Tint red
+                    Log.d(TAG, "Tinting red");
+                    tintDropLayout(TintColor.RED);
+                } else if (event.getAction() == DragEvent.ACTION_DRAG_EXITED) {
+                    Log.d(TAG, "CLearing tint");
+                    tintDropLayout(TintColor.CLEAR);
                 }
                 return true;
             }
@@ -523,6 +536,10 @@ public class HomeActivity extends ActionBarActivity {
                         Toast.makeText(v.getContext(),
                                 "The app does not have info.", Toast.LENGTH_LONG).show();
                     }
+                } else if (event.getAction() == DragEvent.ACTION_DRAG_ENTERED){
+                    tintDropLayout(TintColor.BLUE);
+                } else if (event.getAction() == DragEvent.ACTION_DRAG_EXITED) {
+                    tintDropLayout(TintColor.CLEAR);
                 }
                 return true;
             }
@@ -531,7 +548,10 @@ public class HomeActivity extends ActionBarActivity {
             @Override
             public boolean onDrag(View v, DragEvent event) {
                 if (event.getAction() == DragEvent.ACTION_DRAG_ENTERED) {
+                    tintDropLayout(TintColor.GREEN);
                     setDockbarState(DockbarState.STATE_HOME, true);
+                } else if (event.getAction() == DragEvent.ACTION_DRAG_EXITED) {
+                    tintDropLayout(TintColor.CLEAR);
                 }
                 return true;
             }
@@ -680,6 +700,30 @@ public class HomeActivity extends ActionBarActivity {
 
         //Setup app drawer
         updateRowCount(getResources().getConfiguration().orientation);
+    }
+
+
+    private enum TintColor {
+        RED, BLUE, GREEN, CLEAR
+    }
+
+    private void tintDropLayout(TintColor color){
+        Drawable newBg = new ColorDrawable(Color.TRANSPARENT);
+        switch(color){
+            case RED:
+                newBg = getResources().getDrawable(R.drawable.light_red_to_transparent_bg);
+                break;
+            case BLUE:
+                newBg = getResources().getDrawable(R.drawable.light_blue_to_transparent_bg);
+                break;
+            case GREEN:
+                newBg = getResources().getDrawable(R.drawable.light_green_to_transparent_bg);
+                break;
+            case CLEAR:
+                break;
+        }
+
+        dropLayout.setBackgroundDrawable(newBg);
     }
 
     private void spillWidgets() {

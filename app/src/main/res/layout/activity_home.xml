@@ -387,9 +387,9 @@
             android:layout_gravity="center_vertical"
             android:visibility="visible"
             android:layout_margin="8dp">
+
             <ImageView
                 android:id="@+id/backToHome"
-                android:background="?attr/selectableItemBackground"
                 android:layout_alignParentLeft="true"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
@@ -399,6 +399,7 @@
                 android:src="@drawable/ic_home_white_48dp"
                 android:layout_marginRight="2dp"
                 android:padding="2dp" />
+
             <EditText
                 android:layout_height="wrap_content"
                 android:layout_width="match_parent"
@@ -415,10 +416,10 @@
                 android:layout_centerVertical="true"
                 android:imeOptions="actionGo"
                 android:gravity="center_vertical" />
+
             <ImageView
                 android:id="@+id/moreOptions"
                 android:layout_alignParentRight="true"
-                android:background="?attr/selectableItemBackground"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginTop="8dp"
@@ -427,10 +428,10 @@
                 android:src="@drawable/ic_more_vert_white_48dp"
                 android:layout_marginRight="2dp"
                 android:padding="2dp" />
+
             <ImageView
                 android:id="@+id/clearSearch"
                 android:layout_toLeftOf="@+id/moreOptions"
-                android:background="?attr/selectableItemBackground"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:layout_marginTop="8dp"
@@ -571,7 +572,8 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginRight="16dp"
-                    android:layout_marginLeft="16dp"/>
+                    android:layout_marginLeft="16dp"
+                    android:theme="@style/Theme.AppCompat" />
                 <ScrollView
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"

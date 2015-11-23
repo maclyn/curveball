@@ -2,7 +2,7 @@
 <level-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape xmlns:android="http://schemas.android.com/apk/res/android">
-            <solid android:color="#e0ffffff" />
+            <solid android:color="#ffffffff" />
             <stroke android:width="2dp" android:color="#c0000000" />
             <corners android:radius="4dp" />
         </shape>

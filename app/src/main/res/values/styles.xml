@@ -9,7 +9,7 @@
         <item name="md_dark_theme">true</item>
     </style>
 
-    <style name="AppThemeNoActionBar" parent="Theme.AppCompat.Light.NoActionBar" />
+    <style name="AppThemeNoActionBar" parent="@android:style/Theme.DeviceDefault.NoActionBar" />
     <style name="AppThemeDarkNoActionBar" parent="Theme.AppCompat.NoActionBar" />
 
     <style name="HomeTheme" parent="AppThemeNoActionBar" >

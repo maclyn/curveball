@@ -1,16 +1,22 @@
 package com.inipage.homelylauncher.utils;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
+import android.os.*;
 import android.preference.PreferenceManager;
+import android.support.v4.content.PermissionChecker;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.view.MotionEvent;
 import android.view.View;
 
 import com.inipage.homelylauncher.Constants;
+import com.inipage.homelylauncher.HomeActivity;
+
+import java.security.Permission;
 
 public class Utilities {
     private static final String TAG = "Utilities";
@@ -92,5 +98,14 @@ public class Utilities {
             return true;
         }
         return false;
+    }
+
+    public static boolean checkMarshmallow() {
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
+    }
+
+    public static boolean checkPermission(String permission, Context context) {
+        return PermissionChecker.checkCallingOrSelfPermission(context, permission)
+                == PermissionChecker.PERMISSION_GRANTED;
     }
 }

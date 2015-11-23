@@ -99,6 +99,7 @@ public class SettingsActivity extends ActionBarActivity {
                         return true;
                     }
                 });
+                /*
                 findPreference("home_widget_pref").setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
                     @Override
                     public boolean onPreferenceChange(Preference preference, Object newValue) {
@@ -108,6 +109,7 @@ public class SettingsActivity extends ActionBarActivity {
                         return true;
                     }
                 });
+                */
             }
 
             public void changeApp(String pref){

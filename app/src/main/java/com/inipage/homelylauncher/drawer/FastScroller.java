@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Class for setting up a scrollbar.
@@ -54,7 +55,7 @@ public class FastScroller {
 
     /**
      * Create a FastScroller. You must call setupScrollbar() before expecting this to work, and
-     * after adding items with pushMapping().
+     * after adding items with setupList().
      * @param scrollview The RecyclerView.
      */
     public FastScroller(RecyclerView scrollview, View bar, TextView startLetter, TextView endLetter, TextView popup){
@@ -66,23 +67,19 @@ public class FastScroller {
         mappings = new ArrayList<>();
     }
 
-    /**
-     * Used to associate an element of the RecyclerView we're scrolling with a position in the list.
-     * @param name The name of the element, or null if it has none (it'll be assigned "?").
-     * @param position Its position.
-     */
-    public void pushMapping(String name, int position) {
-        if(name == null || name.length() == 0){
-            name = "?";
-        }
+    public void setupList(List<FastScrollable> list){
+        for(int i = 0; i < list.size(); i++) {
+            String name = list.get(i).getScrollableName();
 
-        name = name.substring(0, 1);
-        SectionElement se = containsName(name);
-        if(se != null){
-            ++se.count;
-            if(position < se.start) se.start = position;
-        } else {
-            mappings.add(new SectionElement(1, position, name));
+            name = name.substring(0, 1).toUpperCase(Locale.getDefault());
+            SectionElement se = containsName(name);
+
+            if (se != null) {
+                ++se.count;
+                if (i < se.start) se.start = i;
+            } else {
+                mappings.add(new SectionElement(1, i, name));
+            }
         }
     }
 
@@ -140,7 +137,8 @@ public class FastScroller {
                                     break;
                                 }
                             }
-                            scrollview.scrollToPosition(position);
+
+                            scrollview.smoothScrollToPosition(position);
                         }
                         return true;
                     case MotionEvent.ACTION_CANCEL:

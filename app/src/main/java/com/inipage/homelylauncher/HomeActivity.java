@@ -1,8 +1,10 @@
 package com.inipage.homelylauncher;
 
+import android.Manifest;
 import android.animation.ObjectAnimator;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
+import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.app.AlarmManager;
@@ -42,7 +44,7 @@ import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.provider.CalendarContract;
 import android.provider.Settings;
-import android.support.v7.app.ActionBarActivity;
+import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
@@ -112,7 +114,7 @@ import butterknife.Bind;
 import butterknife.ButterKnife;
 
 @SuppressWarnings("unchecked")
-public class HomeActivity extends ActionBarActivity {
+public class HomeActivity extends Activity {
     public static final String TAG = "HomeActivity";
     public static final int REQUEST_CHOOSE_ICON = 200;
     public static final int REQUEST_CHOOSE_APPLICATION = 201;
@@ -288,7 +290,7 @@ public class HomeActivity extends ActionBarActivity {
     String cachedPref;
 
     Handler testHandler;
-    List<AppWidgetHostView> testRef = new ArrayList<>();
+    //List<AppWidgetHostView> testRef = new ArrayList<>();
 
     //Tell when things have changed
     BroadcastReceiver packageReceiver;
@@ -647,10 +649,24 @@ public class HomeActivity extends ActionBarActivity {
         //Check if we've run before
         if (!reader.getBoolean(Constants.HAS_RUN_PREFERENCE, false)) {
             writer.putBoolean(Constants.HAS_RUN_PREFERENCE, true).apply();
+            writer.putInt(Constants.VERSION_PREF, Constants.Versions.CURRENT_VERSION).apply();
             sgv.setCards(new ArrayList<TypeCard>());
 
             showTutorial();
         } else {
+            //Do version upgrades
+            int lastUsedVersion = reader.getInt(Constants.VERSION_PREF, Constants.Versions.VERSION_0_2_3);
+            switch(lastUsedVersion){
+                case Constants.Versions.VERSION_0_2_3:
+                    writer.putBoolean(Constants.HOME_WIDGET_PREFERENCE, false).commit();
+                    writer.putInt(Constants.HOME_WIDGET_ID_PREFERENCE, -1).commit();
+                    break;
+            }
+
+            if(lastUsedVersion != Constants.Versions.CURRENT_VERSION){
+                writer.putInt(Constants.VERSION_PREF, Constants.Versions.CURRENT_VERSION).commit();
+            }
+
             loadList(samples);
             loadWidgets(widgets);
             loadHiddenApps(hiddenApps);
@@ -1458,88 +1474,99 @@ public class HomeActivity extends ActionBarActivity {
         int appsAdded = 0;
 
         //(1) Check if we're in a phone call
-        TelephonyManager tm = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
-        int state = tm.getCallState();
-        if(state == TelephonyManager.CALL_STATE_OFFHOOK){ //In call
-            ApplicationIcon ai = addSmartbarAppFromPref(Constants.PHONE_APP_PREFERENCE);
-            if(ai != null){
-                addSmartbarHeader(R.drawable.ic_call_white_48dp, R.string.call_desc);
-                addSmartbarApp(ai.getPackageName(), ai.getActivityName());
-                appsAdded++;
+        boolean hasPhonePermission = Utilities.checkPermission(Manifest.permission.READ_PHONE_STATE, this);
+
+        if(hasPhonePermission) {
+            TelephonyManager tm = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
+            int state = tm.getCallState();
+            if (state == TelephonyManager.CALL_STATE_OFFHOOK) { //In call
+                ApplicationIcon ai = addSmartbarAppFromPref(Constants.PHONE_APP_PREFERENCE);
+                if (ai != null) {
+                    addSmartbarHeader(R.drawable.ic_call_white_48dp, R.string.call_desc);
+                    addSmartbarApp(ai.getPackageName(), ai.getActivityName());
+                    appsAdded++;
+                }
             }
         }
 
         //(2) Check if we're in a calendar event
-        ContentResolver cr = getContentResolver();
-        String[] columns = new String[]{CalendarContract.Instances.DTSTART, CalendarContract.Instances.DTEND,
-                CalendarContract.Instances.TITLE};
-        Uri.Builder builder = CalendarContract.Instances.CONTENT_URI.buildUpon();
-        ContentUris.appendId(builder, System.currentTimeMillis());
-        ContentUris.appendId(builder, System.currentTimeMillis() + (1000l * 60l * 60l * 24l));
-        Cursor c = cr.query(builder.build(), columns, null, null, CalendarContract.Instances.DTSTART + " asc");
-        calendarBlock: {
-            if (c != null && c.moveToFirst()){
-                Log.d(TAG, "Calendar block move to first!");
+        boolean hasCalendarPermission = Utilities.checkPermission(Manifest.permission.READ_CALENDAR, this);
 
-                int startCol = c.getColumnIndex(CalendarContract.Instances.DTSTART);
-                int endCol = c.getColumnIndex(CalendarContract.Instances.DTEND);
-                int titleCol = c.getColumnIndex(CalendarContract.Instances.TITLE);
+        if(hasCalendarPermission) {
+            ContentResolver cr = getContentResolver();
+            String[] columns = new String[]{CalendarContract.Instances.DTSTART, CalendarContract.Instances.DTEND,
+                    CalendarContract.Instances.TITLE};
+            Uri.Builder builder = CalendarContract.Instances.CONTENT_URI.buildUpon();
+            ContentUris.appendId(builder, System.currentTimeMillis());
+            ContentUris.appendId(builder, System.currentTimeMillis() + (1000l * 60l * 60l * 24l));
+            Cursor c = cr.query(builder.build(), columns, null, null, CalendarContract.Instances.DTSTART + " asc");
+            calendarBlock:
+            {
+                if (c != null && c.moveToFirst()) {
+                    Log.d(TAG, "Calendar block move to first!");
 
-                if (startCol == -1 || endCol == -1 || titleCol == -1 || c.getCount() == 0){
-                    Log.d(TAG, "Count/columns 0!");
-                    c.close();
-                    break calendarBlock;
-                }
+                    int startCol = c.getColumnIndex(CalendarContract.Instances.DTSTART);
+                    int endCol = c.getColumnIndex(CalendarContract.Instances.DTEND);
+                    int titleCol = c.getColumnIndex(CalendarContract.Instances.TITLE);
 
-
-                long startTime = c.getLong(startCol);
-                long endTime = c.getLong(endCol);
-                long duration = c.getLong(endCol) - c.getLong(startCol);
-
-                Log.d(TAG, "Curr: " + System.currentTimeMillis() + ", start: " + startTime + ", end: " + endTime + ", duration: " + duration);
-
-                if(System.currentTimeMillis() > startTime && System.currentTimeMillis() < endTime){
-                    Log.d(TAG, "In event!");
-
-                    ApplicationIcon ai = addSmartbarAppFromPref(Constants.CALENDAR_APP_PREFERENCE);
-                    if(ai != null){
-                        addSmartbarHeader(R.drawable.ic_event_white_48dp, R.string.calendar_desc);
-                        addSmartbarApp(ai.getPackageName(), ai.getActivityName());
-                        appsAdded++;
+                    if (startCol == -1 || endCol == -1 || titleCol == -1 || c.getCount() == 0) {
+                        Log.d(TAG, "Count/columns 0!");
+                        c.close();
+                        break calendarBlock;
                     }
-                }
 
-                c.close();
+
+                    long startTime = c.getLong(startCol);
+                    long endTime = c.getLong(endCol);
+                    long duration = c.getLong(endCol) - c.getLong(startCol);
+
+                    Log.d(TAG, "Curr: " + System.currentTimeMillis() + ", start: " + startTime + ", end: " + endTime + ", duration: " + duration);
+
+                    if (System.currentTimeMillis() > startTime && System.currentTimeMillis() < endTime) {
+                        Log.d(TAG, "In event!");
+
+                        ApplicationIcon ai = addSmartbarAppFromPref(Constants.CALENDAR_APP_PREFERENCE);
+                        if (ai != null) {
+                            addSmartbarHeader(R.drawable.ic_event_white_48dp, R.string.calendar_desc);
+                            addSmartbarApp(ai.getPackageName(), ai.getActivityName());
+                            appsAdded++;
+                        }
+                    }
+
+                    c.close();
+                }
             }
         }
 
         //(3) Check if we're almost out of power
-        IntentFilter batteryReading = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
-        Intent batteryStatus = registerReceiver(null, batteryReading);
+        if(hasPhonePermission) {
+            IntentFilter batteryReading = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+            Intent batteryStatus = registerReceiver(null, batteryReading);
 
-        //Get percent
-        if(batteryStatus != null) {
-            int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-            int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
-            float batteryPercent = level / (float) scale;
+            //Get percent
+            if (batteryStatus != null) {
+                int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
+                int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
+                float batteryPercent = level / (float) scale;
 
-            //Get isCharging
-            int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
-            boolean isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL;
+                //Get isCharging
+                int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
+                boolean isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING || status == BatteryManager.BATTERY_STATUS_FULL;
 
-            if (batteryPercent < 0.2 && !isCharging) {
-                ApplicationIcon ai = addSmartbarAppFromPref(Constants.LOW_POWER_APP_PREFERENCE);
-                if(ai != null){
-                    addSmartbarHeader(R.drawable.ic_battery_alert_white_48dp, R.string.battery_desc);
-                    addSmartbarApp(ai.getPackageName(), ai.getActivityName());
-                    appsAdded++;
-                }
-            } else if (isCharging) {
-                ApplicationIcon ai = addSmartbarAppFromPref(Constants.CHARGING_APP_PREFERENCE);
-                if(ai != null){
-                    addSmartbarHeader(R.drawable.ic_battery_charging_50_white_48dp, R.string.battery_desc);
-                    addSmartbarApp(ai.getPackageName(), ai.getActivityName());
-                    appsAdded++;
+                if (batteryPercent < 0.2 && !isCharging) {
+                    ApplicationIcon ai = addSmartbarAppFromPref(Constants.LOW_POWER_APP_PREFERENCE);
+                    if (ai != null) {
+                        addSmartbarHeader(R.drawable.ic_battery_alert_white_48dp, R.string.battery_desc);
+                        addSmartbarApp(ai.getPackageName(), ai.getActivityName());
+                        appsAdded++;
+                    }
+                } else if (isCharging) {
+                    ApplicationIcon ai = addSmartbarAppFromPref(Constants.CHARGING_APP_PREFERENCE);
+                    if (ai != null) {
+                        addSmartbarHeader(R.drawable.ic_battery_charging_50_white_48dp, R.string.battery_desc);
+                        addSmartbarApp(ai.getPackageName(), ai.getActivityName());
+                        appsAdded++;
+                    }
                 }
             }
         }
@@ -1848,7 +1875,7 @@ public class HomeActivity extends ActionBarActivity {
 
         final AppWidgetHostView hostView = widgetHost.createView(this, appWidgetId, awpi);
         hostView.setAppWidget(appWidgetId, awpi);
-        testRef.add(hostView);
+        //testRef.add(hostView);
 
         //Set to minHeight
         int resultDp;
@@ -2226,18 +2253,16 @@ public class HomeActivity extends ActionBarActivity {
                         adapter.setHasStableIds(true);
                         allAppsScreen.setAdapter(adapter);
 
-                        if(preCacheIcons && reader.getBoolean("aggresive_caching_pref", true)){
+                        if(preCacheIcons && reader.getBoolean(Constants.AGGRESIVE_CACHING_PREF, true)){
                             for(ApplicationIcon ai : apps){
-                                IconCache.getInstance().setIcon(ai.getPackageName(), ai.getActivityName(),
-                                        null);
+                                IconCache.getInstance().setIcon(ai.getPackageName(), ai.getActivityName(), null);
                             }
                         }
 
                         FastScroller scroller = new FastScroller(allAppsScreen, scrollerBar, startLetter,
                                 endLetter, popup);
-                        for(int i = 0; i < apps.size(); i++) {
-                            scroller.pushMapping(apps.get(i).getName(), i);
-                        }
+
+                        scroller.setupList((List)apps);
                         scroller.setupScrollbar();
 
                         cachedHash = newHash;
@@ -2717,41 +2742,45 @@ public class HomeActivity extends ActionBarActivity {
                 SimpleDateFormat sdfMonth = new SimpleDateFormat("MMMM", Locale.US);
                 SimpleDateFormat sdfDayOfMonth = new SimpleDateFormat("d", Locale.US);
                 //Check battery -- if charging, then add percent to left of clock
-                IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
-                Intent status = registerReceiver(null, filter);
-                if(status != null) {
-                    if (status.getIntExtra(BatteryManager.EXTRA_STATUS,
-                            BatteryManager.BATTERY_STATUS_CHARGING) == BatteryManager.BATTERY_STATUS_CHARGING) {
-                        date.setText("Charging " + status.getIntExtra(BatteryManager.EXTRA_LEVEL, 50) + "%\n"
-                                + sdfDay.format(cal.getTime()) + ", " + sdfMonth.format(cal.getTime())
-                                + " " + sdfDayOfMonth.format(cal.getTime()));
-                    } else {
-                        date.setText(sdfDay.format(cal.getTime())
-                                + ", " + sdfMonth.format(cal.getTime())
-                                + " " + sdfDayOfMonth.format(cal.getTime()));
+
+                boolean hasPhonePermission = Utilities.checkPermission(Manifest.permission.READ_PHONE_STATE, HomeActivity.this);
+                if (hasPhonePermission) {
+                    IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
+                    Intent status = registerReceiver(null, filter);
+                    if (status != null) {
+                        if (status.getIntExtra(BatteryManager.EXTRA_STATUS,
+                                BatteryManager.BATTERY_STATUS_CHARGING) == BatteryManager.BATTERY_STATUS_CHARGING) {
+                            date.setText("Charging " + status.getIntExtra(BatteryManager.EXTRA_LEVEL, 50) + "%\n"
+                                    + sdfDay.format(cal.getTime()) + ", " + sdfMonth.format(cal.getTime())
+                                    + " " + sdfDayOfMonth.format(cal.getTime()));
+                        } else {
+                            date.setText(sdfDay.format(cal.getTime())
+                                    + ", " + sdfMonth.format(cal.getTime())
+                                    + " " + sdfDayOfMonth.format(cal.getTime()));
+                        }
                     }
-                }
 
-                //Check if there's an alarm set
-                if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                    AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
-                    final AlarmManager.AlarmClockInfo aci = am.getNextAlarmClock();
+                    //Check if there's an alarm set
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
+                        final AlarmManager.AlarmClockInfo aci = am.getNextAlarmClock();
 
-                    if(aci != null && (aci.getTriggerTime() - System.currentTimeMillis() < ONE_DAY_MILLIS)) {
-                        alarm.setVisibility(View.VISIBLE);
-                        alarm.setText(getString(R.string.next_alarm_at) + " " + alarmTime.format(new Date(aci.getTriggerTime())));
-                        alarm.setOnClickListener(new View.OnClickListener() {
-                            @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-                            @Override
-                            public void onClick(View v) {
-                                try {
-                                    aci.getShowIntent().send();
-                                } catch (Exception ignored) {
+                        if (aci != null && (aci.getTriggerTime() - System.currentTimeMillis() < ONE_DAY_MILLIS)) {
+                            alarm.setVisibility(View.VISIBLE);
+                            alarm.setText(getString(R.string.next_alarm_at) + " " + alarmTime.format(new Date(aci.getTriggerTime())));
+                            alarm.setOnClickListener(new View.OnClickListener() {
+                                @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+                                @Override
+                                public void onClick(View v) {
+                                    try {
+                                        aci.getShowIntent().send();
+                                    } catch (Exception ignored) {
+                                    }
                                 }
-                            }
-                        });
-                    } else {
-                        alarm.setVisibility(View.GONE);
+                            });
+                        } else {
+                            alarm.setVisibility(View.GONE);
+                        }
                     }
                 }
             }

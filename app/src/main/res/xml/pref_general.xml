@@ -33,11 +33,13 @@
                 android:title="@string/resize_all_widgets"
                 android:summary="@string/resize_all_widgets_summary"
                 android:key="resize_all_pref" />
+            <!--
             <CheckBoxPreference
                 android:defaultValue="false"
                 android:title="@string/replace_widget_with_clock"
                 android:summary="@string/replace_widget_with_clock_summary"
                 android:key="home_widget_pref" />
+                -->
         </PreferenceCategory>
     <PreferenceCategory
         android:title="@string/gesture_swipe"
@@ -50,6 +52,8 @@
             num_picker:vnt_maxValue="120"
             num_picker:vnt_minValue="20"
             num_picker:vnt_setWrapSelectorWheel="false"/>
+
+        <!--
         <com.vanniktech.vntnumberpickerpreference.VNTNumberPickerPreference
             android:defaultValue="48"
             android:key="icon_size_pref"
@@ -64,6 +68,7 @@
             num_picker:vnt_maxValue="100"
             num_picker:vnt_minValue="40"
             num_picker:vnt_setWrapSelectorWheel="false"/>
+        -->
     <PreferenceCategory
         android:title="@string/advanced"
         android:key="pref_advanced">

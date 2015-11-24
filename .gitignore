@@ -26,3 +26,6 @@ proguard/
 
 # Log Files
 *.log
+
+# Private strings (API keys, etc.)
+app/src/main/res/values/private_strings.xml

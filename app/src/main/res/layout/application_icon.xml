@@ -17,7 +17,7 @@
         android:layout_marginTop="2dp"
         android:textSize="14sp"
         android:fontFamily="sans-serif-condensed"
-        android:textColor="@android:color/white"
+        android:textColor="#111111"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:ellipsize="end"

@@ -12,6 +12,7 @@ import android.support.v7.app.ActionBarActivity;
 import android.view.MenuItem;
 import android.widget.Toast;
 
+import com.afollestad.materialdialogs.MaterialDialog;
 import com.google.gson.Gson;
 import com.inipage.homelylauncher.drawer.ApplicationIcon;
 import com.inipage.homelylauncher.utils.Utilities;
@@ -96,6 +97,17 @@ public class SettingsActivity extends ActionBarActivity {
                     @Override
                     public boolean onPreferenceClick(Preference preference) {
                         changeApp(Constants.PHONE_APP_PREFERENCE);
+                        return true;
+                    }
+                });
+                findPreference("attrs").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                    @Override
+                    public boolean onPreferenceClick(Preference preference) {
+                        new MaterialDialog.Builder(preference.getContext())
+                                .title(R.string.attributions)
+                                .content(R.string.attributions_message)
+                                .negativeText(R.string.close)
+                                .show();
                         return true;
                     }
                 });

@@ -462,7 +462,7 @@ public class HomeActivity extends Activity {
             }
         });
 
-        DrawableCompat.setTint(searchBox.getBackground(), getResources().getColor(R.color.white));
+        DrawableCompat.setTint(searchBox.getBackground(), getResources().getColor(R.color.black));
         clearSearch.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {

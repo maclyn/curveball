@@ -175,8 +175,8 @@
             android:layout_height="match_parent"
             android:visibility="visible"
             android:layout_alignParentTop="true"
-            android:layout_above="@+id/dockBar"
-            android:layout_marginBottom="8dp">
+            android:layout_above="@+id/searchActionBar"
+            android:background="#d0ffffff">
 
             <RelativeLayout
                 android:layout_width="match_parent"
@@ -194,8 +194,7 @@
                         android:id="@+id/allAppsLayout"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:scrollbars="vertical"
-                        android:overScrollMode="never" />
+                        android:scrollbars="vertical" />
 
                 </RelativeLayout>
 
@@ -212,7 +211,7 @@
                             android:layout_alignParentLeft="true"
                             android:text="A"
                             android:layout_centerVertical="true"
-                            android:textColor="@color/white"
+                            android:textColor="#111111"
                             android:gravity="center"
                             android:textSize="18sp"
                             android:layout_width="30dp"
@@ -228,7 +227,7 @@
                             android:layout_height="32dp">
 
                             <View
-                                android:background="#d0ffffff"
+                                android:background="#111111"
                                 android:layout_centerVertical="true"
                                 android:layout_width="match_parent"
                                 android:layout_height="2dp" />
@@ -239,7 +238,7 @@
                             android:layout_alignParentRight="true"
                             android:text="Z"
                             android:layout_centerVertical="true"
-                            android:textColor="@color/white"
+                            android:textColor="#111111"
                             android:gravity="center"
                             android:textSize="18sp"
                             android:layout_width="30dp"
@@ -378,10 +377,11 @@
             android:layout_alignParentBottom="true"
             android:layout_gravity="center_vertical"
             android:visibility="visible"
-            android:layout_marginLeft="16dp"
-            android:layout_marginRight="16dp"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="12dp" >
+            android:paddingRight="16dp"
+            android:paddingLeft="16dp"
+            android:paddingTop="12dp"
+            android:paddingBottom="12dp"
+            android:background="#d0ffffff" >
 
             <ImageView
                 android:id="@+id/backToHome"
@@ -389,7 +389,7 @@
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:layout_centerVertical="true"
-                android:src="@drawable/ic_arrow_back_white_36dp"
+                android:src="@drawable/ic_arrow_back_grey_900_36dp"
                 android:layout_marginRight="8dp" />
 
             <EditText
@@ -399,11 +399,11 @@
                 android:layout_toLeftOf="@+id/clearSearch"
                 android:hint="@string/search_hint"
                 android:textSize="18sp"
-                android:textColor="@android:color/white"
+                android:textColor="#111111"
                 android:id="@+id/searchBox"
                 android:singleLine="true"
                 android:visibility="visible"
-                android:textColorHint="#a0ffffff"
+                android:textColorHint="#666666"
                 android:layout_centerVertical="true"
                 android:imeOptions="actionGo"
                 android:gravity="center_vertical" />
@@ -415,7 +415,7 @@
                 android:layout_width="36dp"
                 android:layout_height="36dp"
                 android:layout_marginLeft="8dp"
-                android:src="@drawable/ic_settings_white_36dp"
+                android:src="@drawable/ic_settings_grey_900_36dp"
                 android:layout_marginRight="8dp" />
 
             <ImageView
@@ -425,7 +425,7 @@
                 android:layout_height="36dp"
                 android:layout_centerVertical="true"
                 android:layout_marginLeft="8dp"
-                android:src="@drawable/ic_close_white_48dp"
+                android:src="@drawable/ic_close_grey_900_36dp"
                 android:visibility="gone" />
         </RelativeLayout>
 
@@ -439,7 +439,7 @@
             android:layout_centerHorizontal="true"
             android:layout_alignParentBottom="true"
             android:orientation="vertical"
-            android:visibility="visible">
+            android:visibility="visible" >
             <RelativeLayout
                 android:id="@+id/appDropIcons"
                 android:layout_width="match_parent"

@@ -88,4 +88,13 @@
             android:summary="@string/aggresive_icon_caching_summary"
             android:key="aggresive_caching_pref" />
     </PreferenceCategory>
+
+    <PreferenceCategory
+        android:title="@string/attributions"
+        android:key="pref_help">
+        <Preference
+            android:title="@string/attributions"
+            android:summary="@string/tap_to_view_software_used"
+            android:key="attrs" />
+    </PreferenceCategory>
 </PreferenceScreen>

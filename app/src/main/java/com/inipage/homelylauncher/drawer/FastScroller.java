@@ -134,21 +134,32 @@ public class FastScroller {
                                 if(se.startZone <= place && se.endZone >= place){
                                     position = se.start;
                                     popup.setText(se.getName());
+                                    popup.setTranslationX((float) (place - (popup.getWidth() / 3.5)));
+                                    popup.setTranslationY(bar.getY() - popup.getHeight());
+                                    popup.setVisibility(View.VISIBLE);
                                     break;
                                 }
                             }
 
                             scrollview.smoothScrollToPosition(position);
+                            if(scrollview.getAdapter() instanceof HighlightableAdapter){
+                                ((HighlightableAdapter) scrollview.getAdapter()).highlightItem(position);
+                            }
                         }
                         return true;
                     case MotionEvent.ACTION_CANCEL:
                         popup.setVisibility(View.GONE);
+                        if(scrollview.getAdapter() instanceof HighlightableAdapter){
+                            ((HighlightableAdapter) scrollview.getAdapter()).unhighlightItem();
+                        }
                         return true;
                     case MotionEvent.ACTION_DOWN:
-                        popup.setVisibility(View.VISIBLE);
                         return true;
                     case MotionEvent.ACTION_UP:
                         popup.setVisibility(View.GONE);
+                        if(scrollview.getAdapter() instanceof HighlightableAdapter){
+                            ((HighlightableAdapter) scrollview.getAdapter()).unhighlightItem();
+                        }
                         return true;
                     default:
                         return true;

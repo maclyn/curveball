@@ -173,7 +173,7 @@
             android:id="@+id/allAppsContainer"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:visibility="gone"
+            android:visibility="visible"
             android:layout_alignParentTop="true"
             android:layout_above="@+id/dockBar"
             android:layout_marginBottom="8dp">
@@ -194,19 +194,9 @@
                         android:id="@+id/allAppsLayout"
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
-                        android:scrollbars="vertical"/>
+                        android:scrollbars="vertical"
+                        android:overScrollMode="never" />
 
-                    <TextView
-                        android:text="A"
-                        android:background="@drawable/quick_scroll_bg"
-                        android:id="@+id/popup"
-                        android:textSize="48sp"
-                        android:textColor="#101010"
-                        android:layout_centerInParent="true"
-                        android:layout_width="80dp"
-                        android:layout_height="80dp"
-                        android:gravity="center"
-                        android:visibility="gone" />
                 </RelativeLayout>
 
                 <RelativeLayout
@@ -216,6 +206,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginLeft="8dp"
                     android:layout_marginRight="8dp">
+
                         <TextView
                             android:id="@+id/startLetter"
                             android:layout_alignParentLeft="true"
@@ -254,6 +245,7 @@
                             android:layout_width="30dp"
                             android:layout_height="32dp" />
                 </RelativeLayout>
+
             </RelativeLayout>
         </RelativeLayout>
 
@@ -386,19 +378,19 @@
             android:layout_alignParentBottom="true"
             android:layout_gravity="center_vertical"
             android:visibility="visible"
-            android:layout_margin="8dp">
+            android:layout_marginLeft="16dp"
+            android:layout_marginRight="16dp"
+            android:layout_marginTop="16dp"
+            android:layout_marginBottom="12dp" >
 
             <ImageView
                 android:id="@+id/backToHome"
                 android:layout_alignParentLeft="true"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
-                android:layout_marginLeft="8dp"
-                android:src="@drawable/ic_home_white_48dp"
-                android:layout_marginRight="2dp"
-                android:padding="2dp" />
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_centerVertical="true"
+                android:src="@drawable/ic_arrow_back_white_36dp"
+                android:layout_marginRight="8dp" />
 
             <EditText
                 android:layout_height="wrap_content"
@@ -408,11 +400,10 @@
                 android:hint="@string/search_hint"
                 android:textSize="18sp"
                 android:textColor="@android:color/white"
-                android:layout_marginLeft="8dp"
                 android:id="@+id/searchBox"
                 android:singleLine="true"
                 android:visibility="visible"
-                android:textColorHint="@android:color/darker_gray"
+                android:textColorHint="#a0ffffff"
                 android:layout_centerVertical="true"
                 android:imeOptions="actionGo"
                 android:gravity="center_vertical" />
@@ -420,25 +411,22 @@
             <ImageView
                 android:id="@+id/moreOptions"
                 android:layout_alignParentRight="true"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
+                android:layout_centerVertical="true"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
                 android:layout_marginLeft="8dp"
-                android:src="@drawable/ic_more_vert_white_48dp"
-                android:layout_marginRight="2dp"
-                android:padding="2dp" />
+                android:src="@drawable/ic_settings_white_36dp"
+                android:layout_marginRight="8dp" />
 
             <ImageView
                 android:id="@+id/clearSearch"
                 android:layout_toLeftOf="@+id/moreOptions"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="8dp"
-                android:layout_marginLeft="4dp"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:layout_centerVertical="true"
+                android:layout_marginLeft="8dp"
                 android:src="@drawable/ic_close_white_48dp"
-                android:padding="2dp" />
+                android:visibility="gone" />
         </RelativeLayout>
 
         <!-- Icon drop mode -->
@@ -597,4 +585,15 @@
                 </ScrollView>
             </LinearLayout>
     </RelativeLayout>
+
+    <TextView
+        android:text="A"
+        android:background="@drawable/quick_scroll_bg"
+        android:id="@+id/popup"
+        android:textSize="48sp"
+        android:textColor="#101010"
+        android:layout_width="70dp"
+        android:layout_height="70dp"
+        android:gravity="center"
+        android:visibility="gone" />
 </RelativeLayout>

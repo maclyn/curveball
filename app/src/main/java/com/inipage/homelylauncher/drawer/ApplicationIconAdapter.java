@@ -3,6 +3,7 @@ package com.inipage.homelylauncher.drawer;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Typeface;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -20,11 +21,13 @@ import com.inipage.homelylauncher.icons.IconCache;
 import java.util.List;
 
 public class ApplicationIconAdapter extends
-        RecyclerView.Adapter<ApplicationIconAdapter.AppIconHolder> {
+        RecyclerView.Adapter<ApplicationIconAdapter.AppIconHolder> implements
+        HighlightableAdapter {
     List<ApplicationIcon> apps;
     Context ctx;
-
     private float iconSize;
+    private int fourDp;
+    private int highlightedItem = -1;
 
     public static class AppIconHolder extends RecyclerView.ViewHolder {
         RelativeLayout mainView;
@@ -50,6 +53,8 @@ public class ApplicationIconAdapter extends
         } else {
             iconSize = Utilities.convertDpToPixel(48, context);
         }
+
+        fourDp = (int) Utilities.convertDpToPixel(4, context);
     }
 
     @Override
@@ -66,6 +71,23 @@ public class ApplicationIconAdapter extends
 
         //Set title
         viewHolder.title.setText(ai.getName());
+
+        //TODO: Debug highlighting code
+        /*
+        if(highlightedItem == i){
+            viewHolder.title.setTypeface(viewHolder.title.getTypeface(), Typeface.BOLD);
+        } else {
+            viewHolder.title.setTypeface(viewHolder.title.getTypeface(), Typeface.NORMAL);
+        }
+
+        //Adjust icon "size" to highlight
+        int padding = highlightedItem == i ? 0 : fourDp;
+        viewHolder.icon.setPadding(padding, padding, padding, padding);
+
+        //To avoid "re-draw" issues
+        final String key = ai.getPackageName() + "|" + ai.getActivityName();
+        if(key == viewHolder.icon.getTag()) return; //Icon/name already set ok
+        */
 
         //Set customIcon
         if(viewHolder.icon.getTag() != null){
@@ -126,6 +148,30 @@ public class ApplicationIconAdapter extends
         if(apps.size() > 0){
             startApp(apps.get(0), ctx);
         }
+    }
+
+    @Override
+    public void highlightItem(int position) {
+        return;
+
+        /*
+        if(highlightedItem == position) return; //No-op if already set
+        if(highlightedItem >= 0) unhighlightItem();
+
+        highlightedItem = position;
+        notifyItemChanged(position);
+        */
+    }
+
+    @Override
+    public void unhighlightItem(){
+        return;
+
+        /*
+        int previouslyHighlighted = highlightedItem;
+        highlightedItem = -1;
+        if(highlightedItem >= 0) notifyItemChanged(previouslyHighlighted);
+        */
     }
 
     @Override

@@ -15,6 +15,7 @@
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.GET_TASKS" />
+    <uses-permission android:name="android.permission.INTERNET" /> <!-- For analytics. -->
 
     <application
         android:allowBackup="true"
@@ -57,5 +58,9 @@
             android:enabled="true"
             android:exported="false" >
         </service>
+
+        <meta-data
+            android:name="io.fabric.ApiKey"
+            android:value="@string/fabric_api_key" />
     </application>
 </manifest>

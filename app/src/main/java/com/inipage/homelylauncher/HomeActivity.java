@@ -44,6 +44,7 @@ import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.provider.CalendarContract;
 import android.provider.Settings;
+import android.support.v4.graphics.drawable.DrawableCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -151,6 +152,7 @@ public class HomeActivity extends Activity {
     @Bind(R.id.popup)
     TextView popup;
 
+    AsyncTask appsSearch = null;
     int cachedHash;
 
     //Dockbar background
@@ -459,10 +461,13 @@ public class HomeActivity extends Activity {
                 pm.show();
             }
         });
+
+        DrawableCompat.setTint(searchBox.getBackground(), getResources().getColor(R.color.white));
         clearSearch.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 searchBox.setText("");
+                clearSearch.setVisibility(View.GONE);
                 hideKeyboard();
             }
         });
@@ -2209,7 +2214,12 @@ public class HomeActivity extends Activity {
     public void resetAppsList(final String query, final boolean preCacheIcons){
         IconCache.getInstance().cancelPendingIconTasks();
 
-        new AsyncTask<PackageManager, Void, List<ApplicationIcon>>(){
+        if(appsSearch != null && !appsSearch.isCancelled() && appsSearch.getStatus() == AsyncTask.Status.FINISHED){
+            try {
+                appsSearch.cancel(true);
+            } catch (Exception ignored) {}
+        }
+        appsSearch = new AsyncTask<PackageManager, Void, List<ApplicationIcon>>(){
             @Override
             protected List<ApplicationIcon> doInBackground(PackageManager... params) {
                 List<ApplicationIcon> applicationIcons = new ArrayList<ApplicationIcon>();
@@ -2270,6 +2280,8 @@ public class HomeActivity extends Activity {
                 }
             }
         }.execute(this.getPackageManager());
+
+        clearSearch.setVisibility(query == null || query.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     private void loadList(List<TypeCard> samples){

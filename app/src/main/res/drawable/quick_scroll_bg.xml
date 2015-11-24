@@ -3,8 +3,8 @@
     <item>
         <shape xmlns:android="http://schemas.android.com/apk/res/android">
             <solid android:color="#ffffffff" />
-            <stroke android:width="2dp" android:color="#c0000000" />
-            <corners android:radius="4dp" />
+            <stroke android:width="3dp" android:color="#c0000000" />
+            <corners android:radius="6dp" />
         </shape>
     </item>
 </level-list>

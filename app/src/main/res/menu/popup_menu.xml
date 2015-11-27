@@ -1,10 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:id="@+id/batchOpen" android:title="@string/batch_open" android:orderInCategory="1" />
-    <item android:id="@+id/editRows" android:title="@string/edit_rows" android:orderInCategory="2" />
+    <item android:id="@+id/reorderRows" android:title="@string/reorder_rows" android:orderInCategory="2" />
     <item android:id="@+id/hideApps" android:title="@string/hideApps" android:orderInCategory="3" />
     <item android:id="@+id/changeWallpaper" android:title="@string/change_wallpaper" android:orderInCategory="4" />
-    <item android:id="@+id/changeHomeWidget" android:title="@string/set_home_widget" android:orderInCategory="5" />
     <item android:id="@+id/settings" android:title="@string/preferences_name" android:orderInCategory="6"/>
     <item android:id="@+id/help" android:title="@string/helpName" android:orderInCategory="7"/>
 </menu>

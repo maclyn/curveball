@@ -15,7 +15,6 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
-import android.os.Handler;
 import android.support.annotation.NonNull;
 import android.support.v7.graphics.Palette;
 import android.util.AttributeSet;
@@ -37,19 +36,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
+
+import static java.lang.Math.*;
 
 public class ShortcutGestureView extends View {
     private static final String TAG = "ShortcutGestureView";
-
-    public enum SGTypes {
-        MODE_ADD_ICON, MODE_SELECT_ICON, MODE_SHOW_WIDGETS, MODE_SHOW_SMARTBAR, MODE_NONE
-    }
-
-    public enum ScreenSide {
-        LEFT_SIDE, RIGHT_SIDE
-    }
-
-    private static final boolean NEEDLE = true; //For debug purposes
+    private static final boolean NEEDLE = false; //For debug purposes
 
     //Size in DiPs of needed things
     //Size of drawables onscreen
@@ -57,6 +51,12 @@ public class ShortcutGestureView extends View {
     float iconSize;
     @SizeAttribute(value = 60, setting = "big_icon_size_pref")
     float bigIconSize;
+    @SizeAttribute(28)
+    float previewIconSize;
+    @SizeAttribute(40)
+    float previewIconPadding;
+    @SizeAttribute(8)
+    float previewIconHorizontalPadding;
     @SizeAttribute(10)
     float strokeWidth;
 
@@ -80,6 +80,35 @@ public class ShortcutGestureView extends View {
     @SizeAttribute(attrType = SizeAttribute.AttributeType.SP, value = 28)
     float bigTextSize;
 
+    //Options representing images
+    private static final Integer[] folderOptionsDrawables = new Integer[] {
+            R.drawable.ic_mode_edit_white_24dp,
+            R.drawable.ic_clear_white_48dp,
+            R.drawable.ic_open_in_new_white_24dp };
+    private static final Integer[] folderOptionsTitles = new Integer[] {
+            R.string.edit_folder,
+            R.string.cancel,
+            R.string.open_all_in_folder };
+    private static final Integer[] folderOptionsColors = new Integer[] {
+            R.color.yellow,
+            R.color.red,
+            R.color.blue };
+
+    private enum SGTypes {
+        MODE_ADD_ICON, MODE_SELECT_ICON, MODE_NONE
+    }
+
+    private enum ScreenSide {
+        LEFT_SIDE, RIGHT_SIDE
+    }
+
+    /**
+     * When in MODE_SELECT_ICON, what state are we in?
+     */
+    private enum ChoiceMode {
+        CHOOSING_FOLDER, CHOOSING_APP, CHOOSING_OPTION
+    }
+
     float iconSizeDifference;
     float textSizeDifference;
 
@@ -95,6 +124,7 @@ public class ShortcutGestureView extends View {
     Paint transparencyPaint; //Paint for drawing "transparent" bitmaps
 
     Rect outRect = new Rect(); //Rectangle used for centering
+    RectF scratchRect = new RectF(); //Scratch rectangle used for drwaing ops
 
     HomeActivity ha;
 
@@ -115,11 +145,13 @@ public class ShortcutGestureView extends View {
     float lastTouchY = Integer.MIN_VALUE;
     float lastTouchX = Integer.MIN_VALUE;
 
-    //Are we selecting a folder or an icon?
-    boolean choosingFromFolder = false;
+    //Mode we're in
+    ChoiceMode cm;
+
+    //Folder we're working in
     int selectedFolder = 0;
 
-    //Selected item
+    //Selected item (could be an (a) folder, (b) app, or (c) option
     int selectedY = 0;
 
     //Values calculated at start
@@ -164,7 +196,10 @@ public class ShortcutGestureView extends View {
     //Mode we're in
     private SGTypes sgt;
 
-    Handler h;
+    //For widget
+    Timer timer;
+    private long timerStart = -1l;
+    private boolean timerCompleted = false;
 
     public ShortcutGestureView(Context context) {
         super(context);
@@ -181,9 +216,13 @@ public class ShortcutGestureView extends View {
         init();
     }
 
+    /**
+     * ShortcutGestureView is *very* tightly connected to HomeActivity. This isn't ideal, but
+     * since the View only makes sense in the context of being hosted by HomeActivity, it's okay
+     * for now -- at some point, though, an SgvHostInterface will be used instead.
+     */
     public void setActivity(HomeActivity ha){
         this.ha = ha;
-        h = new Handler(ha.getMainLooper());
     }
 
     private void init(){
@@ -238,6 +277,8 @@ public class ShortcutGestureView extends View {
 
         labelMap = new HashMap<>();
         colorMap = new HashMap<>();
+
+        timer = new Timer();
     }
 
     public void onActivityResumed(){
@@ -306,7 +347,7 @@ public class ShortcutGestureView extends View {
             if (drawStartY >= 0) {
                 scrollYPerPixel = 0;
             } else {
-                float totalNeededToMove = Math.abs(drawStartY) * 2;
+                float totalNeededToMove = abs(drawStartY) * 2;
                 scrollYPerPixel = totalNeededToMove / ((getY() + getHeight()) - startY);
             }
         }
@@ -320,7 +361,7 @@ public class ShortcutGestureView extends View {
         log("Percent is: " + percent, false);
         float selection = percent * numRows;
         log("Raw selection is: " + selection, false);
-        selectedY = (int) Math.floor(selection);
+        selectedY = (int) floor(selection);
         if (selectedY < 0) selectedY = 0;
         if (selectedY > data.size()) selectedY = data.size();
 
@@ -331,113 +372,206 @@ public class ShortcutGestureView extends View {
     //Update element we internally note as selected as an app
     private void updateSelectedTouchItem(){
         int numRows = data.size(); //We actually can have 0 here
+
         if (numRows == 0) {
-            selectedY = -1; //Show "no folders"
+            selectedY = -1; //Show "no folders"; nothing to do here, actually
         } else { //Calculate selected item
-            if (choosingFromFolder) { //Choose icon
-                //Switch back?
-                if (touchX < (gestureStartX - edgeSlop)) {
-                    selectedY = -2;
-                    invalidate();
-                    return;
-                }
+            switch(cm){
+                case CHOOSING_FOLDER:
+                    choosingFolderScope: {
+                        if ((touchX - gestureStartX) > horizontalDx) {
+                            log("Switching modes with values (touchY, gSY, tS): " + touchY + " " +
+                                    gestureStartY + " " + touchSlop, false);
+                            gestureStartY = touchY;
+                            gestureStartX = touchX;
+                            selectedFolder = selectedY;
+                            selectedY = -1;
+                            cm = ChoiceMode.CHOOSING_APP;
 
-                int icons = data.get(selectedFolder).getPackages().size();
-                if (icons == 0) { //This would be a serious problem
-                    selectedY = -1;
-                    invalidate();
-                    return;
-                }
+                            //To avoid glitches, we call this again
+                            updateSelectedTouchItem();
+                            invalidate();
+                            return;
+                        }
 
-                //Calculate valid bounds
-                //(1) We want even space amounts
-                float topLocation = getY();
-                float bottomLocation = getY() + getHeight();
-                boolean closerToTop = (gestureStartY - topLocation) < (bottomLocation - gestureStartY);
-                float workingSpace;
-                if (closerToTop) {
-                    workingSpace = (gestureStartY - topLocation) * 2f;
-                } else {
-                    workingSpace = (bottomLocation - gestureStartY) * 2f;
-                }
-                float perElementSize = workingSpace / icons;
-                if (perElementSize > maxTouchElementSize) {
-                    perElementSize = maxTouchElementSize;
-                }
-                //Update workingSpace
-                workingSpace = (icons * perElementSize);
+                        float topLocation = getY();
+                        float bottomLocation = getY() + getHeight();
+                        boolean closerToTop = (gestureStartY - topLocation) < (bottomLocation - gestureStartY);
+                        float workingSpace;
+                        if (closerToTop) {
+                            workingSpace = (gestureStartY - topLocation) * 2f;
+                        } else {
+                            workingSpace = (bottomLocation - gestureStartY) * 2f;
+                        }
+                        int icons = data.size();
+                        float perElementSize = workingSpace / icons;
+                        if (perElementSize > maxTouchElementSize) {
+                            perElementSize = maxTouchElementSize;
+                        }
+                        //Update workingSpace
+                        workingSpace = (icons * perElementSize);
 
-                //(2) Center touch location around the start
-                log("getY() and start and icons" + topLocation + " " + bottomLocation + "" + icons, false);
-                log("Per element size: " + perElementSize, false);
+                        //(2) Center touch location around the start
+                        log("getY() and start and icons" + topLocation + " " + bottomLocation + "" + icons, false);
+                        log("Per element size: " + perElementSize, false);
 
-                float centerLocation = gestureStartY;
-                float startLocation = gestureStartY - (workingSpace / 2);
-                float endLocation = gestureStartY + (workingSpace / 2);
+                        float centerLocation = gestureStartY;
+                        float startLocation = gestureStartY - (workingSpace / 2);
+                        float endLocation = gestureStartY + (workingSpace / 2);
 
-                float percent = (touchY - startLocation) / workingSpace;
-                log("Percent: " + percent, true);
+                        float percent = (touchY - startLocation) / workingSpace;
+                        log("Percent: " + percent, false);
 
-                if (percent < 0f) {
-                    selectedY = 0;
-                } else if (percent > 1f) {
-                    selectedY = icons - 1;
-                } else {
-                    log("Valid bounds; selecting from defaults", true);
-                    selectedY = (int) (percent * (float) icons);
-                }
-                log("Selected Y: " + selectedY, true);
-            } else {    //Calculate valid bounds
-                if ((touchX - gestureStartX) > horizontalDx) {
-                    log("Switching modes with values (touchY, gSY, tS): " + touchY + " " +
-                            gestureStartY + " " + touchSlop, false);
-                    gestureStartY = touchY;
-                    gestureStartX = touchX;
-                    selectedFolder = selectedY;
-                    choosingFromFolder = true;
+                        if (percent < 0f) {
+                            selectedY = 0;
+                        } else if (percent > 1f) {
+                            selectedY = icons - 1;
+                        } else {
+                            log("Valid bounds; selecting from defaults", false);
+                            selectedY = (int) (percent * (float) icons);
+                        }
+                        log("Selected Y: " + selectedY, false);
+                    }
+                    break;
+                case CHOOSING_APP:
+                    appScope: {
+                        //Switch to folder options
+                        if (touchX < (gestureStartX - edgeSlop)) {
+                            gestureStartY = touchY;
+                            gestureStartX = touchX;
+                            cm = ChoiceMode.CHOOSING_OPTION;
 
-                    //To avoid glitches, we call this again
-                    updateSelectedTouchItem();
-                    return;
-                }
+                            //To avoid glitches, we call this again
+                            updateSelectedTouchItem();
+                            invalidate();
+                            return;
+                        }
 
-                float topLocation = getY();
-                float bottomLocation = getY() + getHeight();
-                boolean closerToTop = (gestureStartY - topLocation) < (bottomLocation - gestureStartY);
-                float workingSpace;
-                if (closerToTop) {
-                    workingSpace = (gestureStartY - topLocation) * 2f;
-                } else {
-                    workingSpace = (bottomLocation - gestureStartY) * 2f;
-                }
-                int icons = data.size();
-                float perElementSize = workingSpace / icons;
-                if (perElementSize > maxTouchElementSize) {
-                    perElementSize = maxTouchElementSize;
-                }
-                //Update workingSpace
-                workingSpace = (icons * perElementSize);
+                        int icons = data.get(selectedFolder).getPackages().size();
+                        if (icons == 0) { //This would be a serious problem
+                            selectedY = -1;
+                            invalidate();
+                            return;
+                        }
 
-                //(2) Center touch location around the start
-                log("getY() and start and icons" + topLocation + " " + bottomLocation + "" + icons, false);
-                log("Per element size: " + perElementSize, false);
+                        //Calculate valid bounds
+                        //(1) We want even space amounts
+                        float topLocation = getY();
+                        float bottomLocation = getY() + getHeight();
+                        boolean closerToTop = (gestureStartY - topLocation) < (bottomLocation - gestureStartY);
+                        float workingSpace;
+                        if (closerToTop) {
+                            workingSpace = (gestureStartY - topLocation) * 2f;
+                        } else {
+                            workingSpace = (bottomLocation - gestureStartY) * 2f;
+                        }
+                        float perElementSize = workingSpace / icons;
+                        if (perElementSize > maxTouchElementSize) {
+                            perElementSize = maxTouchElementSize;
+                        }
+                        //Update workingSpace
+                        workingSpace = (icons * perElementSize);
 
-                float centerLocation = gestureStartY;
-                float startLocation = gestureStartY - (workingSpace / 2);
-                float endLocation = gestureStartY + (workingSpace / 2);
+                        //(2) Center touch location around the start
+                        log("getY() and start and icons" + topLocation + " " + bottomLocation + "" + icons, false);
+                        log("Per element size: " + perElementSize, false);
 
-                float percent = (touchY - startLocation) / workingSpace;
-                log("Percent: " + percent, true);
+                        float centerLocation = gestureStartY;
+                        float startLocation = gestureStartY - (workingSpace / 2);
+                        float endLocation = gestureStartY + (workingSpace / 2);
 
-                if (percent < 0f) {
-                    selectedY = 0;
-                } else if (percent > 1f) {
-                    selectedY = icons - 1;
-                } else {
-                    log("Valid bounds; selecting from defaults", true);
-                    selectedY = (int) (percent * (float) icons);
-                }
-                log("Selected Y: " + selectedY, true);
+                        float percent = (touchY - startLocation) / workingSpace;
+                        log("Percent: " + percent, false);
+
+                        int oldSelectedY = selectedY;
+                        if (percent < 0f) {
+                            selectedY = 0;
+                        } else if (percent > 1f) {
+                            selectedY = icons - 1;
+                        } else {
+                            log("Valid bounds; selecting from defaults", false);
+                            selectedY = (int) (percent * (float) icons);
+                        }
+                        log("Selected Y: " + selectedY, false);
+
+                        if(selectedY != oldSelectedY || oldSelectedY == -1){
+                            timer.cancel();
+                            timer = new Timer();
+
+                            final String appPackage = data.get(selectedFolder).getPackages().get(selectedY).first;
+
+                            //We just switched selectedY's; check if there's a widget
+                            if(ha.hasWidget(appPackage)){
+                                //Start timer for 1 second
+                                timer.schedule(new TimerTask() { //Open widget
+                                    @Override
+                                    public void run() {
+                                        ha.showWidget(appPackage);
+                                        timerCompleted = true;
+                                    }
+                                }, 1000l);
+                                timer.scheduleAtFixedRate(new TimerTask() { //Update display
+                                    @Override
+                                    public void run() {
+                                        getHandler().post(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                invalidate(); //Animation the widget open circle.
+                                            }
+                                        });
+                                    }
+                                }, 0l, 1000 / 60);
+                                timerStart = System.currentTimeMillis();
+                            } else {
+                                timerStart = -1l;
+                            }
+                        }
+                        break;
+                    }
+                case CHOOSING_OPTION:
+                    optionScope:
+                    {
+                        //Unlike the other options, you can't back out from this one
+                        float topLocation = getY();
+                        float bottomLocation = getY() + getHeight();
+                        boolean closerToTop = (gestureStartY - topLocation) < (bottomLocation - gestureStartY);
+                        float workingSpace;
+                        if (closerToTop) {
+                            workingSpace = (gestureStartY - topLocation) * 2f;
+                        } else {
+                            workingSpace = (bottomLocation - gestureStartY) * 2f;
+                        }
+
+                        int icons = folderOptionsDrawables.length;
+                        float perElementSize = workingSpace / icons;
+                        if (perElementSize > maxTouchElementSize) {
+                            perElementSize = maxTouchElementSize;
+                        }
+                        //Update workingSpace
+                        workingSpace = (icons * perElementSize);
+
+                        //(2) Center touch location around the start
+                        log("getY() and start and icons" + topLocation + " " + bottomLocation + "" + icons, false);
+                        log("Per element size: " + perElementSize, false);
+
+                        float centerLocation = gestureStartY;
+                        float startLocation = gestureStartY - (workingSpace / 2);
+                        float endLocation = gestureStartY + (workingSpace / 2);
+
+                        float percent = (touchY - startLocation) / workingSpace;
+                        log("Percent: " + percent, false);
+
+                        if (percent < 0f) {
+                            selectedY = 0;
+                        } else if (percent > 1f) {
+                            selectedY = icons - 1;
+                        } else {
+                            log("Valid bounds; selecting from defaults", false);
+                            selectedY = (int) (percent * (float) icons);
+                        }
+                        log("Selected Y: " + selectedY, false);
+                        break;
+                    }
             }
         }
         log("Selected Y element is : " + selectedY, false);
@@ -446,21 +580,48 @@ public class ShortcutGestureView extends View {
 
     private void openSelectedItem() {
         log("Open item with a selected folder/icon of: " + selectedFolder + "/" + selectedY +
-                "and choosingFromFolder =" + choosingFromFolder, true);
-        if(selectedFolder != -1 && choosingFromFolder && selectedY >= 0){
-            Pair<String, String> appToLaunch = data.get(selectedFolder).getPackages()
-                    .get(selectedY);
-            Intent appLaunch = new Intent();
-            appLaunch.setClassName(appToLaunch.first, appToLaunch.second);
-            appLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            try {
-                getContext().startActivity(appLaunch);
-            } catch (Exception e) {
-                Toast.makeText(getContext(), "Unable to start. Application may be uninstalled/upgrading.", Toast.LENGTH_SHORT).show();
-            }
-            resetState(1, 1500); //Slow, because launching an app
-        } else { //Reset state quickly
+                "and mode =" + cm.name(), true);
+
+        if(timerCompleted){
             resetState(1, 300);
+            return;
+        }
+
+        switch(cm){
+            case CHOOSING_FOLDER:
+                resetState(1, 300); //Nothing to do here...
+                break;
+            case CHOOSING_APP:
+                choosingAppScope: {
+                    if(selectedY >= 0 && selectedFolder != -1){
+                        Pair<String, String> appToLaunch = data.get(selectedFolder).getPackages()
+                                .get(selectedY);
+                        Intent appLaunch = new Intent();
+                        appLaunch.setClassName(appToLaunch.first, appToLaunch.second);
+                        appLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                        try {
+                            getContext().startActivity(appLaunch);
+                        } catch (Exception e) {
+                            Toast.makeText(getContext(), "Unable to start. Application may be uninstalled/upgrading.", Toast.LENGTH_SHORT).show();
+                        }
+                        resetState(1, 1500); //Slow, because launching an app
+                    }
+                }
+                break;
+            case CHOOSING_OPTION:
+                choosingOptionScope: {
+                    switch(selectedY) {
+                        case 0:
+                            ha.showEditFolderDialog(selectedFolder);
+                            break;
+                        case 1:
+                            break;
+                        case 2:
+                            ha.batchOpen(selectedFolder);
+                            break;
+                    }
+                    resetState(1, 300);
+                }
         }
     }
 
@@ -469,313 +630,543 @@ public class ShortcutGestureView extends View {
     protected synchronized void onDraw(Canvas canvas) {
         switch(sgt) {
             case MODE_ADD_ICON:
-                int divisions = data.size() + 1;
-                float roomForEach = (getHeight() - ha.dockBar.getHeight()) / divisions;
-
-                for(int i = 0; i < data.size(); i++){
-                    float start = roomForEach * i;
-                    float end = start + roomForEach;
-                    float middle = (start + end) / 2;
-
-                    //log("At i of " + i + ", start/end/middle: " + start + ", " + end + ", " + middle);
-
-                    drawCenteredLine(canvas, data.get(i).getDrawablePackage(), data.get(i).getDrawableName(),
-                            data.get(i).getTitle(), getWidth() / 2, (int) middle, selectedY == i);
-                }
-
-                //Draw add icon at data.size()
-                float addPosition = ((roomForEach * data.size()) + (roomForEach / 2));
-                drawCenteredLine(canvas, R.drawable.ic_add_circle_outline_white_48dp, "Add row", getWidth() / 2,
-                        (int) addPosition, selectedY == data.size());
+                drawAddIcon(canvas);
                 break;
             case MODE_SELECT_ICON:
                 //Draw touch trail
-                Path p = new Path();
+                drawTouchTrail(canvas);
+                switch(cm){
+                    case CHOOSING_FOLDER:
+                        drawFolderSelection(canvas);
+                        break;
+                    case CHOOSING_APP:
+                        drawAppSelection(canvas);
+                        break;
+                    case CHOOSING_OPTION:
+                        drawFolderOptions(canvas);
+                        break;
+                }
+                break;
+            case MODE_NONE:
+                drawFolderHints(canvas);
+                break;
+        }
+    }
 
-                synchronized (touchEventList) {
-                    if (touchEventList.size() > 0) {
-                        for (int i = 0; i < touchEventList.size(); i += 1) {
-                            if (i == 0) {
-                                p.moveTo(touchEventList.get(i).first, touchEventList.get(i).second);
-                            } else {
-                                p.lineTo(touchEventList.get(i).first, touchEventList.get(i).second);
-                            }
+    private void drawFolderOptions(Canvas canvas) {
+        List<Pair<Float, Float>> sizeQueue = new ArrayList<>();
+
+        float totalSize = (folderOptionsDrawables.length - 1) * (iconSize + iconPadding);
+        totalSize += bigIconSize;
+        float iconsStartY = (getHeight() / 2) - (totalSize / 2);
+        float iconsScrollY = 0;
+        if(iconsStartY >= 0){
+            iconsScrollY = 0;
+        } else {
+            float totalNeededToMove = abs(iconsStartY) * 2;
+            iconsScrollY = totalNeededToMove / gestureStartY;
+        }
+
+        int numIcons = folderOptionsDrawables.length;
+
+        float topLocation = getY();
+        float bottomLocation = getY() + getHeight();
+        boolean closerToTop = (gestureStartY - topLocation) < (bottomLocation - gestureStartY);
+        float workingSpace;
+        if(closerToTop){
+            workingSpace = (gestureStartY - topLocation) * 2f;
+        } else {
+            workingSpace = (bottomLocation - gestureStartY) * 2f;
+        }
+        float perElementSize = workingSpace / numIcons;
+        if (perElementSize > maxTouchElementSize) {
+            perElementSize = maxTouchElementSize;
+        }
+        workingSpace = (numIcons * perElementSize);
+
+        float centerLocation = gestureStartY;
+        float startLocation = gestureStartY - (workingSpace / 2);
+        float endLocation = gestureStartY + (workingSpace / 2);
+
+        float percent = (touchY - startLocation) / workingSpace;
+        log("Percent: " + percent, false);
+
+        float halfPerElementSize = (float) (perElementSize * 0.5);
+
+        if(touchY < (startLocation + perElementSize / 2)){
+            sizeQueue.add(new Pair<>(bigIconSize, bigTextSize));
+            for(int i = 1; i < data.size(); i++){
+                sizeQueue.add(new Pair<>(iconSize, textSize));
+            }
+        } else if (touchY > (endLocation - (perElementSize / 2))){
+            for(int i = 0; i < data.size() - 1; i++){
+                sizeQueue.add(new Pair<>(iconSize, textSize));
+            }
+            sizeQueue.add(new Pair<>(bigIconSize, bigTextSize));
+        } else {
+            float idealPosition = (startLocation + (perElementSize * selectedY) +
+                    halfPerElementSize);
+            float minFor = idealPosition - halfPerElementSize;
+            float maxFor = idealPosition + halfPerElementSize;
+            for(int i = 0; i < folderOptionsDrawables.length; i++){
+                log("At position __, touchY/ideal/min/max/selectedY: " + i + " " + touchY + " " + idealPosition + " " +
+                        minFor + " " + maxFor + " " + selectedY, true);
+                if(i == selectedY){
+                    log("Calculating from selectedY", true);
+                    float drawPercent = 1f - ((maxFor - touchY) / perElementSize); //By calculation, this will be between 0 and 1
+                    log("Draw percent: " + drawPercent, true);
+                    float diff;
+                    if(drawPercent > 0.5f){
+                        diff = 1.5f - drawPercent;
+                    } else {
+                        diff = 0.5f + drawPercent;
+                    }
+
+                    sizeQueue.add(new Pair<>(iconSize + (diff * iconSizeDifference),
+                            textSize + (diff * textSizeDifference)));
+                } else if (i == (selectedY - 1)){
+                    //log("Calculating from selectedY - 1", true);
+                    if(touchY <= idealPosition){ //We're involved
+                        float difference = 0.5f - ((touchY - minFor) / perElementSize);
+                        log("SelectedY - 1 VALID at position " + i + " difference " + difference, true);
+                        sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
+                                textSize + (difference * textSizeDifference)));
+                    } else { //Not so much
+                        sizeQueue.add(new Pair<>(iconSize, textSize));
+                    }
+                } else if (i == (selectedY + 1)){
+                    //log("Calculating from selectedY + 1", true);
+                    if(touchY >= idealPosition){ //We're involved
+                        float difference = 0.5f - ((maxFor - touchY) / perElementSize);
+                        log("SelectedY + 1 VALID at position " + i + " difference " + difference, true);
+                        sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
+                                textSize + (difference * textSizeDifference)));
+                    } else { //Not so much
+                        sizeQueue.add(new Pair<>(iconSize, textSize));
+                    }
+                } else { //Default case
+                    //log("Calculating from default case", true);
+                    sizeQueue.add(new Pair<>(iconSize, textSize));
+                }
+            }
+        }
+
+        float yPosition = drawStartY;
+
+        //Occasionally this'll temporarily glitch
+        if(selectedY >= folderOptionsDrawables.length)
+            return;
+
+        drawColor(canvas, getResources().getColor(folderOptionsColors[selectedY]), ScreenSide.LEFT_SIDE);
+
+        for (int i = 0; i < folderOptionsDrawables.length ; i++) {
+            Pair<Float, Float> sizes = sizeQueue.remove(0);
+            drawAbsoluteLineInternalLeftJustified(canvas,
+                    IconCache.getInstance().getSwipeCacheIcon(folderOptionsDrawables[i], bigIconSize, retrievalInterface),
+                        getResources().getString(folderOptionsTitles[i]), edgeSlop, yPosition, sizes.first,
+                        sizes.second, iconPadding, selectedY == i);
+            yPosition += (sizes.first + iconPadding);
+        }
+    }
+
+    private void drawFolderHints(Canvas canvas) {
+        //Draw icons in a line
+        float top = ha.timeDateContainer.getY() + ha.timeDateContainer.getHeight();
+        float bottom = ha.dockbarApps.getY();
+        float space = bottom - top - (previewIconPadding * 2);
+
+        if(space < 0) return; //Low-res display..? WEIRD.
+
+        float spaceForEach = space / data.size();
+        float startX = (getWidth() / 2) - (previewIconSize / 2);
+        float endX = startX + previewIconSize;
+
+        transparencyPaint.setAlpha(180);
+
+        //Draw each folder icon with 1/2 opacity and a size of 10dp x 10dp in the center of the screen
+        for(int i = 0; i < data.size(); i++){
+            float startY = (float) (top + ((i + 0.5) * spaceForEach) - (previewIconSize / 2));
+            float endY = startY + previewIconSize;
+
+            TypeCard card = data.get(i);
+            Bitmap icon = IconCache.getInstance().getSwipeCacheIcon(card.getDrawablePackage(),
+                    card.getDrawableName(), bigIconSize, retrievalInterface);
+
+            scratchRect.set(startX, startY, endX, endY);
+            canvas.drawBitmap(icon, null, scratchRect, transparencyPaint);
+        }
+    }
+
+    private void drawAddIcon(Canvas canvas) {
+        int divisions = data.size() + 1;
+        float roomForEach = (getHeight() - ha.dockBar.getHeight()) / divisions;
+
+        for(int i = 0; i < data.size(); i++){
+            float start = roomForEach * i;
+            float end = start + roomForEach;
+            float middle = (start + end) / 2;
+
+            //log("At i of " + i + ", start/end/middle: " + start + ", " + end + ", " + middle);
+
+            drawCenteredLine(canvas, data.get(i).getDrawablePackage(), data.get(i).getDrawableName(),
+                    data.get(i).getTitle(), getWidth() / 2, (int) middle, selectedY == i);
+        }
+
+        //Draw add icon at data.size()
+        float addPosition = ((roomForEach * data.size()) + (roomForEach / 2));
+        drawCenteredLine(canvas, R.drawable.ic_add_circle_outline_white_48dp, "Add row", getWidth() / 2,
+                (int) addPosition, selectedY == data.size());
+    }
+
+    private void drawFolderSelection(Canvas canvas){
+        List<Pair<Float, Float>> sizeQueue = new ArrayList<>();
+
+        if (selectedY == -1){
+            //Draw "no folder message" message
+            drawCenteredLine(canvas, R.drawable.ic_info_white_48dp, "No folders yet",
+                    getWidth() / 2, getHeight() / 2, true);
+        } else { //Thar be valid data
+            float totalSize = (data.size() - 1) * (iconSize + iconPadding);
+            totalSize += bigIconSize;
+            float iconsStartY = (getHeight() / 2) - (totalSize / 2);
+            float iconsScrollY = 0;
+            if(iconsStartY >= 0){
+                iconsScrollY = 0;
+            } else {
+                float totalNeededToMove = abs(iconsStartY) * 2;
+                iconsScrollY = totalNeededToMove / gestureStartY;
+            }
+
+            int numIcons = data.size();
+
+            //NOTE: This is a wasteful recalculation; at some point this should be
+            //stored during the switch from choosing a folder to choosing a set of icons.
+            //This code is duplicated from earlier code.
+            float topLocation = getY();
+            float bottomLocation = getY() + getHeight();
+            boolean closerToTop = (gestureStartY - topLocation) < (bottomLocation - gestureStartY);
+            float workingSpace;
+            if(closerToTop){
+                workingSpace = (gestureStartY - topLocation) * 2f;
+            } else {
+                workingSpace = (bottomLocation - gestureStartY) * 2f;
+            }
+            float perElementSize = workingSpace / numIcons;
+            if (perElementSize > maxTouchElementSize) {
+                perElementSize = maxTouchElementSize;
+            }
+            workingSpace = (numIcons * perElementSize);
+
+            float centerLocation = gestureStartY;
+            float startLocation = gestureStartY - (workingSpace / 2);
+            float endLocation = gestureStartY + (workingSpace / 2);
+
+            float percent = (touchY - startLocation) / workingSpace;
+            log("Percent: " + percent, false);
+
+            float halfPerElementSize = (float) (perElementSize * 0.5);
+
+            if(touchY < (startLocation + perElementSize / 2)){
+                sizeQueue.add(new Pair<>(bigIconSize, bigTextSize));
+                for(int i = 1; i < data.size(); i++){
+                    sizeQueue.add(new Pair<>(iconSize, textSize));
+                }
+            } else if (touchY > (endLocation - (perElementSize / 2))){
+                for(int i = 0; i < data.size() - 1; i++){
+                    sizeQueue.add(new Pair<>(iconSize, textSize));
+                }
+                sizeQueue.add(new Pair<>(bigIconSize, bigTextSize));
+            } else {
+                float idealPosition = (startLocation + (perElementSize * selectedY) +
+                        halfPerElementSize);
+                float minFor = idealPosition - halfPerElementSize;
+                float maxFor = idealPosition + halfPerElementSize;
+                for(int i = 0; i < data.size(); i++){
+                    log("At position __, touchY/ideal/min/max/selectedY: " + i + " " + touchY + " " + idealPosition + " " +
+                            minFor + " " + maxFor + " " + selectedY, true);
+                    if(i == selectedY){
+                        log("Calculating from selectedY", true);
+                        float drawPercent = 1f - ((maxFor - touchY) / perElementSize); //By calculation, this will be between 0 and 1
+                        log("Draw percent: " + drawPercent, true);
+                        float diff;
+                        if(drawPercent > 0.5f){
+                            diff = 1.5f - drawPercent;
+                        } else {
+                            diff = 0.5f + drawPercent;
                         }
 
-                        touchPaint.setShader(
-                                new LinearGradient(touchEventList.get(0).first,
-                                        touchEventList.get(0).second,
-                                        touchEventList.get(touchEventList.size() - 1).first,
-                                        touchEventList.get(touchEventList.size() - 1).second,
-                                        Color.TRANSPARENT, Color.WHITE, Shader.TileMode.CLAMP));
-                        canvas.drawPath(p, touchPaint);
+                        sizeQueue.add(new Pair<>(iconSize + (diff * iconSizeDifference),
+                                textSize + (diff * textSizeDifference)));
+                    } else if (i == (selectedY - 1)){
+                        //log("Calculating from selectedY - 1", true);
+                        if(touchY <= idealPosition){ //We're involved
+                            float difference = 0.5f - ((touchY - minFor) / perElementSize);
+                            log("SelectedY - 1 VALID at position " + i + " difference " + difference, true);
+                            sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
+                                    textSize + (difference * textSizeDifference)));
+                        } else { //Not so much
+                            sizeQueue.add(new Pair<>(iconSize, textSize));
+                        }
+                    } else if (i == (selectedY + 1)){
+                        //log("Calculating from selectedY + 1", true);
+                        if(touchY >= idealPosition){ //We're involved
+                            float difference = 0.5f - ((maxFor - touchY) / perElementSize);
+                            log("SelectedY + 1 VALID at position " + i + " difference " + difference, true);
+                            sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
+                                    textSize + (difference * textSizeDifference)));
+                        } else { //Not so much
+                            sizeQueue.add(new Pair<>(iconSize, textSize));
+                        }
+                    } else { //Default case
+                        //log("Calculating from default case", true);
+                        sizeQueue.add(new Pair<>(iconSize, textSize));
+                    }
+                }
+            }
+
+            float yPosition = drawStartY;
+
+            //Occasionally this'll temporarily glitch
+            if(selectedY >= data.size())
+                return;
+
+            drawColor(canvas,
+                    getIconColor(data.get(selectedY).getDrawablePackage(), data.get(selectedY).getDrawableName()),
+                    ScreenSide.LEFT_SIDE);
+
+            for (int i = 0; i < data.size(); i++) {
+                Pair<Float, Float> sizes = sizeQueue.remove(0);
+                drawAbsoluteLineInternalLeftJustified(canvas,
+                        IconCache.getInstance().getSwipeCacheIcon(data.get(i).getDrawablePackage(), data.get(i).getDrawableName(), bigIconSize, retrievalInterface),
+                        data.get(i).getTitle(), edgeSlop, yPosition, sizes.first,
+                        sizes.second, iconPadding, selectedY == i);
+                yPosition += (sizes.first + iconPadding);
+            }
+
+            //Draw "folder child" icons in a line
+            List<Pair<String, String>> packages = data.get(selectedY).getPackages();
+            int subIconDivisions = packages.size();
+            float subIconRoom = getHeight() / subIconDivisions;
+
+            if(subIconRoom > (previewIconSize * 2)){
+                subIconRoom = previewIconSize * 2;
+            } else if (subIconRoom < previewIconSize) {
+                subIconRoom = previewIconSize;
+            }
+
+            float spaceToUse = subIconDivisions * subIconRoom;
+            float subIconStart = (getHeight() / 2) - (spaceToUse / 2);
+            float offsetInDrawSpace = (subIconRoom - previewIconSize) / 2;
+
+            float endX = getWidth() - previewIconHorizontalPadding;
+            float startX = endX - previewIconSize;
+
+            transparencyPaint.setAlpha(180);
+
+            for(int j = 0; j < packages.size(); j++){
+                float startY = subIconStart + (j * subIconRoom) + offsetInDrawSpace;
+                float endY = startY + previewIconSize;
+
+                Pair<String, String> app = packages.get(j);
+                Bitmap b = IconCache.getInstance().getSwipeCacheAppIcon(app.first,
+                        app.second, bigIconSize, retrievalInterface);
+
+                log("For package " + (j + 1) + " of " + packages.size(), true);
+
+                /* Uncomment for debugging purposes
+                Paint thickLine = new Paint();
+                thickLine.setColor(getResources().getColor(R.color.white));
+                thickLine.setStrokeWidth(10);
+                canvas.drawLine(0, startY, getWidth(), startY, thickLine);
+                canvas.drawLine(0, endY, getWidth(), endY, thickLine);
+                */
+
+                scratchRect.set(startX, startY, endX, endY);
+                canvas.drawBitmap(b, null, scratchRect, transparencyPaint);
+            }
+        }
+    }
+
+    private void drawAppSelection(Canvas canvas) {
+        if(selectedY == -1){ //No apps flag
+            drawCenteredLine(canvas, R.drawable.ic_info_white_48dp, "No apps in this folder",
+                    getWidth() / 2, getHeight() / 2, true);
+            return;
+        }
+
+        List<Pair<Float, Float>> sizeQueue = new ArrayList<>();
+        List<Pair<String, String>> packages = data.get(selectedFolder).getPackages();
+
+        float totalSize = (packages.size() - 1) * (iconSize + iconPadding);
+        totalSize += bigIconSize;
+        float iconsStartY = (getHeight() / 2) - (totalSize / 2);
+        float iconsScrollY = 0;
+        if(iconsStartY >= 0){
+            iconsScrollY = 0;
+        } else {
+            float totalNeededToMove = abs(iconsStartY) * 2;
+            iconsScrollY = totalNeededToMove / gestureStartY;
+        }
+
+        int numIcons = packages.size();
+
+        //NOTE: This is a wasteful recalculation; at some point this should be
+        //stored during the switch from choosing a folder to choosing a set of icons.
+        //This code is duplicated from earlier code.
+        float topLocation = getY();
+        float bottomLocation = getY() + getHeight();
+        boolean closerToTop = (gestureStartY - topLocation) < (bottomLocation - gestureStartY);
+        float workingSpace;
+        if(closerToTop){
+            workingSpace = (gestureStartY - topLocation) * 2f;
+        } else {
+            workingSpace = (bottomLocation - gestureStartY) * 2f;
+        }
+        float perElementSize = workingSpace / numIcons;
+        if (perElementSize > maxTouchElementSize) {
+            perElementSize = maxTouchElementSize;
+        }
+        workingSpace = (numIcons * perElementSize);
+
+        float centerLocation = gestureStartY;
+        float startLocation = gestureStartY - (workingSpace / 2);
+        float endLocation = gestureStartY + (workingSpace / 2);
+
+        float percent = (touchY - startLocation) / workingSpace;
+        log("Percent: " + percent, false);
+
+        float halfPerElementSize = (float) (perElementSize * 0.5);
+
+        if(touchY < (startLocation + halfPerElementSize)){
+            sizeQueue.add(new Pair<>(bigIconSize, bigTextSize));
+            for(int i = 1; i < numIcons; i++){
+                sizeQueue.add(new Pair<>(iconSize, textSize));
+            }
+        } else if (touchY > (endLocation - halfPerElementSize)){
+            for(int i = 0; i < numIcons - 1; i++){
+                sizeQueue.add(new Pair<>(iconSize, textSize));
+            }
+            sizeQueue.add(new Pair<>(bigIconSize, bigTextSize));
+        } else {
+            float idealPosition = (startLocation + (perElementSize * selectedY) +
+                    halfPerElementSize);
+            float minFor = idealPosition - halfPerElementSize;
+            float maxFor = idealPosition + halfPerElementSize;
+            for(int i = 0; i < numIcons; i++){
+                log("At position __, touchY/ideal/min/max/selectedY: " + i + " " + touchY + " " + idealPosition + " " +
+                        minFor + " " + maxFor + " " + selectedY, true);
+                if(i == selectedY){
+                    log("Calculating from selectedY", true);
+                    float drawPercent = 1f - ((maxFor - touchY) / perElementSize); //By calculation, this will be between 0 and 1
+                    log("drawpercent: " + drawPercent, false);
+                    float diff;
+                    if(drawPercent > 0.5f){
+                        diff = 1.5f - drawPercent;
+                    } else {
+                        diff = 0.5f + drawPercent;
+                    }
+
+                    sizeQueue.add(new Pair<>(iconSize + (diff * iconSizeDifference),
+                            textSize + (diff * textSizeDifference)));
+                } else if (i == (selectedY - 1)){
+                    //log("Calculating from selectedY - 1", true);
+                    if(touchY <= idealPosition){ //We're involved
+                        float difference = 0.5f - ((touchY - minFor) / perElementSize);
+                        log("SelectedY - 1 VALID at position " + i + " difference " + difference, true);
+                        sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
+                                textSize + (difference * textSizeDifference)));
+                    } else { //Not so much
+                        sizeQueue.add(new Pair<>(iconSize, textSize));
+                    }
+                } else if (i == (selectedY + 1)){
+                    //log("Calculating from selectedY + 1", true);
+                    if(touchY >= idealPosition){ //We're involved
+                        float difference = 0.5f - ((maxFor - touchY) / perElementSize);
+                        log("SelectedY + 1 VALID at position " + i + " difference " + difference, false);
+                        sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
+                                textSize + (difference * textSizeDifference)));
+                    } else { //Not so much
+                        sizeQueue.add(new Pair<>(iconSize, textSize));
+                    }
+                } else { //Default case
+                    //log("Calculating from default case", true);
+                    sizeQueue.add(new Pair<>(iconSize, textSize));
+                }
+            }
+        }
+
+        //Draw selected icon "glow"
+        drawColor(canvas, getIconColorForApp(packages.get(selectedY).first,
+                packages.get(selectedY).second), ScreenSide.RIGHT_SIDE);
+
+        for(int i = 0; i < numIcons; i++){ //Package name/activity name
+            Pair<Float, Float> sizes = sizeQueue.remove(0);
+
+            Pair<String, String> app = packages.get(i);
+            ComponentName cm = new ComponentName(app.first, app.second);
+
+            Bitmap b = IconCache.getInstance().getSwipeCacheAppIcon(app.first,
+                    app.second, bigIconSize, retrievalInterface);
+            String label = grabLabel(cm);
+
+            //Right-justify the icons
+            drawAbsoluteLineInternalRightJustified(canvas, b, label, getWidth() - edgeSlop,
+                    iconsStartY, sizes.first, sizes.second, iconPadding, selectedY == i);
+
+            iconsStartY += sizes.first + iconPadding;
+        }
+
+        //Draw option icons in a line
+        int subIconDivisions = folderOptionsDrawables.length;
+        float subIconRoom = getHeight() / folderOptionsDrawables.length;
+
+        if(subIconRoom > (previewIconSize * 2)){
+            subIconRoom = previewIconSize * 2;
+        } else if (subIconRoom < previewIconSize) {
+            subIconRoom = previewIconSize;
+        }
+
+        float spaceToUse = subIconDivisions * subIconRoom;
+        float subIconStart = (getHeight() / 2) - (spaceToUse / 2);
+        float offsetInDrawSpace = (subIconRoom - previewIconSize) / 2;
+
+        float startX = previewIconHorizontalPadding;
+        float endX = startX + previewIconSize;
+
+        transparencyPaint.setAlpha(180);
+
+        for(int j = 0; j < folderOptionsDrawables.length; j++){
+            float startY = subIconStart + (j * subIconRoom) + offsetInDrawSpace;
+            float endY = startY + previewIconSize;
+
+            Bitmap b = IconCache.getInstance().getSwipeCacheIcon(folderOptionsDrawables[j], previewIconSize, retrievalInterface);
+
+            scratchRect.set(startX, startY, endX, endY);
+            canvas.drawBitmap(b, null, scratchRect, transparencyPaint);
+        }
+    }
+
+    private void drawTouchTrail(Canvas canvas) {
+        Path p = new Path();
+
+        synchronized (touchEventList) {
+            if (touchEventList.size() > 0) {
+                for (int i = 0; i < touchEventList.size(); i += 1) {
+                    if (i == 0) {
+                        p.moveTo(touchEventList.get(i).first, touchEventList.get(i).second);
+                    } else {
+                        p.lineTo(touchEventList.get(i).first, touchEventList.get(i).second);
                     }
                 }
 
-                List<Pair<Float, Float>> sizeQueue = new ArrayList<>();
-
-                if(choosingFromFolder){
-                    if(selectedY == -1){ //No apps flag
-                        drawCenteredLine(canvas, R.drawable.ic_info_white_48dp, "No apps in this folder",
-                                getWidth() / 2, getHeight() / 2, true);
-                        return;
-                    } else if (selectedY == -2){ //"Cancel" position flag
-                        drawColor(canvas, Color.RED, ScreenSide.LEFT_SIDE);
-                        drawAbsoluteLineInternalLeftJustified(canvas,
-                                IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_clear_white_48dp, bigIconSize, retrievalInterface),
-                                "Cancel", edgeSlop, getHeight() / 2 - (iconSize / 2), iconSize, textSize,
-                                iconPadding, true);
-                        return;
-                    }
-
-                    List<Pair<String, String>> packages = data.get(selectedFolder).getPackages();
-
-                    float totalSize = (packages.size() - 1) * (iconSize + iconPadding);
-                    totalSize += bigIconSize;
-                    float iconsStartY = (getHeight() / 2) - (totalSize / 2);
-                    float iconsScrollY = 0;
-                    if(iconsStartY >= 0){
-                        iconsScrollY = 0;
-                    } else {
-                        float totalNeededToMove = Math.abs(iconsStartY) * 2;
-                        iconsScrollY = totalNeededToMove / gestureStartY;
-                    }
-
-                    int numIcons = packages.size();
-
-                    //NOTE: This is a wasteful recalculation; at some point this should be
-                    //stored during the switch from choosing a folder to choosing a set of icons.
-                    //This code is duplicated from earlier code.
-                    float topLocation = getY();
-                    float bottomLocation = getY() + getHeight();
-                    boolean closerToTop = (gestureStartY - topLocation) < (bottomLocation - gestureStartY);
-                    float workingSpace;
-                    if(closerToTop){
-                        workingSpace = (gestureStartY - topLocation) * 2f;
-                    } else {
-                        workingSpace = (bottomLocation - gestureStartY) * 2f;
-                    }
-                    float perElementSize = workingSpace / numIcons;
-                    if (perElementSize > maxTouchElementSize) {
-                        perElementSize = maxTouchElementSize;
-                    }
-                    workingSpace = (numIcons * perElementSize);
-
-                    float centerLocation = gestureStartY;
-                    float startLocation = gestureStartY - (workingSpace / 2);
-                    float endLocation = gestureStartY + (workingSpace / 2);
-
-                    float percent = (touchY - startLocation) / workingSpace;
-                    log("Percent: " + percent, true);
-
-                    float halfPerElementSize = (float) (perElementSize * 0.5);
-
-                    if(touchY < (startLocation + halfPerElementSize)){
-                        sizeQueue.add(new Pair<>(bigIconSize, bigTextSize));
-                        for(int i = 1; i < numIcons; i++){
-                            sizeQueue.add(new Pair<>(iconSize, textSize));
-                        }
-                    } else if (touchY > (endLocation - halfPerElementSize)){
-                        for(int i = 0; i < numIcons - 1; i++){
-                            sizeQueue.add(new Pair<>(iconSize, textSize));
-                        }
-                        sizeQueue.add(new Pair<>(bigIconSize, bigTextSize));
-                    } else {
-                        float idealPosition = (startLocation + (perElementSize * selectedY) +
-                                halfPerElementSize);
-                        float minFor = idealPosition - halfPerElementSize;
-                        float maxFor = idealPosition + halfPerElementSize;
-                        for(int i = 0; i < numIcons; i++){
-                            log("At position __, touchY/ideal/min/max/selectedY: " + i + " " + touchY + " " + idealPosition + " " +
-                                    minFor + " " + maxFor + " " + selectedY, true);
-                            if(i == selectedY){
-                                log("Calculating from selectedY", true);
-                                float drawPercent = 1f - ((maxFor - touchY) / perElementSize); //By calculation, this will be between 0 and 1
-                                log("drawpercent: " + drawPercent, true);
-                                float diff;
-                                if(drawPercent > 0.5f){
-                                    diff = 1.5f - drawPercent;
-                                } else {
-                                    diff = 0.5f + drawPercent;
-                                }
-
-                                sizeQueue.add(new Pair<>(iconSize + (diff * iconSizeDifference),
-                                        textSize + (diff * textSizeDifference)));
-                            } else if (i == (selectedY - 1)){
-                                //log("Calculating from selectedY - 1", true);
-                                if(touchY <= idealPosition){ //We're involved
-                                    float difference = 0.5f - ((touchY - minFor) / perElementSize);
-                                    log("SelectedY - 1 VALID at position " + i + " difference " + difference, true);
-                                    sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
-                                            textSize + (difference * textSizeDifference)));
-                                } else { //Not so much
-                                    sizeQueue.add(new Pair<>(iconSize, textSize));
-                                }
-                            } else if (i == (selectedY + 1)){
-                                //log("Calculating from selectedY + 1", true);
-                                if(touchY >= idealPosition){ //We're involved
-                                    float difference = 0.5f - ((maxFor - touchY) / perElementSize);
-                                    log("SelectedY + 1 VALID at position " + i + " difference " + difference, true);
-                                    sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
-                                            textSize + (difference * textSizeDifference)));
-                                } else { //Not so much
-                                    sizeQueue.add(new Pair<>(iconSize, textSize));
-                                }
-                            } else { //Default case
-                                //log("Calculating from default case", true);
-                                sizeQueue.add(new Pair<>(iconSize, textSize));
-                            }
-                        }
-                    }
-
-                    //Draw selected icon "glow"
-                    drawColor(canvas, getIconColorForApp(packages.get(selectedY).first,
-                            packages.get(selectedY).second), ScreenSide.RIGHT_SIDE);
-
-                    for(int i = 0; i < numIcons; i++){ //Package name/activity name
-                        Pair<Float, Float> sizes = sizeQueue.remove(0);
-
-                        Pair<String, String> app = packages.get(i);
-                        ComponentName cm = new ComponentName(app.first, app.second);
-
-                        Bitmap b = IconCache.getInstance().getSwipeCacheAppIcon(app.first,
-                                app.second, bigIconSize, retrievalInterface);
-                        String label = grabLabel(cm);
-
-                        //Right-justify the icons
-                        drawAbsoluteLineInternalRightJustified(canvas, b, label, getWidth() - edgeSlop,
-                                iconsStartY, sizes.first, sizes.second, iconPadding, selectedY == i);
-
-                        iconsStartY += sizes.first + iconPadding;
-                    }
-                 } else {
-                    if (selectedY == -1){
-                        //Draw "no folder message" message
-                        drawCenteredLine(canvas, R.drawable.ic_info_white_48dp, "No folders yet",
-                                getWidth() / 2, getHeight() / 2, true);
-                    } else { //Thar be valid data
-                        float totalSize = (data.size() - 1) * (iconSize + iconPadding);
-                        totalSize += bigIconSize;
-                        float iconsStartY = (getHeight() / 2) - (totalSize / 2);
-                        float iconsScrollY = 0;
-                        if(iconsStartY >= 0){
-                            iconsScrollY = 0;
-                        } else {
-                            float totalNeededToMove = Math.abs(iconsStartY) * 2;
-                            iconsScrollY = totalNeededToMove / gestureStartY;
-                        }
-
-                        int numIcons = data.size();
-
-                        //NOTE: This is a wasteful recalculation; at some point this should be
-                        //stored during the switch from choosing a folder to choosing a set of icons.
-                        //This code is duplicated from earlier code.
-                        float topLocation = getY();
-                        float bottomLocation = getY() + getHeight();
-                        boolean closerToTop = (gestureStartY - topLocation) < (bottomLocation - gestureStartY);
-                        float workingSpace;
-                        if(closerToTop){
-                            workingSpace = (gestureStartY - topLocation) * 2f;
-                        } else {
-                            workingSpace = (bottomLocation - gestureStartY) * 2f;
-                        }
-                        float perElementSize = workingSpace / numIcons;
-                        if (perElementSize > maxTouchElementSize) {
-                            perElementSize = maxTouchElementSize;
-                        }
-                        workingSpace = (numIcons * perElementSize);
-
-                        float centerLocation = gestureStartY;
-                        float startLocation = gestureStartY - (workingSpace / 2);
-                        float endLocation = gestureStartY + (workingSpace / 2);
-
-                        float percent = (touchY - startLocation) / workingSpace;
-                        log("Percent: " + percent, true);
-
-                        float halfPerElementSize = (float) (perElementSize * 0.5);
-
-                        if(touchY < (startLocation + perElementSize / 2)){
-                            sizeQueue.add(new Pair<>(bigIconSize, bigTextSize));
-                            for(int i = 1; i < data.size(); i++){
-                                sizeQueue.add(new Pair<>(iconSize, textSize));
-                            }
-                        } else if (touchY > (endLocation - (perElementSize / 2))){
-                            for(int i = 0; i < data.size() - 1; i++){
-                                sizeQueue.add(new Pair<>(iconSize, textSize));
-                            }
-                            sizeQueue.add(new Pair<>(bigIconSize, bigTextSize));
-                        } else {
-                            float idealPosition = (startLocation + (perElementSize * selectedY) +
-                                    halfPerElementSize);
-                            float minFor = idealPosition - halfPerElementSize;
-                            float maxFor = idealPosition + halfPerElementSize;
-                            for(int i = 0; i < data.size(); i++){
-                                log("At position __, touchY/ideal/min/max/selectedY: " + i + " " + touchY + " " + idealPosition + " " +
-                                        minFor + " " + maxFor + " " + selectedY, true);
-                                if(i == selectedY){
-                                    log("Calculating from selectedY", true);
-                                    float drawPercent = 1f - ((maxFor - touchY) / perElementSize); //By calculation, this will be between 0 and 1
-                                    log("drawpercent: " + drawPercent, true);
-                                    float diff;
-                                    if(drawPercent > 0.5f){
-                                        diff = 1.5f - drawPercent;
-                                    } else {
-                                        diff = 0.5f + drawPercent;
-                                    }
-
-                                    sizeQueue.add(new Pair<>(iconSize + (diff * iconSizeDifference),
-                                            textSize + (diff * textSizeDifference)));
-                                } else if (i == (selectedY - 1)){
-                                    //log("Calculating from selectedY - 1", true);
-                                    if(touchY <= idealPosition){ //We're involved
-                                        float difference = 0.5f - ((touchY - minFor) / perElementSize);
-                                        log("SelectedY - 1 VALID at position " + i + " difference " + difference, true);
-                                        sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
-                                                textSize + (difference * textSizeDifference)));
-                                    } else { //Not so much
-                                        sizeQueue.add(new Pair<>(iconSize, textSize));
-                                    }
-                                } else if (i == (selectedY + 1)){
-                                    //log("Calculating from selectedY + 1", true);
-                                    if(touchY >= idealPosition){ //We're involved
-                                        float difference = 0.5f - ((maxFor - touchY) / perElementSize);
-                                        log("SelectedY + 1 VALID at position " + i + " difference " + difference, true);
-                                        sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
-                                                textSize + (difference * textSizeDifference)));
-                                    } else { //Not so much
-                                        sizeQueue.add(new Pair<>(iconSize, textSize));
-                                    }
-                                } else { //Default case
-                                    //log("Calculating from default case", true);
-                                    sizeQueue.add(new Pair<>(iconSize, textSize));
-                                }
-                            }
-                        }
-
-                        float yPosition = drawStartY;
-
-                        //Occasionally this'll temporarily glitch
-                        if(selectedY >= data.size())
-                            return;
-
-                        drawColor(canvas,
-                                getIconColor(data.get(selectedY).getDrawablePackage(), data.get(selectedY).getDrawableName()),
-                                ScreenSide.LEFT_SIDE);
-
-                        for (int i = 0; i < data.size(); i++) {
-                            Pair<Float, Float> sizes = sizeQueue.remove(0);
-                            drawAbsoluteLineInternalLeftJustified(canvas,
-                                    IconCache.getInstance().getSwipeCacheIcon(data.get(i).getDrawablePackage(), data.get(i).getDrawableName(), bigIconSize, retrievalInterface),
-                                    data.get(i).getTitle(), edgeSlop, yPosition, sizes.first,
-                                    sizes.second, iconPadding, selectedY == i);
-                            yPosition += (sizes.first + iconPadding);
-                        }
-                    }
-                }
-                break;
-            default:
-                super.onDraw(canvas);
-                break;
+                touchPaint.setShader(
+                        new LinearGradient(touchEventList.get(0).first,
+                                touchEventList.get(0).second,
+                                touchEventList.get(touchEventList.size() - 1).first,
+                                touchEventList.get(touchEventList.size() - 1).second,
+                                Color.TRANSPARENT, Color.WHITE, Shader.TileMode.CLAMP));
+                canvas.drawPath(p, touchPaint);
+            }
         }
     }
 
@@ -823,6 +1214,13 @@ public class ShortcutGestureView extends View {
     public void invalidateCaches() {
         colorMap.clear();
         labelMap.clear();
+    }
+
+    /*
+     * Call when the shortcuts represented in this view change.
+     */
+    public void notifyShortcutsChanged(){
+        invalidate();
     }
 
     private int getIconColor(String packageName, String resourceName){
@@ -1012,23 +1410,13 @@ public class ShortcutGestureView extends View {
     @Override
     public synchronized boolean onTouchEvent(@NonNull MotionEvent event) {
         lastTouchEvent = System.currentTimeMillis();
+        log("onTouchEvent at " + lastTouchEvent, false);
+
         switch(event.getAction()){
             case MotionEvent.ACTION_DOWN:
                 log("Motion event action down", false);
-                if(ha.widgetBarIsVisible()){
-                    log("Collapsing widget bar", false);
-                    ha.collapseWidgetBar(true, false, 300);
-                    resetState(1, 300);
-                    return false;
-                } else if (ha.smartBarIsVisible()) {
-                    log("Collapsing smartBar", false);
-                    ha.collapseSmartBar(true, false, 300);
-                    resetState(1, 300);
-                    return false;
-                } else {
-                    initTouchOp(event);
-                    ha.fadeDateTime(0, 300);
-                }
+                initTouchOp(event);
+                ha.fadeDateTime(0, 300);
 
                 cleanTouchEvents();
                 break;
@@ -1050,66 +1438,24 @@ public class ShortcutGestureView extends View {
 
                 float dx = startX - event.getX();
                 float dy = startY - event.getY();
+                log("Handling for " + sgt.name(), false);
                 switch(sgt){
                     case MODE_NONE:
-                        if(Math.abs(dy) > touchSlop) {
-                            //Ensure we have space on all sides
-                            log("Found vertical movement", false);
+                        if(sqrt(pow(dy, 2) + pow(dx, 2)) > touchSlop) {
+                            log("Found movement; swiping not tapping", false);
                             if (startX > touchSlop && startX < getWidth() - edgeSlop
                                     && startY > edgeSlop && startY < getHeight() - edgeSlop) {
                                 log("Selected icon choosing mode!", false);
                                 sgt = SGTypes.MODE_SELECT_ICON;
                                 gestureStartX = touchX;
                                 gestureStartY = touchY;
-                            }
-                        } else if (Math.abs(dx) > (touchSlop * 2)){ //Some sort of horizontal swipe
-                            log("Found horizontal swipe", false);
-                            if(dx > 0){ //Swipe left -- widget bar
-                                log("Selected widget bar mode!", false);
-                                sgt = SGTypes.MODE_SHOW_WIDGETS;
-                                gestureStartX = touchX;
-                                gestureStartY = touchY;
-                            } else {
-                                log("Selected smart bar mode!", false);
-                                sgt = SGTypes.MODE_SHOW_SMARTBAR;
-                                gestureStartX = touchX;
-                                gestureStartY = touchY;
+                                cm = ChoiceMode.CHOOSING_FOLDER;
                             }
                         }
                         break;
                     case MODE_SELECT_ICON:
-                        //This updates the item so onDraw can do the right thing;
-                        //strictly speaking, this doesn't need to be in a function
-                        synchronized (touchEventList) {
-                            if (touchEventList.size() < 5) {
-                                touchEventList.add(new Pair<>(touchX, touchY));
-                            } else {
-                                touchEventList.remove(0);
-                                touchEventList.add(new Pair<>(touchX, touchY));
-                            }
-                        }
+                        updateTouchEventsList();
                         updateSelectedTouchItem();
-                        break;
-                    case MODE_SHOW_WIDGETS:
-                        //Move the widget bar by however much you've moved
-                        //onDraw() can't take this because it's transacting a real View
-                        if(dx > 0){ //Only move when in the right direction
-                            float toMove = ha.widgetBar.getWidth() - dx;
-                            if(toMove < 0) toMove = 0;
-                            ha.widgetBar.setTranslationX(toMove);
-                        }
-                        break;
-                    case MODE_SHOW_SMARTBAR:
-                        //Move the smart bar by however much you've moved
-                        //onDraw() can't take this because it's transacting a real View
-                        if(dx < 0){ //Only move when in the right direction
-                            float toMove = -ha.smartBar.getWidth() - dx;
-                            log("Dx: " + dx, true);
-                            log("SmartBar translation: " + ha.smartBar.getTranslationX(), true);
-                            log("SmartBar width: " + ha.smartBar.getWidth(), true);
-                            if(Math.abs(dx) > ha.smartBar.getWidth()) toMove = 0;
-                            ha.smartBar.setTranslationX(toMove);
-                        }
                         break;
                 }
                 break;
@@ -1120,7 +1466,7 @@ public class ShortcutGestureView extends View {
                 float totalXPercent = totalXMovement / 100;
                 if(totalXPercent < -1) totalXPercent = -1;
                 if(totalXPercent > 1) totalXPercent = 1;
-                long animationXTime = (long) (300 * Math.abs(totalXPercent));
+                long animationXTime = (long) (300 * abs(totalXPercent));
                 switch(sgt){
                     case MODE_NONE:
                         log("Mode none; checking for taps", false);
@@ -1143,24 +1489,6 @@ public class ShortcutGestureView extends View {
                         log("Mode select icon; opening something perhaps...", false);
                         openSelectedItem();
                         break;
-                    case MODE_SHOW_WIDGETS:
-                        if(totalXMovement > touchSlop){
-                            ha.expandWidgetBar(true, animationXTime);
-                            resetState(1, -1);
-                        } else {
-                            ha.collapseWidgetBar(true, false, animationXTime);
-                            resetState(0, 300);
-                        }
-                        break;
-                    case MODE_SHOW_SMARTBAR:
-                        if(totalXMovement < -touchSlop){
-                            ha.expandSmartBar(true, animationXTime);
-                            resetState(1, -1);
-                        } else {
-                            ha.collapseSmartBar(true, false, animationXTime);
-                            resetState(0, 300);
-                        }
-                        break;
                 }
                 break;
             case MotionEvent.ACTION_CANCEL:
@@ -1172,8 +1500,29 @@ public class ShortcutGestureView extends View {
         return true;
     }
 
+    private void updateTouchEventsList() {
+        //This updates the item so onDraw can do the right thing;
+        //strictly speaking, this doesn't need to be in a function
+        synchronized (touchEventList) {
+            if (touchEventList.size() < 5) {
+                touchEventList.add(new Pair<>(touchX, touchY));
+            } else {
+                touchEventList.remove(0);
+                touchEventList.add(new Pair<>(touchX, touchY));
+            }
+        }
+    }
+
     public void resetState(int animateTo, int animateTime){
         sgt = SGTypes.MODE_NONE;
+        cm = ChoiceMode.CHOOSING_FOLDER;
+
+        //Reset widget timer tasks
+        timer.cancel();
+        timer = new Timer();
+        timerStart = -1;
+        timerCompleted = false;
+
         startX = 0;
         startY = 0;
         touchX = 0;
@@ -1181,7 +1530,6 @@ public class ShortcutGestureView extends View {
         gestureStartX = 0;
         gestureStartY = 0;
         selectedY = 0;
-        choosingFromFolder = false;
         selectedFolder = 0;
         selectedY = 0;
         drawStartY = 0;

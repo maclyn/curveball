@@ -10,7 +10,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     //Database basics
     public static final String DATABASE_NAME = "database.db";
-    public static final int DATABASE_VERSION = 3;
+    public static final int DATABASE_VERSION = 4;
 
     //Base columns
     public static final String COLUMN_ID = "_id";
@@ -86,9 +86,14 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        if(oldVersion == 1) //v1 didn't have a widget table
+        if (oldVersion == 1) { //v1 didn't have a widget table
             db.execSQL(WIDGET_TABLE_CREATE);
-        else if (oldVersion == 2) //v2 didn't have a smartapps table
             db.execSQL(SMARTAPPS_TABLE_CREATE);
+        } else if (oldVersion == 2){ //v2 didn't have a smartapps table
+            db.execSQL(SMARTAPPS_TABLE_CREATE);
+        } else if (oldVersion == 3) { //v3's widget table is corrupt!
+            db.delete(TABLE_WIDGETS, null, null);
+            db.execSQL(WIDGET_TABLE_CREATE);
+        }
     }
 }

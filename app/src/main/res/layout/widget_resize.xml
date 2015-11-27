@@ -32,20 +32,4 @@
         android:layout_height="wrap_content"
         android:textColor="@android:color/white"
         android:text="Big"/>
-
-    <CheckBox
-        android:id="@+id/smallerMin"
-        android:layout_centerHorizontal="true"
-        android:layout_below="@+id/heightBar"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="30dp"
-        android:layout_marginRight="16dp"
-        android:buttonTint="@android:color/white"
-        android:layout_marginLeft="16dp"
-        android:textColor="@android:color/white"
-        android:button="@drawable/checkbox_material_white"
-        android:text="Override default min. size"
-        android:minWidth="150dp"
-        android:checked="false" />
 </RelativeLayout>

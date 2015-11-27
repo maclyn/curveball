@@ -43,7 +43,7 @@
     <string name="yes">Yes</string>
     <string name="app_info">App Info</string>
     <string name="name_your_folder">Name your folder</string>
-    <string name="reorder_rows">Reorder</string>
+    <string name="reorder_rows">Reorder Rows</string>
     <string name="sample_text">Some sample text</string>
     <string name="no_snacklets_found">No snacklets found.</string>
     <string name="advanced">Advanced</string>
@@ -108,7 +108,6 @@
         DragSortListView (c) 2012 Carl Bauer under the Apache license.\n
         NumberPickerPreference (C) 2014-2015 Vanniktech - Niklas Baudy under the Apache License.\n
         MaterialDialogs (c) Aidan Michael Follestad under the MIT license.\n
-        Permiso (c) 2015 Greyson Parrelli.\n
         ButterKnife (c) 2013 Jake Wharton.\n
         Otto (c) 2013 Square, Inc.\n\n
         Apache License:\n
@@ -143,4 +142,18 @@
         OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
         SOFTWARE.
     </string>
+    <string name="permissions_needed_for_smartbar">Permissions Needed</string>
+    <string name="smartbar_needs_permissions">To use context-enabled features on the smartbar, such as suggesting apps when in phone calls, calendar events, or low on battery, we need to request permissions to view your phone and calendar state. If you reject them, Curveball will still work, just without these permissions.</string>
+    <string name="okay_we_wont_ask">Okay, we won\'t ask again.</string>
+    <string name="got_it">Got it</string>
+    <string name="suggestions">Suggestions</string>
+    <string name="no_suggestions_right_now">No suggestions right now.</string>
+    <string name="view_widget">View Widget</string>
+    <string name="edit_folder">Edit Folder</string>
+    <string name="open_all_in_folder">Open All</string>
+    <string name="save">Save</string>
+    <string name="edit_items">Edit Items</string>
+    <string name="help">Help</string>
+    <string name="edit_items_help">Drag a shorcut by the handle to reorder it, and swipe it away (like a notification) to remove it.</string>
+    <string name="swap_widget">Swap Widget</string>
 </resources>

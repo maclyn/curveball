@@ -1,10 +1,12 @@
 package com.inipage.homelylauncher.widgets;
 
-public class WidgetContainer{
+public class WidgetContainer {
+    private String widgetPackage;
     private int widgetId;
     private int widgetHeight;
 
-    public WidgetContainer(int widgetId, int widgetHeight) {
+    public WidgetContainer(String widgetPackage, int widgetId, int widgetHeight) {
+        this.widgetPackage = widgetPackage;
         this.widgetId = widgetId;
         this.widgetHeight = widgetHeight;
     }
@@ -25,4 +27,7 @@ public class WidgetContainer{
         this.widgetHeight = widgetHeight;
     }
 
+    public String getWidgetPackage() {
+        return widgetPackage;
+    }
 }

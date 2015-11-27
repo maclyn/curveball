@@ -1,7 +1,6 @@
 package com.inipage.homelylauncher.icons;
 
 import android.content.ComponentName;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -10,24 +9,20 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
-import android.media.Image;
 import android.os.AsyncTask;
 import android.support.v4.util.Pair;
 import android.util.Log;
-import android.util.LruCache;
 import android.util.TypedValue;
 import android.view.View;
 import android.widget.ImageView;
 
 import com.inipage.homelylauncher.ApplicationClass;
-import com.inipage.homelylauncher.ShortcutGestureView;
 import com.inipage.homelylauncher.drawer.StickyImageView;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
 
 /**
@@ -43,8 +38,8 @@ public class IconCache {
     /** A task that represents setting an element on the dock. **/
     public static final int DOCK_TASK = 2;
 
-    /** A task that represents grabbing a local icon for the smartbar. */
-    public static final int SMARTBAR_ICON_TASK = 3;
+    /** A task that represents grabbing a local icon for suggestions. */
+    public static final int SUGGESTIONS_ICON_TASK = 3;
 
     /** A task that represents grabbing a R.id.{} for the swipe layout. **/
     public static final int SWIPE_ICON_LOCAL_RESOURCE_TASK = 4;
@@ -111,7 +106,7 @@ public class IconCache {
                         String componentName = (String) params[6];
                         ComponentName cm = new ComponentName(packageName, componentName);
                         d = pm.getActivityIcon(cm);
-                    } else if (taskType == SMARTBAR_ICON_TASK) {
+                    } else if (taskType == SUGGESTIONS_ICON_TASK) {
                         //We're just grabbing the package icon
                         location = (ImageView) params[5];
                         d = pm.getApplicationIcon(packageName);
@@ -152,7 +147,7 @@ public class IconCache {
                 evictUntilFree(toDraw.getByteCount());
 
                 synchronized (cacheLock) {
-                    if (taskType == APP_DRAWER_TASK || taskType == DOCK_TASK || taskType == SMARTBAR_ICON_TASK) {
+                    if (taskType == APP_DRAWER_TASK || taskType == DOCK_TASK || taskType == SUGGESTIONS_ICON_TASK) {
                         iconCache.put(tag, new Pair<>(1, toDraw));
                     } else if (taskType == SWIPE_ICON_ICON_PACK_TASK || taskType == SWIPE_ICON_LOCAL_RESOURCE_TASK ||
                             taskType == SWIPE_ICON_APP_ICON_TASK) {
@@ -178,13 +173,13 @@ public class IconCache {
 
             synchronized (cacheLock) {
                 try {
-                    if (taskType == APP_DRAWER_TASK || taskType == DOCK_TASK || taskType == SMARTBAR_ICON_TASK) {
+                    if (taskType == APP_DRAWER_TASK || taskType == DOCK_TASK || taskType == SUGGESTIONS_ICON_TASK) {
                         if (!result || location == null || location.getTag() == null) return; //We're done here
 
                         if (location.getTag().equals(tag)) {
                             Pair<Integer, Bitmap> res = iconCache.get(tag);
                             if (res != null) {
-                                if (taskType == DOCK_TASK || taskType == SMARTBAR_ICON_TASK)
+                                if (taskType == DOCK_TASK || taskType == SUGGESTIONS_ICON_TASK)
                                     ((ImageView) location).setImageBitmap(res.second);
                                 else
                                     ((StickyImageView) location).setImageBitmap(res.second);
@@ -202,14 +197,14 @@ public class IconCache {
 
     //Only evicts from app cache.
     private void evictUntilFree(int byteCount) {
-        Log.d(TAG, "Checking if space present for " + byteCount + " bytes");
+        //Log.d(TAG, "Checking if space present for " + byteCount + " bytes");
 
         long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         if(usedMemory < memoryPressureLimit){ //Used > pressure value
-            Log.d(TAG, "Only " + usedMemory + " bytes used; pressure fine for now");
+//            Log.d(TAG, "Only " + usedMemory + " bytes used; pressure fine for now");
             return;
         } else {
-            Log.d(TAG, "Memory pressure tight; trying to evict");
+  //          Log.d(TAG, "Memory pressure tight; trying to evict");
         }
 
         synchronized (cacheLock) {
@@ -224,7 +219,7 @@ public class IconCache {
                     maximumUsageNumber = entry.getValue().first;
             }
 
-            Log.d(TAG, "Most used element has been used " + maximumUsageNumber + " times");
+    //        Log.d(TAG, "Most used element has been used " + maximumUsageNumber + " times");
 
             usageLoop:
             {
@@ -244,10 +239,10 @@ public class IconCache {
                 }
             }
 
-            Log.d(TAG, toEvict.size() + " elements removed to free " + bytesFreed + " bytes");
+      //      Log.d(TAG, toEvict.size() + " elements removed to free " + bytesFreed + " bytes");
 
             for (String s : toEvict) {
-                Log.d(TAG, "Evicting: " + s);
+        //        Log.d(TAG, "Evicting: " + s);
                 iconCache.remove(s);
             }
         }
@@ -312,7 +307,7 @@ public class IconCache {
         if(icon != null){
             try {
                 if(place != null){
-                    if(taskType == DOCK_TASK || taskType == SMARTBAR_ICON_TASK)
+                    if(taskType == DOCK_TASK || taskType == SUGGESTIONS_ICON_TASK)
                         ((ImageView)place).setImageBitmap(icon);
                     else
                         ((StickyImageView)place).setImageBitmap(icon);
@@ -446,11 +441,11 @@ public class IconCache {
     }
 
     /**
-     * Set the icon for a given drawable on a smartbar element.
+     * Set the icon for a given drawable on a suggestion element.
      * @param packageName The package name of the icon.
      * @param place Where to set it.
      */
-    public void setSmartbarIcon(String packageName, ImageView place){
+    public void setSuggestionsIcon(String packageName, ImageView place){
         final String key = packageName + "|" + "-1";
         place.setTag(key);
 
@@ -465,15 +460,15 @@ public class IconCache {
 
         //Start a task
         BitmapRetrievalTask getter = new BitmapRetrievalTask();
-        Pair<Integer, BitmapRetrievalTask> pair = new Pair<>(SMARTBAR_ICON_TASK, getter);
+        Pair<Integer, BitmapRetrievalTask> pair = new Pair<>(SUGGESTIONS_ICON_TASK, getter);
         taskList.add(pair);
 
         try {
-            getter.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, SMARTBAR_ICON_TASK, key,
+            getter.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, SUGGESTIONS_ICON_TASK, key,
                     packageName, pair, place.getWidth(), place);
         } catch (RejectedExecutionException tooManyRunning) {
             try {
-                getter.execute(SMARTBAR_ICON_TASK, key, packageName, pair, place.getWidth(), place);
+                getter.execute(SUGGESTIONS_ICON_TASK, key, packageName, pair, place.getWidth(), place);
             } catch (Exception ignored) {}
         }
     }

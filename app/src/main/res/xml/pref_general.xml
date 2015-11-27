@@ -25,6 +25,7 @@
                 android:summary="@string/default_low_power_app_summary"
                 android:key="low_power_app"/>
         </PreferenceCategory>
+    <!--
     <PreferenceCategory
         android:title="@string/widgets"
         android:key="pref_widgets">
@@ -33,14 +34,13 @@
                 android:title="@string/resize_all_widgets"
                 android:summary="@string/resize_all_widgets_summary"
                 android:key="resize_all_pref" />
-            <!--
             <CheckBoxPreference
                 android:defaultValue="false"
                 android:title="@string/replace_widget_with_clock"
                 android:summary="@string/replace_widget_with_clock_summary"
                 android:key="home_widget_pref" />
-                -->
         </PreferenceCategory>
+        -->
     <PreferenceCategory
         android:title="@string/gesture_swipe"
         android:key="pref_gestures" />

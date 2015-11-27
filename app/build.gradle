@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         applicationId "com.inipage.homelylauncher"
-        minSdkVersion 16
+        minSdkVersion 17
         targetSdkVersion 23
         versionCode 7
         versionName "0.2.4"
@@ -55,7 +55,6 @@ dependencies {
     compile 'com.google.code.gson:gson:2.4'
     compile 'asia.ivity.android:drag-sort-listview:1.0'
     compile 'com.vanniktech:vntnumberpickerpreference:0.2.0-SNAPSHOT'
-    compile 'com.greysonparrelli.permiso:permiso:0.1.0'
 
     //Convenience libraries
     compile 'com.jakewharton:butterknife:7.0.1'

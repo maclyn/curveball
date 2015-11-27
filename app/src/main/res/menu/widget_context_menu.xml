@@ -5,7 +5,7 @@
         android:title="@string/resize_widget"
         android:orderInCategory="1"/>
     <item
-        android:id="@+id/deleteWidget"
-        android:title="@string/delete"
+        android:id="@+id/swapWidget"
+        android:title="@string/swap_widget"
         android:orderInCategory="2"/>
 </menu>

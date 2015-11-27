@@ -2,6 +2,8 @@ package com.inipage.homelylauncher;
 
 public class Constants {
     public static final String HAS_RUN_PREFERENCE = "has_run";
+    public static final String HAS_REQUESTED_PERMISSIONS_PREF = "has_requested_pref";
+    public static final String HAS_REQUESTED_USAGE_PERMISSION_PREF = "has_requested_usage_pref";
     public static final String VERSION_PREF = "version_pref";
 
     public class Versions {

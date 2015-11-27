@@ -4,6 +4,7 @@ import android.Manifest;
 import android.animation.ObjectAnimator;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
+import android.app.ActionBar;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
@@ -45,7 +46,7 @@ import android.preference.PreferenceManager;
 import android.provider.CalendarContract;
 import android.provider.Settings;
 import android.support.v4.graphics.drawable.DrawableCompat;
-import android.support.v7.app.AppCompatActivity;
+import android.support.v4.view.ViewPager;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.Toolbar;
@@ -56,6 +57,7 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Pair;
 import android.view.DragEvent;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
@@ -110,18 +112,21 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.RejectedExecutionException;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
 
 @SuppressWarnings("unchecked")
-public class HomeActivity extends Activity {
+public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     public static final String TAG = "HomeActivity";
+
     public static final int REQUEST_CHOOSE_ICON = 200;
     public static final int REQUEST_CHOOSE_APPLICATION = 201;
     public static final int REQUEST_ALLOCATE_ID = 202;
     private static final int REQUEST_CONFIG_WIDGET = 203;
     private static final int REQUEST_PICK_APP_WIDGET = 204;
+    private static final int REQUEST_PERMISSIONS = 205;
 
     public static final int HOST_ID = 505;
     private static final long ONE_DAY_MILLIS = 1000 * 60 * 60 * 24;
@@ -182,11 +187,6 @@ public class HomeActivity extends Activity {
     Typeface regular;
     Typeface condensed;
     Timer timer;
-
-    //Main widget host
-    @Bind(R.id.homeWidget)
-    FrameLayout homeWidget;
-    boolean addingHomescreenWidget = false;
 
     //Home dockbar
     @Bind(R.id.dockApps)
@@ -251,27 +251,26 @@ public class HomeActivity extends Activity {
     @Bind(R.id.sgv)
     ShortcutGestureView sgv;
 
-    //Snacklets are in the widget bar
-    @Bind(R.id.snackletContainer)
-    LinearLayout snackletContainer;
+    //Widget overlay
+    @Bind(R.id.widgetOverlay)
+    View widgetOverlay;
+    @Bind(R.id.widgetOverlayDisplay)
+    LinearLayout widgetOverlayContainer;
+    @Bind(R.id.widgetOverlayClose)
+    View widgetOverlayClose;
+    @Bind(R.id.widgetOverlaySettings)
+    View widgetOverlaySettings;
+    @Bind(R.id.widgetOverlayIcon)
+    ImageView widgetOverlayIcon;
 
-    BroadcastReceiver snackletReceiver;
-    List<UpdateItem> updates;
-    List<String> handledPackages;
+    private HashMap<String, Boolean> hasWidgetMap = new HashMap<>();
 
-    //Widget stuff
-    @Bind(R.id.widgetBar)
-    View widgetBar;
-    @Bind(R.id.widgetToolbar)
-    Toolbar widgetToolbar;
-    @Bind(R.id.widgetContainer)
-    LinearLayout widgetContainer;
+    //Suggestions
+    @Bind(R.id.no_suggestions_right_now)
+    TextView noSuggestions;
 
-    //Smartbar stuff
-    @Bind(R.id.smartBar)
-    View smartBar;
-    @Bind(R.id.smartBarContainer)
-    LinearLayout smartBarContainer;
+    @Bind(R.id.suggestionsLayout)
+    LinearLayout suggestionsLayout;
 
     boolean editingWidget = false;
 
@@ -293,6 +292,13 @@ public class HomeActivity extends Activity {
 
     Handler testHandler;
     //List<AppWidgetHostView> testRef = new ArrayList<>();
+
+    /** Some dialogs have onDismiss(...) listeners that open their 'parent' dialogs. This variable
+     * lets us know when we intentionally raise a child dialog of depth two, so as not to trigger
+     * the onDismiss(...) showing of a depth 1 dialog from a child dialog of depth 2. Yes,
+     * this is a gimmicky hack until we have better dialog management.
+     */
+    boolean depthThreeDialogRaised = false;
 
     //Tell when things have changed
     BroadcastReceiver packageReceiver;
@@ -423,15 +429,10 @@ public class HomeActivity extends Activity {
             public void onClick(View v) {
                 PopupMenu pm = new PopupMenu(v.getContext(), v);
                 pm.inflate(R.menu.popup_menu);
-                if (!reader.getBoolean(Constants.HOME_WIDGET_PREFERENCE, false))
-                    pm.getMenu().findItem(R.id.changeHomeWidget).setVisible(false);
                 pm.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
                     @Override
                     public boolean onMenuItemClick(MenuItem item) {
                         switch (item.getItemId()) {
-                            case R.id.batchOpen:
-                                showBatchOpenMenu();
-                                break;
                             case R.id.hideApps:
                                 showHideAppsMenu();
                                 break;
@@ -441,18 +442,14 @@ public class HomeActivity extends Activity {
                             case R.id.settings:
                                 startActivity(new Intent(HomeActivity.this, SettingsActivity.class));
                                 break;
-                            case R.id.changeHomeWidget:
-                                addingHomescreenWidget = true;
-                                showAddWidgetMenu();
-                                break;
                             case R.id.changeWallpaper:
                                 toggleAppsContainer(false);
                                 setDockbarState(DockbarState.STATE_HOME, true);
                                 final Intent pickWallpaper = new Intent(Intent.ACTION_SET_WALLPAPER);
                                 startActivity(Intent.createChooser(pickWallpaper, "Set Wallpaper"));
                                 break;
-                            case R.id.editRows:
-                                editRows();
+                            case R.id.reorderRows:
+                                showReorderRowsDialog();
                                 break;
                         }
                         return true;
@@ -585,75 +582,12 @@ public class HomeActivity extends Activity {
             }
         });
 
-        //Set up snacklets
-        handledPackages = new ArrayList<>();
-        updates = new ArrayList<>();
-
-        //Set up receiver for getting data back
-        snackletReceiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                Log.d(TAG, "Found some new data!");
-                try {
-                    UpdateItem ui = new UpdateItem(context, intent);
-                    snackletAdded(ui, -1);
-                } catch (Exception e) {
-                    boolean isDebugging = reader.getBoolean(Constants.DEBUG_MODULES, false);
-                    Log.d(TAG, "Error! Message: " + e.getMessage());
-                    if(intent.hasExtra("sender_package")){
-                        try {
-                            String error = "Error from package: " + intent.getStringExtra("sender_package");
-                            if(isDebugging){
-                                new MaterialDialog.Builder(context)
-                                        .title(R.string.module_error)
-                                        .content(error)
-                                        .show();
-                            } else {
-                                Log.d(TAG, error);
-                            }
-                        } catch (Exception ignored) {
-                        }
-                    }
-                }
-            }
-        };
-
-        IntentFilter intentFilter = new IntentFilter();
-        intentFilter.addAction(Constants.FOUND_DATA_INTENT);
-
-        //Register when we get new data
-        registerReceiver(snackletReceiver, intentFilter);
-
-        //Set up widgets
-        widgetToolbar.inflateMenu(R.menu.widget_menu);
-        widgetToolbar.setOnMenuItemClickListener(new Toolbar.OnMenuItemClickListener() {
-            @Override
-            public boolean onMenuItemClick(MenuItem menuItem) {
-                switch(menuItem.getItemId()) {
-                    case R.id.editWidgets:
-                        toggleWidgetEditing();
-                        break;
-                    case R.id.addWidget:
-                        showAddWidgetMenu();
-                        break;
-                    case R.id.clearSnacklets:
-                        removeAllSnacklets();
-                        break;
-                }
-                return true;
-            }
-        });
-
-        //Set up smartbar
-        smartBarContainer.setTranslationX(-smartBarContainer.getWidth());
-
         //Move the screen as needed
         toggleAppsContainer(false);
         setDockbarState(DockbarState.STATE_HOME, false);
 
         //Check if we've run before
         if (!reader.getBoolean(Constants.HAS_RUN_PREFERENCE, false)) {
-            writer.putBoolean(Constants.HAS_RUN_PREFERENCE, true).apply();
             writer.putInt(Constants.VERSION_PREF, Constants.Versions.CURRENT_VERSION).apply();
             sgv.setCards(new ArrayList<TypeCard>());
 
@@ -959,19 +893,22 @@ public class HomeActivity extends Activity {
                         i.setAction(Intent.ACTION_VIEW);
                         i.setData(urlUri);
                         dialog.getContext().startActivity(i);
-
-                        showUsageMessage();
                     }
-
+                })
+                .dismissListener(new DialogInterface.OnDismissListener() {
                     @Override
-                    public void onPositive(MaterialDialog dialog) {
-                        showUsageMessage();
+                    public void onDismiss(DialogInterface dialog) {
+                        Log.d(TAG, "Saving has run preferences...");
+                        writer.putBoolean(Constants.HAS_RUN_PREFERENCE, true).apply();
+                        startSuggestionsPopulation();
                     }
                 }).show();
     }
 
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     private void showUsageMessage(){
+        writer.putBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, true).commit();
+
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             //Show usage settings dialog
             new MaterialDialog.Builder(this)
@@ -996,34 +933,7 @@ public class HomeActivity extends Activity {
         }
     }
 
-    private void showBatchOpenMenu() {
-        Log.d(TAG, "Batch opening...");
-
-        if(samples.size() == 0){
-            Toast.makeText(this, R.string.no_batch_rows, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        String[] items = new String[samples.size()];
-        for(int i = 0; i < samples.size(); i++){
-            items[i] = samples.get(i).getTitle();
-        }
-
-        new MaterialDialog.Builder(this)
-                .title(R.string.batch_open)
-                .items(items)
-                .itemsCallback(new MaterialDialog.ListCallback() {
-                    @Override
-                    public void onSelection(MaterialDialog materialDialog,
-                                            View view, int i, CharSequence charSequence) {
-                        batchOpen(i);
-                    }
-                })
-                .negativeText(R.string.cancel)
-                .show();
-    }
-
-    private void batchOpen(int row) {
+    public void batchOpen(int row) {
         if(row >= 0 && row < sgv.data.size()){
             Intent sequentialLauncherService = new Intent(this, SequentialLauncherService.class);
             sequentialLauncherService.putExtra("row_position", row);
@@ -1031,233 +941,153 @@ public class HomeActivity extends Activity {
         }
     }
 
+    @Override
+    public boolean hasWidget(String packageName) {
+        Boolean widgetExists = hasWidgetMap.get(packageName);
+        return widgetExists == null ? false : widgetExists;
+    }
+
+    public WidgetContainer findContainer(String packageName){
+        for (int i = 0; i < widgets.size(); i++) {
+            if (packageName.equalsIgnoreCase(widgets.get(i).getWidgetPackage())) {
+                return widgets.get(i);
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public void showWidget(final String packageName) {
+        Log.d(TAG, "Showing widget for: " + packageName);
+
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                //Show the widget overlay
+                //(1) Do we have a match?
+                int matchIndex = -1;
+                for (int i = 0; i < widgets.size(); i++) {
+                    if (packageName.equalsIgnoreCase(widgets.get(i).getWidgetPackage())) {
+                        matchIndex = i;
+                        break;
+                    }
+                }
+
+                //(2) Yes -- show overlay and make widget visible
+                if (matchIndex != -1) {
+                    widgetOverlayContainer.getChildAt(matchIndex).setVisibility(View.VISIBLE);
+                    //Wow that's a lot in one line.
+                    try {
+                        Drawable icon = getPackageManager().getActivityIcon(getPackageManager().getLaunchIntentForPackage(packageName));
+                        widgetOverlayIcon.setImageDrawable(icon);
+                    } catch (Exception ignored) {
+                    }
+                    widgetOverlayClose.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            hideWidgetOverlay();
+                        }
+                    });
+                    widgetOverlaySettings.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            PopupMenu pm = new PopupMenu(v.getContext(), widgetOverlaySettings);
+                            pm.inflate(R.menu.widget_context_menu);
+                            pm.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
+                                @Override
+                                public boolean onMenuItemClick(MenuItem item) {
+                                    WidgetContainer wc = findContainer(packageName);
+                                    int indexOfWidget = widgets.indexOf(wc);
+
+                                    if(wc == null){
+                                        hideWidgetOverlay();
+                                        return false; //Should we just crash? This should never happen
+                                    }
+
+                                    switch (item.getItemId()) {
+                                        case R.id.resizeWidget:
+                                            showResizeDialog(wc.getWidgetId(),
+                                                    (AppWidgetHostView) widgetOverlayContainer.getChildAt(indexOfWidget));
+                                            break;
+                                        case R.id.swapWidget:
+                                            widgetOverlayContainer.removeViewAt(indexOfWidget);
+                                            widgetHost.deleteAppWidgetId(wc.getWidgetId());
+                                            widgets.remove(wc);
+                                            showAddWidgetMenu(packageName);
+                                            break;
+                                    }
+                                    return true;
+                                }
+                            });
+                            pm.show();
+                        }
+                    });
+                    widgetOverlay.setVisibility(View.VISIBLE);
+                } else { //(2) No -- show add menu
+                    showAddWidgetMenu(packageName);
+                }
+            }
+        });
+    }
+
+    @Override
+    public void hideWidgetOverlay() {
+        for (int i = 0; i < widgetOverlayContainer.getChildCount(); i++) {
+            widgetOverlayContainer.getChildAt(i).setVisibility(View.GONE);
+        }
+        widgetOverlay.setVisibility(View.GONE);
+    }
+
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-    private void showAddWidgetMenu() {
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
-            List<AppWidgetProviderInfo> installedProviders = widgetManager.getInstalledProviders();
-            List<AppWidgetProviderInfo> matchingProviders = new ArrayList<>();
-            for (AppWidgetProviderInfo awpi : installedProviders) {
-                if (Build.VERSION.SDK_INT > Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
-                    if ((awpi.widgetCategory & AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN)
-                            == AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN) {
+    private void showAddWidgetMenu(final String packageName) {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                List<AppWidgetProviderInfo> installedProviders = widgetManager.getInstalledProviders();
+                List<AppWidgetProviderInfo> matchingProviders = new ArrayList<>();
+                for (AppWidgetProviderInfo awpi : installedProviders) {
+                    if (((awpi.widgetCategory & AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN) == AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN)
+                            && awpi.provider.getPackageName().equalsIgnoreCase(packageName)) {
                         matchingProviders.add(awpi);
                     }
-                } else {
-                    matchingProviders.add(awpi);
                 }
-            }
 
-            //Sort by label
-            Collections.sort(matchingProviders, new Comparator<AppWidgetProviderInfo>() {
-                @Override
-                public int compare(AppWidgetProviderInfo lhs, AppWidgetProviderInfo rhs) {
-                    return lhs.label.compareToIgnoreCase(rhs.label);
-                }
-            });
+                final WidgetAddAdapter adapter = new WidgetAddAdapter(HomeActivity.this, R.layout.widget_preview, matchingProviders);
 
-            final WidgetAddAdapter adapter = new
-                    WidgetAddAdapter(HomeActivity.this, R.layout.widget_preview, matchingProviders);
+                final MaterialDialog md = new MaterialDialog.Builder(HomeActivity.this)
+                        .adapter(adapter, new MaterialDialog.ListCallback() {
+                            @Override
+                            public void onSelection(MaterialDialog materialDialog, View view, int i, CharSequence charSequence) {
+                            }
+                        })
+                        .title("Select a " + matchingProviders.get(0).label + " Widget")
+                        .negativeText(R.string.cancel)
+                        .build();
 
-            final MaterialDialog md = new MaterialDialog.Builder(HomeActivity.this)
-                    .adapter(adapter, new MaterialDialog.ListCallback() {
+                ListView lv = md.getListView();
+                if (lv != null)
+                    lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                         @Override
-                        public void onSelection(MaterialDialog materialDialog, View view, int i, CharSequence charSequence) {
-                            //Do nothing
+                        public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                            AppWidgetProviderInfo awpi = adapter.getItem(position);
+                            int appWidgetId = widgetHost.allocateAppWidgetId();
+                            if (widgetManager.bindAppWidgetIdIfAllowed(appWidgetId, awpi.provider)) {
+                                //Carry on with configuring
+                                handleWidgetConfig(appWidgetId, awpi);
+                            } else {
+                                //Ask for permission
+                                Intent intent = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
+                                intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
+                                intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, awpi.provider);
+                                startActivityForResult(intent, REQUEST_ALLOCATE_ID);
+                            }
+                            md.hide();
                         }
-                    })
-                    .title("Choose a Widget")
-                    .negativeText("Cancel")
-                    .build();
+                    });
 
-            ListView lv = md.getListView();
-            if (lv != null)
-                lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-                    @Override
-                    public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                        AppWidgetProviderInfo awpi = adapter.getItem(position);
-                        int appWidgetId = widgetHost.allocateAppWidgetId();
-                        if (widgetManager.bindAppWidgetIdIfAllowed(appWidgetId, awpi.provider)) {
-                            //Carry on with configuring
-                            handleWidgetConfig(appWidgetId, awpi);
-                        } else {
-                            //Ask for permission
-                            Intent intent = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
-                            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
-                            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, awpi.provider);
-                            startActivityForResult(intent, REQUEST_ALLOCATE_ID);
-                        }
-                        md.hide();
-                    }
-                });
-
-            md.show();
-        } else {
-            Intent pickIntent = new Intent(AppWidgetManager.ACTION_APPWIDGET_PICK);
-            int appWidgetId = widgetHost.allocateAppWidgetId();
-            pickIntent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
-            ArrayList<AppWidgetProviderInfo> customInfo = new ArrayList<>();
-            pickIntent.putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_INFO, customInfo);
-            ArrayList<Bundle> customExtras = new ArrayList<>();
-            pickIntent.putParcelableArrayListExtra(AppWidgetManager.EXTRA_CUSTOM_EXTRAS, customExtras);
-            startActivityForResult(pickIntent, REQUEST_PICK_APP_WIDGET);
-        }
-    }
-
-    private synchronized void removeAllSnacklets() {
-        updates.clear();
-        handledPackages.clear();
-        snackletContainer.removeAllViews();
-        widgetToolbar.getMenu().findItem(R.id.clearSnacklets).setVisible(false);
-    }
-
-    private synchronized void snackletAdded(UpdateItem snacklet, int position){
-        String dataTag = snacklet.getSenderPackage() + snacklet.getDataType();
-        widgetToolbar.getMenu().findItem(R.id.clearSnacklets).setVisible(true);
-        if(handledPackages.contains(dataTag)){
-            //Code to replace the existing View and snacklet in updates
-            int indexOfSnacklet = -1;
-            for(int i = 0; i < updates.size(); i++){
-                if((updates.get(i).getSenderPackage() + updates.get(i).getDataType()).equals(dataTag)){
-                    indexOfSnacklet = i;
-                    break;
-                }
-            }
-
-            if(indexOfSnacklet != -1){
-                updates.remove(indexOfSnacklet);
-                snackletContainer.removeViewAt(indexOfSnacklet);
-                handledPackages.remove(dataTag);
-                snackletAdded(snacklet, indexOfSnacklet);
-            } else { //Error case
-                handledPackages.remove(dataTag);
-                snackletAdded(snacklet, -1);
-            }
-        } else {
-            //Brand new; we can handle this naively
-            handledPackages.add(dataTag);
-            View snackletView = generateSnackletView(snacklet);
-            setSnackletView(snackletView, snacklet, snacklet.selectedPage);
-
-            //Add to updates, hint, and screen
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams((int) Utilities.convertDpToPixel(24, this),
-                    (int) Utilities.convertDpToPixel(24, this));
-            lp.setMargins(0, (int) Utilities.convertDpToPixel(8, this), 0, (int) Utilities.convertDpToPixel(8, this));
-            LinearLayout.LayoutParams lp2 = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT);
-            lp2.setMargins(0, (int) Utilities.convertDpToPixel(12, this), 0, (int) Utilities.convertDpToPixel(12, this));
-            if(position == -1) { //Tack it on the end
-                updates.add(snacklet);
-                snackletContainer.addView(snackletView, lp2);
-            } else { //We have a position to handle this with
-                updates.add(position, snacklet);
-                snackletContainer.addView(snackletView, position, lp2);
-            }
-        }
-
-        Log.d(TAG, "New size of updates: " + updates.size());
-    }
-
-    private View generateSnackletView(final UpdateItem snacklet){
-        View v = View.inflate(this, R.layout.snacklet_full_layout, null);
-        v.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                snacklet.selectedPage++;
-                if (snacklet.selectedPage == snacklet.getPages().size()) {
-                    snacklet.selectedPage = 0;
-                }
-                setSnackletView(v, snacklet, snacklet.selectedPage);
+                md.show();
             }
         });
-        v.findViewById(R.id.openSnacklet).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                //Open what's indicated by snacklet
-                openSnacklet(snacklet);
-            }
-        });
-        if(snacklet.getPages().size() == 1){
-            v.findViewById(R.id.snackletGreaterThanOne).setVisibility(View.GONE);
-        }
-        return v;
-    }
-
-    private void openSnacklet(UpdateItem s){
-        String data = s.getPages().get(s.selectedPage).getUrl();
-        try {
-            if (data.contains("url:")) {
-                String url = data.replace("url:", "");
-                Uri urlUri = Uri.parse(url);
-                Intent i = new Intent();
-                i.setAction(Intent.ACTION_VIEW);
-                i.setData(urlUri);
-                this.startActivity(i);
-            } else if (data.contains("app:")) {
-                String trimmed = data.replace("app:", "");
-                String appPackage = trimmed.substring(0, trimmed.indexOf(";"));
-                String appClass = trimmed.substring(trimmed.indexOf(";") + 1);
-                Intent i = new Intent();
-                i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                i.setComponent(new ComponentName(appPackage, appClass));
-                this.startActivity(i);
-            }
-        } catch (Exception e) {
-            Log.d(TAG, "Error: " + e);
-            Toast.makeText(this, R.string.invalid_launch_specified, Toast.LENGTH_SHORT).show();
-        }
-    }
-
-    private void setSnackletView(View view, UpdateItem snacklet, int position){
-        //Set icon
-        ((ImageView)view.findViewById(R.id.snackletIcon)).setImageDrawable(snacklet.getPages().get(position).getIcon());
-
-        //Set text
-        ((TextView)view.findViewById(R.id.snackletText)).setText(snacklet.getPages().get(position).getTitle());
-
-        //Set description
-        ((TextView)view.findViewById(R.id.snackletDesc)).setText(snacklet.getPages().get(position).getDescription());
-
-        //Set open button
-        if(snacklet.getPages().get(position).getUrl().contains("url:")){
-            ((ImageView)view.findViewById(R.id.openSnacklet)).setImageResource(R.drawable.ic_open_in_browser_white_48dp);
-        } else {
-            ((ImageView)view.findViewById(R.id.openSnacklet)).setImageResource(R.drawable.ic_open_in_new_white_48dp);
-        }
-    }
-
-    private void editRows() {
-        Log.d(TAG, "Editing rows...");
-
-        if(samples.size() == 0){
-            Toast.makeText(this, R.string.no_rows, Toast.LENGTH_SHORT).show();
-            return;
-        }
-
-        String[] items = new String[samples.size()];
-        for(int i = 0; i < samples.size(); i++){
-            items[i] = samples.get(i).getTitle();
-        }
-
-        new MaterialDialog.Builder(this)
-                .title(R.string.edit_rows)
-                .items(items)
-                .itemsCallback(new MaterialDialog.ListCallback() {
-                    @Override
-                    public void onSelection(MaterialDialog materialDialog,
-                                            View view, int i, CharSequence charSequence) {
-                        showEditFolderDialog(i);
-                    }
-                })
-                .callback(new MaterialDialog.ButtonCallback() {
-                    @Override
-                    public void onNeutral(MaterialDialog dialog) {
-                        //Show re-order row dialog
-                        showReorderRowsDialog();
-                    }
-                })
-                .neutralText(R.string.reorder_rows)
-                .negativeText(R.string.cancel)
-                .show();
     }
 
     private void showReorderRowsDialog() {
@@ -1288,12 +1118,9 @@ public class HomeActivity extends Activity {
             }
 
             try {
-                getPackageManager()
-                        .getResourcesForApplication(widgetManager.getAppWidgetInfo(wc.getWidgetId())
-                                .provider.getPackageName());
+                getPackageManager().getResourcesForApplication(widgetManager.getAppWidgetInfo(wc.getWidgetId()).provider.getPackageName());
             } catch (Exception e){
-                Log.d(TAG, wc.getWidgetId() + " @ height " + wc.getWidgetHeight() +
-                        " isn't installed...");
+                Log.d(TAG, wc.getWidgetId() + " @ height " + wc.getWidgetHeight() + " isn't installed...");
                 toRemove.add(wc);
             }
         }
@@ -1306,8 +1133,8 @@ public class HomeActivity extends Activity {
                     int removalIndex = widgets.indexOf(wc);
                     if (removalIndex != -1) {
                         widgets.remove(removalIndex);
-                        if (removalIndex < widgetContainer.getChildCount())
-                            widgetContainer.removeViewAt(removalIndex);
+                        if (removalIndex < widgetOverlayContainer.getChildCount())
+                            widgetOverlayContainer.removeViewAt(removalIndex);
                     }
                 }
             }
@@ -1324,48 +1151,12 @@ public class HomeActivity extends Activity {
         if(storageReceiver != null){
             unregisterReceiver(storageReceiver);
         }
-        if(snackletReceiver != null) {
-            this.unregisterReceiver(snackletReceiver);
-        }
-    }
-
-    private void toggleWidgetEditing() {
-        editingWidget = !editingWidget;
-        for (int i = 0; i < widgetContainer.getChildCount(); i++) {
-            try {
-                widgetContainer.getChildAt(i).findViewById(R.id.editView)
-                        .setVisibility(editingWidget ? View.VISIBLE : View.GONE);
-
-                if(editingWidget) {
-                    AppWidgetProviderInfo awpi = widgetManager.getAppWidgetInfo(widgets.get(i).getWidgetId());
-                    if ((awpi.resizeMode == AppWidgetProviderInfo.RESIZE_NONE ||
-                            awpi.resizeMode == AppWidgetProviderInfo.RESIZE_HORIZONTAL) &&
-                            !reader.getBoolean(Constants.RESIZE_ALL_PREFERENCE, false)) {
-                        widgetContainer.getChildAt(i).findViewById(R.id.resizeWidget).setVisibility(View.GONE); //Disable because we can't resize
-                    } else {
-                        widgetContainer.getChildAt(i).findViewById(R.id.resizeWidget).setVisibility(View.VISIBLE);
-                    }
-                }
-            } catch (Exception ignored) {
-            }
-        }
-
-        if(editingWidget){
-            widgetToolbar.getMenu().findItem(R.id.editWidgets).setIcon(R.drawable.ic_check_white_48dp);
-        } else {
-            widgetToolbar.getMenu().findItem(R.id.editWidgets).setIcon(R.drawable.ic_create_white_48dp);
-        }
     }
 
     @Override
     public void onResume(){
         super.onResume();
         updateDisplay();
-
-        //Ask for snacklet data
-        Intent getData = new Intent();
-        getData.setAction(Constants.WAKEUP_INTENT);
-        sendBroadcast(getData);
 
         //Update most parts on timer
         TimerTask t = new TimerTask(){
@@ -1377,34 +1168,59 @@ public class HomeActivity extends Activity {
         timer = new Timer();
         timer.scheduleAtFixedRate(t, 0, 1000);
 
-        //Set the homescreen widget if it's valid
-        if(reader.getBoolean(Constants.HOME_WIDGET_PREFERENCE, false)) {
-            int newWidgetId = reader.getInt(Constants.HOME_WIDGET_ID_PREFERENCE, -1);
-            if (newWidgetId != -1 && homeWidget.getChildCount() < 1)
-                addWidget(newWidgetId, homeWidget.getHeight(), true);
-        } else {
-            //Ensure there aren't any "attached" remnants
-            writer.putInt(Constants.HOME_WIDGET_ID_PREFERENCE, -1).commit();
-            homeWidget.removeAllViews();
-            timeDateContainer.setVisibility(View.VISIBLE);
-        }
+        //Reset widgets
+        hideWidgetOverlay();
+        updateWidgetInfo();
 
         sgv.onActivityResumed();
-
-        populateSmartBar();
+        startSuggestionsPopulation();
     }
 
-    private void addSmartbarHeader(int resource, final int stringResource){
-        ImageView header = (ImageView) LayoutInflater.from(HomeActivity.this).inflate(R.layout.popular_header,
-                smartBarContainer, false);
-        header.setImageResource(resource);
-        header.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Toast.makeText(v.getContext(), stringResource, Toast.LENGTH_SHORT).show();
+    private void updateWidgetInfo() {
+        hasWidgetMap.clear();
+        List<AppWidgetProviderInfo> installedProviders = widgetManager.getInstalledProviders();
+        for (AppWidgetProviderInfo awpi : installedProviders) {
+            if ((awpi.widgetCategory & AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN)
+                    == AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN) {
+                hasWidgetMap.put(awpi.provider.getPackageName(), true);
             }
-        });
-        smartBarContainer.addView(header);
+        }
+    }
+
+    private void startSuggestionsPopulation(){
+        if(!reader.getBoolean(Constants.HAS_RUN_PREFERENCE, false)) return;
+
+        Log.d(TAG, "Starting suggestions population...");
+
+        //We always show a prompt UI to explain if we need to ask for permissions.
+        String[] permissions = new String[] { Manifest.permission.READ_PHONE_STATE,
+            Manifest.permission.READ_CALENDAR };
+        List<String> neededPermissions = new ArrayList<>();
+
+        for(String permission : permissions){
+            if(!Utilities.checkPermission(permission, this)) neededPermissions.add(permission);
+        }
+
+        if(neededPermissions.size() > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && !reader.getBoolean(Constants.HAS_REQUESTED_PERMISSIONS_PREF, false)){
+            Log.d(TAG, "Requesting permissions for the first time; showing message...");
+            final String[] requested = neededPermissions.toArray(new String[0]);
+
+            new MaterialDialog.Builder(HomeActivity.this)
+                    .title(R.string.permissions_needed_for_smartbar)
+                    .content(R.string.smartbar_needs_permissions)
+                    .dismissListener(new DialogInterface.OnDismissListener() {
+                        @TargetApi(Build.VERSION_CODES.M)
+                        @Override
+                        public void onDismiss(DialogInterface dialog) {
+                            requestPermissions(requested, REQUEST_PERMISSIONS);
+                        }
+                    })
+                    .positiveText(R.string.got_it)
+                    .show();
+        } else {
+            populateSuggestions();
+        }
     }
 
     private ApplicationIcon addSmartbarAppFromPref(String prefName){
@@ -1423,8 +1239,8 @@ public class HomeActivity extends Activity {
         }
     }
 
-    private void addSmartbarApp(String packageName){
-        View v = LayoutInflater.from(HomeActivity.this).inflate(R.layout.popular_app_icon, smartBarContainer, false);
+    private void addSuggestionsApp(String packageName){
+        View v = LayoutInflater.from(HomeActivity.this).inflate(R.layout.popular_app_icon, suggestionsLayout, false);
 
         final Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
         if(launchIntent == null) return;
@@ -1440,12 +1256,18 @@ public class HomeActivity extends Activity {
             }
         });
 
-        IconCache.getInstance().setSmartbarIcon(packageName, ((ImageView) v.findViewById(R.id.appIconSmall)));
+        IconCache.getInstance().setSuggestionsIcon(packageName, (ImageView) v);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.gravity |= Gravity.CENTER_VERTICAL;
 
-        smartBarContainer.addView(v);
+        int eightDp = (int) Utilities.convertDpToPixel(8f, this);
+
+        params.setMargins(eightDp, eightDp, eightDp, eightDp);
+        suggestionsLayout.addView(v, params);
     }
 
-    private void addSmartbarApp(String packageName, String className){
+    private void addSuggestionsApp(String packageName, String className){
         final Intent appLaunch = new Intent();
         appLaunch.setClassName(packageName, className);
         appLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -1463,15 +1285,22 @@ public class HomeActivity extends Activity {
             }
         });
 
-        IconCache.getInstance().setDockIcon(packageName, className, ((ImageView) v.findViewById(R.id.appIconSmall)));
+        IconCache.getInstance().setDockIcon(packageName, className, ((ImageView) v));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.gravity |= Gravity.CENTER_VERTICAL;
 
-        smartBarContainer.addView(v);
+        int eightDp = (int) Utilities.convertDpToPixel(8f, this);
+
+        params.setMargins(eightDp, eightDp, eightDp, eightDp);
+        suggestionsLayout.addView(v, params);
     }
 
     @SuppressLint("NewApi")
-    private void populateSmartBar() {
+    private void populateSuggestions() {
         //Clean up
-        smartBarContainer.removeAllViews();
+        suggestionsLayout.removeAllViews();
+        noSuggestions.setVisibility(View.VISIBLE);
 
         //(Prep)
         //Figure out max number of smartBar apps
@@ -1487,9 +1316,9 @@ public class HomeActivity extends Activity {
             if (state == TelephonyManager.CALL_STATE_OFFHOOK) { //In call
                 ApplicationIcon ai = addSmartbarAppFromPref(Constants.PHONE_APP_PREFERENCE);
                 if (ai != null) {
-                    addSmartbarHeader(R.drawable.ic_call_white_48dp, R.string.call_desc);
-                    addSmartbarApp(ai.getPackageName(), ai.getActivityName());
+                    addSuggestionsApp(ai.getPackageName(), ai.getActivityName());
                     appsAdded++;
+                    noSuggestions.setVisibility(View.GONE);
                 }
             }
         }
@@ -1532,9 +1361,9 @@ public class HomeActivity extends Activity {
 
                         ApplicationIcon ai = addSmartbarAppFromPref(Constants.CALENDAR_APP_PREFERENCE);
                         if (ai != null) {
-                            addSmartbarHeader(R.drawable.ic_event_white_48dp, R.string.calendar_desc);
-                            addSmartbarApp(ai.getPackageName(), ai.getActivityName());
+                            addSuggestionsApp(ai.getPackageName(), ai.getActivityName());
                             appsAdded++;
+                            noSuggestions.setVisibility(View.GONE);
                         }
                     }
 
@@ -1561,16 +1390,16 @@ public class HomeActivity extends Activity {
                 if (batteryPercent < 0.2 && !isCharging) {
                     ApplicationIcon ai = addSmartbarAppFromPref(Constants.LOW_POWER_APP_PREFERENCE);
                     if (ai != null) {
-                        addSmartbarHeader(R.drawable.ic_battery_alert_white_48dp, R.string.battery_desc);
-                        addSmartbarApp(ai.getPackageName(), ai.getActivityName());
+                        addSuggestionsApp(ai.getPackageName(), ai.getActivityName());
                         appsAdded++;
+                        noSuggestions.setVisibility(View.GONE);
                     }
                 } else if (isCharging) {
                     ApplicationIcon ai = addSmartbarAppFromPref(Constants.CHARGING_APP_PREFERENCE);
                     if (ai != null) {
-                        addSmartbarHeader(R.drawable.ic_battery_charging_50_white_48dp, R.string.battery_desc);
-                        addSmartbarApp(ai.getPackageName(), ai.getActivityName());
+                        addSuggestionsApp(ai.getPackageName(), ai.getActivityName());
                         appsAdded++;
+                        noSuggestions.setVisibility(View.GONE);
                     }
                 }
             }
@@ -1653,15 +1482,13 @@ public class HomeActivity extends Activity {
                     if (result != null) { //Success; samples has been updated; we should reset the adapter
                         Log.d(TAG, "Success!");
 
-                        //Add to popular apps
-                        addSmartbarHeader(R.drawable.ic_apps_white_48dp, R.string.recent_apps_desc);
-
                         int appsAddedInner = appsAddedCount;
                         for(final String packageName : result){
                             if(appsAddedInner > mostApps)
                                 return;
-                            addSmartbarApp(packageName);
+                            addSuggestionsApp(packageName);
                             appsAddedInner++;
+                            noSuggestions.setVisibility(View.GONE);
                         }
                     } else { //Failure; log it
                         Log.d(TAG, "Failed to generate meaningful usage cards");
@@ -1675,7 +1502,6 @@ public class HomeActivity extends Activity {
 
             if(runningApps.isEmpty()) return;
 
-            addSmartbarHeader(R.drawable.ic_apps_white_48dp, R.string.recent_apps_desc);
             for(ActivityManager.RunningTaskInfo rti : runningApps){
                 if(appsAdded > mostApps)
                     break;
@@ -1685,8 +1511,9 @@ public class HomeActivity extends Activity {
                     String className = launchIntent.getComponent().getClassName();
 
                     handledPackages.add(launchIntent.getPackage());
-                    addSmartbarApp(packageName, className);
+                    addSuggestionsApp(packageName, className);
                     appsAdded++;
+                    noSuggestions.setVisibility(View.GONE);
                 }
             }
         }
@@ -1724,6 +1551,19 @@ public class HomeActivity extends Activity {
     }
 
     @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        writer.putBoolean(Constants.HAS_REQUESTED_PERMISSIONS_PREF, true).commit();
+        boolean allGranted = true;
+        for(int result : grantResults) allGranted &= result == PackageManager.PERMISSION_GRANTED;
+
+        if (!allGranted) {
+            Toast.makeText(HomeActivity.this, R.string.okay_we_wont_ask, Toast.LENGTH_SHORT).show();
+        }
+        populateSuggestions();
+    }
+
+    @Override
     public void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         if (intent.getAction().equals(Intent.ACTION_MAIN)) { //Home button press; reset state
@@ -1743,12 +1583,6 @@ public class HomeActivity extends Activity {
                     hideKeyboard();
 
                     setDockbarState(DockbarState.STATE_HOME, true);
-
-                    //Hide widgets
-                    if (widgetBarIsVisible()) collapseWidgetBar(true, false, 300);
-
-                    //Hide SmartBar
-                    if (smartBarIsVisible()) collapseSmartBar(true, false, 300);
 
                     toggleAppsContainer(false);
                 } catch (Exception e) { //May fail at boot due to uncreated UI
@@ -1850,46 +1684,36 @@ public class HomeActivity extends Activity {
         addWidget(appWidgetId, appWidgetInfo);
     }
 
-    public void addWidget(int appWidgetId, int height, boolean toHome){
+    public void addWidget(int appWidgetId, int height){
         try {
-            addWidget(appWidgetId, widgetManager.getAppWidgetInfo(appWidgetId), height, toHome);
+            addWidget(appWidgetId, widgetManager.getAppWidgetInfo(appWidgetId), height);
         } catch (Exception e) {
-            Log.d(TAG, "Failed to add widget; removing from DB");
-            if(toHome) {
-                writer.putBoolean(Constants.HOME_WIDGET_PREFERENCE, false).commit();
-                writer.putInt(Constants.HOME_WIDGET_ID_PREFERENCE, -1).commit();
-            } else {
-                WidgetContainer wc = findContainer(appWidgetId);
-                if (wc != null) {
-                    widgets.remove(wc);
-                }
-            }
+            Log.d(TAG, "Failed to add widget; removing from database...");
+
+            WidgetContainer wc = findContainer(appWidgetId);
+            if (wc != null) widgets.remove(wc);
         }
     }
 
     public void addWidget(int appWidgetId, AppWidgetProviderInfo awpi){
-        addWidget(appWidgetId, awpi, -1, false);
+        addWidget(appWidgetId, awpi, -1);
     }
 
-    public void addWidget(final int appWidgetId, final AppWidgetProviderInfo awpi, int defaultHeight,
-                          boolean toHome){
-        if(addingHomescreenWidget){
-            writer.putInt(Constants.HOME_WIDGET_ID_PREFERENCE, appWidgetId).commit();
-            toHome = true;
-        }
-
+    /**
+     * Add a widget to the widget container. Also handles adding it to the list used to
+     * keep track of widgets.
+     *
+     * @param appWidgetId The ID for the widget allocated by the system.
+     * @param awpi The AppWidgetProviderInfo passed to us by the system.
+     * @param defaultHeight The height we've stored for the widget. If -1, we're adding a widget for the first time.
+     */
+    public void addWidget(final int appWidgetId, final AppWidgetProviderInfo awpi, int defaultHeight){
         final AppWidgetHostView hostView = widgetHost.createView(this, appWidgetId, awpi);
         hostView.setAppWidget(appWidgetId, awpi);
-        //testRef.add(hostView);
 
         //Set to minHeight
         int resultDp;
-        int width;
-        if(!toHome){
-            width = (int) Utilities.convertPixelsToDp(widgetBar.getWidth(), this);
-        } else {
-            width = (int) Utilities.convertPixelsToDp(homeWidget.getWidth(), this);
-        }
+        int width = (int) Utilities.convertPixelsToDp(widgetOverlayContainer.getWidth(), this);
 
         if(defaultHeight == -1){
             resultDp = awpi.minHeight;
@@ -1902,52 +1726,14 @@ public class HomeActivity extends Activity {
             hostView.updateAppWidgetSize(null, width, resultDp, width, resultDp);
         }
 
-        hostView.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                resultPx));
+        hostView.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, resultPx));
 
-        if(toHome){ //Hide time and date because there's a widget here
-            Log.d(TAG, "Exiting addWidget early to handle new widget...");
-            homeWidget.removeAllViews();
-            homeWidget.addView(hostView);
-            timeDateContainer.setVisibility(View.GONE);
-            addingHomescreenWidget = false;
-            return;
-        }
+        widgetOverlayContainer.addView(hostView); //Add the HostView directly to the linear layout
 
-        final View bigHost = getLayoutInflater().inflate(R.layout.widget_host, null);
-        ((LinearLayout)bigHost.findViewById(R.id.widgetHostContainer)).addView(hostView);
-
-        bigHost.findViewById(R.id.resizeWidget).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                showResizeDialog(appWidgetId, hostView);
-            }
-        });
-        if((awpi.resizeMode == AppWidgetProviderInfo.RESIZE_NONE ||
-                awpi.resizeMode == AppWidgetProviderInfo.RESIZE_HORIZONTAL) &&
-                !reader.getBoolean(Constants.RESIZE_ALL_PREFERENCE, false)){
-            bigHost.findViewById(R.id.resizeWidget).setVisibility(View.GONE); //Disable because we can't resize
-        }
-
-        bigHost.findViewById(R.id.deleteWidget).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                widgetHost.deleteAppWidgetId(appWidgetId);
-                widgetContainer.removeView(bigHost);
-                WidgetContainer wc = findContainer(appWidgetId);
-                if (wc != null) {
-                    widgets.remove(wc);
-                }
-                Toast.makeText(HomeActivity.this, "Deleted.", Toast.LENGTH_SHORT).show();
-            }
-        });
-        widgetContainer.addView(bigHost);
-
-        if(!editingWidget) bigHost.findViewById(R.id.editView).setVisibility(View.GONE); //Hide for now
-
-        //Add it to the widget list if needed
-        if(defaultHeight == -1) {
-            widgets.add(new WidgetContainer(appWidgetId, resultDp));
+        //Add it to the widget list
+        widgets.add(new WidgetContainer(awpi.provider.getPackageName(), appWidgetId, resultDp));
+        if(defaultHeight == -1){ //Show if a "new" widget
+            showWidget(awpi.provider.getPackageName());
         }
     }
 
@@ -1965,12 +1751,13 @@ public class HomeActivity extends Activity {
         for(int i = 0; i < widgets.size(); i++){
             if(widgets.get(i).getWidgetId() == appWidgetId) widgetIndex = i;
         }
+
         try {
             int shouldNotFail = awpi.minResizeHeight;
         } catch (Exception e) { //Error condition; find widget and remove
             if(widgetIndex != -1){
                 widgets.remove(widgetIndex);
-                widgetContainer.removeViewAt(widgetIndex);
+                widgetOverlayContainer.removeViewAt(widgetIndex);
                 persistWidgets(widgets);
             }
 
@@ -1979,43 +1766,29 @@ public class HomeActivity extends Activity {
         }
 
         //We know we can resize vertically; get bounds
-        final int minHeight = awpi.minResizeHeight <= awpi.minHeight ? awpi.minResizeHeight : awpi.minHeight;
-        Log.d(TAG, "Min height (px/dp): " + awpi.minHeight + "/" + minHeight);
-        final int maxHeight = (int) Utilities.convertPixelsToDp(widgetBar.getHeight(), this);
-        Log.d(TAG, "Max height (px/dp): " + widgetBar.getHeight() + "/" + maxHeight);
-        final int width = (int) Utilities.convertPixelsToDp(awhv.getWidth(), this);
-        Log.d(TAG, "Max width (dp): " + width);
+        int tempMinHeight = awpi.minHeight;
+        if(awpi.resizeMode == AppWidgetProviderInfo.RESIZE_VERTICAL){
+            tempMinHeight = awpi.minResizeHeight < awpi.minHeight ? awpi.minResizeHeight : awpi.minHeight;
+        }
+        final int minHeightDp = tempMinHeight;
+
+        final int maxHeightDp = (int) Utilities.convertPixelsToDp((float) (bigTint.getHeight() * 0.7), this);
+        final int widthDp = (int) Utilities.convertPixelsToDp(widgetOverlayContainer.getWidth(), this);
 
         View v = getLayoutInflater().inflate(R.layout.widget_resize, null);
-        final CheckBox cb = (CheckBox) v.findViewById(R.id.smallerMin);
         final SeekBar sb = (SeekBar) v.findViewById(R.id.heightBar);
 
-        //Set seekbar to the right size
+        //Set SeekBar to the current size
         int currentSize = awhv.getHeight();
 
-        Log.d(TAG, "Current size: " + currentSize);
-
-        //See if below "real min"
-        boolean belowMin = false;
-
-        int minAsPixel = (int) Utilities.convertDpToPixel(30, this);
-        Log.d(TAG, "Min as pixel: " + minAsPixel);
-        if(currentSize < Utilities.convertDpToPixel(minHeight, this)){
-            Log.d(TAG, "Is below min");
-            belowMin = true;
-
-            cb.setChecked(true);
-        }
-
-        float minInPixels = (belowMin ? Utilities.convertDpToPixel(minHeight, this) : Utilities.convertDpToPixel(minHeight, this));
-        float maxInPixels = widgetBar.getHeight();
+        float minInPixels = Utilities.convertDpToPixel(minHeightDp, this);
+        float maxInPixels = Utilities.convertDpToPixel(maxHeightDp, this);
         float slideDistance = maxInPixels - minInPixels;
 
-        Log.d(TAG, "Min/max/slide distance (all in px): " + minInPixels + " " + maxInPixels + " " + slideDistance);
+        if(slideDistance == 0) slideDistance = 1; // /0 = bad; shouldn't happen, buuuut...
 
         float percent = ((currentSize - minInPixels) / slideDistance);
-        sb.setProgress((int) ((sb.getMax()) * percent));
-        Log.d(TAG, "As percent: " + percent);
+        sb.setProgress((int) (sb.getMax() * percent));
 
         MaterialDialog md = new MaterialDialog.Builder(this)
                 .title("Resize " + awhv.getAppWidgetInfo().label)
@@ -2026,26 +1799,23 @@ public class HomeActivity extends Activity {
                     public void onPositive(MaterialDialog dialog) {
                         int position = sb.getProgress();
                         int max = sb.getMax();
-                        float realMin = (cb.isChecked() ?
-                                Utilities.convertDpToPixel(30, dialog.getContext()) : minHeight);
 
                         Log.d(TAG, "Position/Max: " + position + " and " + max);
                         if (max == 0) max = 1;
+
                         float percentSlid = (float) position / (float) max;
                         Log.d(TAG, "Percent slid: " + percentSlid);
-                        float range = maxHeight - realMin;
+
+                        float range = maxHeightDp - minHeightDp;
                         int result = (int) (percentSlid * range);
-                        result += realMin;
+                        result += minHeightDp;
                         Log.d(TAG, "Range: " + range + " and result: " + result);
 
                         int resultPx = (int) Utilities.convertDpToPixel((float) result, dialog.getContext());
                         Log.d(TAG, "Result pixels: " + resultPx);
 
-                        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
-                            awhv.updateAppWidgetSize(null, width, result, width, result);
-                        }
-                        awhv.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                                resultPx));
+                        awhv.updateAppWidgetSize(null, widthDp, result, widthDp, result);
+                        awhv.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, resultPx));
 
                         //Update widget container
                         WidgetContainer wc = findContainer(appWidgetId);
@@ -2072,88 +1842,16 @@ public class HomeActivity extends Activity {
         //Log.d(TAG, "Fade date time called with: " + to + " and " + duration);
         if(duration < 0l){ //Apply immediately
             timeDateContainer.setAlpha(to);
-            homeWidget.setAlpha(to);
             dockbarApps.setAlpha(to);
             bigTint.setAlpha(to);
         } else {
             ObjectAnimator.ofFloat(timeDateContainer, "alpha", to)
                     .setDuration(duration)
                     .start();
-            ObjectAnimator.ofFloat(homeWidget, "alpha", to)
-                    .setDuration(duration)
-                    .start();
             ObjectAnimator.ofFloat(dockbarApps, "alpha", to)
                     .setDuration(duration)
                     .start();
             ObjectAnimator.ofFloat(bigTint, "alpha", 1 - to)
-                    .setDuration(duration)
-                    .start();
-        }
-    }
-
-    public void expandWidgetBar(boolean animate, long duration){
-        widgetBar.setVisibility(View.VISIBLE);
-
-        if(!animate){
-            widgetBar.setTranslationX(0);
-        } else {
-            ObjectAnimator.ofFloat(widgetBar, "translationX", 0)
-                    .setDuration(duration)
-                    .start();
-        }
-    }
-
-    public void collapseWidgetBar(boolean animate, boolean fadeDateTime, long duration){
-        widgetBar.setVisibility(View.VISIBLE);
-
-        if(!animate){
-            widgetBar.setTranslationX(widgetBar.getWidth());
-        } else {
-            ObjectAnimator.ofFloat(widgetBar, "translationX", widgetBar.getWidth())
-                    .setDuration(duration)
-                    .start();
-        }
-
-        if(editingWidget) toggleWidgetEditing();
-    }
-
-    public boolean widgetBarIsVisible(){
-        boolean result = widgetBar.getTranslationX() <= 5;
-        Log.d(TAG, "Widget bar visible = " + result);
-        return result;
-    }
-
-    public boolean smartBarIsVisible() {
-        boolean result = smartBar.getTranslationX() >= -(smartBar.getWidth() - 5);
-        Log.d(TAG, "Smart bar visible = " + result);
-        return result;
-    }
-
-    public void collapseSmartBar(boolean animate, boolean fadeDateTime, long duration) {
-        Log.d(TAG, "Collapse smart bar");
-
-        smartBar.setVisibility(View.VISIBLE);
-
-        if(!animate){
-            smartBar.setTranslationX(-smartBar.getWidth());
-        } else {
-            ObjectAnimator.ofFloat(smartBar, "translationX", -smartBar.getWidth())
-                    .setDuration(duration)
-                    .start();
-        }
-
-        if(editingWidget) toggleWidgetEditing();
-    }
-
-    public void expandSmartBar(boolean animate, long duration) {
-        Log.d(TAG, "Expand smart bar");
-
-        smartBar.setVisibility(View.VISIBLE);
-
-        if(!animate){
-            smartBar.setTranslationX(0);
-        } else {
-            ObjectAnimator.ofFloat(smartBar, "translationX", 0)
                     .setDuration(duration)
                     .start();
         }
@@ -2191,6 +1889,28 @@ public class HomeActivity extends Activity {
     }
 
     public void toggleAppsContainer(boolean visible){
+        //Do the popup for usage requests if needed
+        if(visible && !reader.getBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, false) &&
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                @SuppressWarnings("ResourceType")
+                final UsageStatsManager usm = (UsageStatsManager) HomeActivity.this.getSystemService("usagestats");
+
+                long end = 0l;
+                long start = System.currentTimeMillis() ;
+
+                UsageEvents use = usm.queryEvents(start, end);
+                UsageEvents.Event event = new UsageEvents.Event();
+                if(use.hasNextEvent() && use.getNextEvent(event)) {
+                    Log.d(TAG, "Found usage events...");
+                } else {
+                    showUsageMessage(); //We assume this means a problem..?
+                }
+            } catch (Exception notAllowed) {
+                showUsageMessage();
+            }
+        }
+
         //Show all apps RecyclerView
         allAppsContainer.setVisibility(View.VISIBLE);
 
@@ -2219,19 +1939,21 @@ public class HomeActivity extends Activity {
                 appsSearch.cancel(true);
             } catch (Exception ignored) {}
         }
-        appsSearch = new AsyncTask<PackageManager, Void, List<ApplicationIcon>>(){
+
+        appsSearch = new AsyncTask<Object, Void, List<ApplicationIcon>>(){
             @Override
-            protected List<ApplicationIcon> doInBackground(PackageManager... params) {
+            protected List<ApplicationIcon> doInBackground(Object... params) {
+                PackageManager pm = (PackageManager) params[0];
                 List<ApplicationIcon> applicationIcons = new ArrayList<ApplicationIcon>();
 
                 //Grab all matching applications
                 final Intent allAppsIntent = new Intent(Intent.ACTION_MAIN, null);
                 allAppsIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-                final List<ResolveInfo> packageList = params[0].queryIntentActivities(allAppsIntent, 0);
+                final List<ResolveInfo> packageList = pm.queryIntentActivities(allAppsIntent, 0);
                 String lowerQuery = query.toLowerCase(Locale.getDefault());
                 for(ResolveInfo ri : packageList){
                     try {
-                        String name = (String) ri.loadLabel(params[0]);
+                        String name = (String) ri.loadLabel(pm);
                         if(lowerQuery.equals("") || name.toLowerCase(Locale.getDefault())
                             .contains(lowerQuery)) {
                             if (!hiddenApps.contains(new Pair<>(ri.activityInfo.packageName,
@@ -2279,7 +2001,14 @@ public class HomeActivity extends Activity {
                     }
                 }
             }
-        }.execute(this.getPackageManager());
+        };
+
+        try {
+            //Default SERIAL_EXECUTOR will hang, but sometimes we have to use it
+            appsSearch.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, this.getPackageManager());
+        } catch (RejectedExecutionException tooManyOnThreadPool) {
+            appsSearch.execute(this.getPackageManager());
+        }
 
         clearSearch.setVisibility(query == null || query.isEmpty() ? View.GONE : View.VISIBLE);
     }
@@ -2360,7 +2089,7 @@ public class HomeActivity extends Activity {
                     int size = loadItems.getInt(sizeColumn);
 
                     Log.d(TAG, "Loading '" + widgetId + "'...");
-                    widgets.add(new WidgetContainer(widgetId, size));
+                    addWidget(widgetId, size);
 
                     loadItems.moveToNext();
                 }
@@ -2368,11 +2097,6 @@ public class HomeActivity extends Activity {
                 Log.d(TAG, "No widgets found!");
             }
             loadItems.close();
-        }
-
-        //Now go add the widgets
-        for(int i = 0; i < widgets.size(); i++){
-            addWidget(widgets.get(i).getWidgetId(), widgets.get(i).getWidgetHeight(), false);
         }
     }
 
@@ -2637,10 +2361,10 @@ public class HomeActivity extends Activity {
             et.setText(sgv.data.get(row).getTitle());
             new MaterialDialog.Builder(this)
                     .customView(dialogView, false)
-                    .title("Edit Folder")
-                    .positiveText("Save")
-                    .neutralText("Reorder")
-                    .negativeText("Delete")
+                    .title(R.string.edit_folder)
+                    .positiveText(R.string.save)
+                    .neutralText(R.string.edit_items)
+                    .negativeText(R.string.delete)
                     .callback(new MaterialDialog.ButtonCallback() {
                         @Override
                         public void onNeutral(MaterialDialog dialog) {
@@ -2651,6 +2375,7 @@ public class HomeActivity extends Activity {
                         public void onNegative(MaterialDialog dialog) {
                             sgv.data.remove(row);
                             persistList(samples);
+                            sgv.notifyShortcutsChanged();
                         }
 
                         @Override
@@ -2659,6 +2384,7 @@ public class HomeActivity extends Activity {
                             if(name == null || name.length() == 0){
                                 name = "Folder";
                             }
+
                             if(packageName.equals("null")){
                                 packageName = this.getClass().getPackage().getName();
                                 resourceName = "ic_folder_white_48dp";
@@ -2667,24 +2393,51 @@ public class HomeActivity extends Activity {
                             sgv.data.get(row).setDrawable(resourceName, packageName);
 
                             persistList(samples);
+                            sgv.notifyShortcutsChanged();
                         }
                     }).show();
         }
     }
 
-    public void showReorderDialog(int row){
+    public void showReorderDialog(final int row){
+        depthThreeDialogRaised = false;
+
         DragSortListView dsiv = (DragSortListView) LayoutInflater.from(this).inflate(R.layout.sort_list, null);
         dsiv.setAdapter(new AppEditAdapter(this,
                 R.layout.app_edit_row, sgv.data.get(row).getPackages()));
         dsiv.setChoiceMode(AbsListView.CHOICE_MODE_NONE);
         new MaterialDialog.Builder(this)
                 .customView(dsiv, false)
-                .title("Re-order")
-                .positiveText("Done")
+                .title(R.string.edit_items)
+                .positiveText(R.string.save)
+                .neutralText(R.string.help)
+                .dismissListener(new DialogInterface.OnDismissListener() {
+                    @Override
+                    public void onDismiss(DialogInterface dialog) {
+                        if(!depthThreeDialogRaised) showEditFolderDialog(row);
+                    }
+                })
                 .callback(new MaterialDialog.ButtonCallback() {
                     @Override
                     public void onPositive(MaterialDialog dialog) {
                         persistList(samples);
+                        sgv.notifyShortcutsChanged();
+                    }
+
+                    @Override
+                    public void onNeutral(MaterialDialog dialog) {
+                        depthThreeDialogRaised = true;
+                        new MaterialDialog.Builder(HomeActivity.this)
+                                .title(R.string.help)
+                                .positiveText(R.string.got_it)
+                                .dismissListener(new DialogInterface.OnDismissListener() {
+                                    @Override
+                                    public void onDismiss(DialogInterface dialog) {
+                                        showReorderDialog(row); //The help dialog dismisses the main dialog, weirdly enough
+                                    }
+                                })
+                                .content(R.string.edit_items_help)
+                                .show();
                     }
                 })
                 .show();

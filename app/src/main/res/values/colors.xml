@@ -5,4 +5,7 @@
     <color name="yellow">#ffff00</color>
     <color name="blue">#0000ff</color>
     <color name="red">#ff0000</color>
+    <color name="edit_folder_color">#f57c00</color>
+    <color name="cancel_color">#d32f2f</color>
+    <color name="open_all_color">#388e3c</color>
 </resources>

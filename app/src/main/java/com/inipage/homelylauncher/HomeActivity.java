@@ -94,6 +94,7 @@ import com.inipage.homelylauncher.icons.IconChooserActivity;
 import com.inipage.homelylauncher.swiper.AppEditAdapter;
 import com.inipage.homelylauncher.swiper.RowEditAdapter;
 import com.inipage.homelylauncher.utils.Utilities;
+import com.inipage.homelylauncher.views.DragToOpenView;
 import com.inipage.homelylauncher.widgets.UpdateItem;
 import com.inipage.homelylauncher.widgets.WidgetAddAdapter;
 import com.inipage.homelylauncher.widgets.WidgetContainer;
@@ -131,17 +132,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     public static final int HOST_ID = 505;
     private static final long ONE_DAY_MILLIS = 1000 * 60 * 60 * 24;
 
-    public enum DockbarState {
-        STATE_HOME, STATE_APPS, STATE_DROP
-    }
-
     public enum ScreenSize {
         PHONE, SMALL_TABLET, LARGE_TABLET
     }
 
     //Dock states
     ScreenSize size;
-    DockbarState currentState = DockbarState.STATE_HOME;
 
     //Apps stuff
     @Bind(R.id.allAppsContainer)
@@ -162,7 +158,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
     //Dockbar background
     @Bind(R.id.dockBar)
-    View dockBar;
+    DragToOpenView dockBar;
 
     //Date stuff
     @Bind(R.id.timeDateContainer)
@@ -377,7 +373,28 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
 
         //Set up dockbar apps
+        dockBar.setOnDragToOpenListener(new DragToOpenView.OnDragToOpenListener() {
+            @Override
+            public void onDragStarted() {
+                allAppsContainer.setVisibility(View.VISIBLE);
+            }
 
+            @Override
+            public void onDragChanged(float distance) {
+                dockBar.setTranslationY(-distance);
+                float translationToSet = (dockBar.getHeight() + allAppsContainer.getHeight()) - distance;
+                if (translationToSet < 0) {
+                    allAppsContainer.setTranslationY(0);
+                } else {
+                    allAppsContainer.setTranslationY(translationToSet);
+                }
+            }
+
+            @Override
+            public void onDragCompleted(boolean dragAccepted, float finalDistance, float finalVelocity) {
+                toggleAppsContainer(dragAccepted);
+            }
+        });
         setupDockbarTarget(db1, 1);
         setupDockbarTarget(db2, 2);
         setupDockbarTarget(db3, 3);
@@ -421,7 +438,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             public void onClick(View v) {
                 toggleAppsContainer(false);
                 hideKeyboard();
-                setDockbarState(DockbarState.STATE_HOME, true);
+                toggleDropMenu(false);
             }
         });
         allAppsMenu.setOnClickListener(new View.OnClickListener() {
@@ -444,7 +461,6 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                                 break;
                             case R.id.changeWallpaper:
                                 toggleAppsContainer(false);
-                                setDockbarState(DockbarState.STATE_HOME, true);
                                 final Intent pickWallpaper = new Intent(Intent.ACTION_SET_WALLPAPER);
                                 startActivity(Intent.createChooser(pickWallpaper, "Set Wallpaper"));
                                 break;
@@ -553,7 +569,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             public boolean onDrag(View v, DragEvent event) {
                 if (event.getAction() == DragEvent.ACTION_DRAG_ENTERED) {
                     tintDropLayout(TintColor.GREEN);
-                    setDockbarState(DockbarState.STATE_HOME, true);
+                    toggleDropMenu(false);
                 } else if (event.getAction() == DragEvent.ACTION_DRAG_EXITED) {
                     tintDropLayout(TintColor.CLEAR);
                 }
@@ -571,11 +587,11 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         if (event.getLocalState() instanceof ApplicationIcon) { //Moving apps around
                             appDropLayout.setVisibility(View.VISIBLE);
                             toggleAppsContainer(false);
-                            setDockbarState(DockbarState.STATE_DROP, true);
+                            toggleDropMenu(true);
                         }
                         break;
                     case DragEvent.ACTION_DRAG_ENDED:
-                        setDockbarState(DockbarState.STATE_HOME, true);
+                        toggleDropMenu(false);
                         break;
                 }
                 return true;
@@ -584,7 +600,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         //Move the screen as needed
         toggleAppsContainer(false);
-        setDockbarState(DockbarState.STATE_HOME, false);
+        toggleDropMenu(false);
 
         //Check if we've run before
         if (!reader.getBoolean(Constants.HAS_RUN_PREFERENCE, false)) {
@@ -657,6 +673,28 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         updateRowCount(getResources().getConfiguration().orientation);
     }
 
+    private void toggleDropMenu(boolean visible) {
+        final DisplayMetrics dm = getResources().getDisplayMetrics();
+
+        if(visible){ //Show drop menu
+            ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(dropLayout, "translationX", 0);
+            enteringAnim.setDuration(400);
+            enteringAnim.start();
+
+            ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dockbarApps, "translationX",
+                    dm.widthPixels);
+            leavingAnim.setDuration(400);
+            leavingAnim.start();
+        } else { //Show dock
+            ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(dockbarApps, "translationX", 0);
+            enteringAnim.setDuration(400);
+            enteringAnim.start();
+
+            ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dropLayout, "translationX", dm.widthPixels);
+            leavingAnim.setDuration(400);
+            leavingAnim.start();
+        }
+    }
 
     private enum TintColor {
         RED, BLUE, GREEN, CLEAR
@@ -999,7 +1037,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                                     WidgetContainer wc = findContainer(packageName);
                                     int indexOfWidget = widgets.indexOf(wc);
 
-                                    if(wc == null){
+                                    if (wc == null) {
                                         hideWidgetOverlay();
                                         return false; //Should we just crash? This should never happen
                                     }
@@ -1581,10 +1619,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     if (!searchBox.getText().toString().equals("")) searchBox.setText("");
 
                     hideKeyboard();
-
-                    setDockbarState(DockbarState.STATE_HOME, true);
-
                     toggleAppsContainer(false);
+                    toggleDropMenu(false);
                 } catch (Exception e) { //May fail at boot due to uncreated UI
                     Log.d(TAG, "Exception: " + e);
                     Log.d(TAG, "Message: " + e.getMessage());
@@ -1889,6 +1925,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     }
 
     public void toggleAppsContainer(boolean visible){
+        toggleAppsContainer(visible, -1);
+    }
+
+    public void toggleAppsContainer(boolean visible, float animationVelocity){
         //Do the popup for usage requests if needed
         if(visible && !reader.getBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, false) &&
             Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -1916,16 +1956,29 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         DisplayMetrics dm = this.getResources().getDisplayMetrics();
         if(visible){
+            long duration = 500;
+            if(animationVelocity > 0){
+                float distanceToGo = allAppsContainer.getTranslationY();
+                duration = (long) (distanceToGo / animationVelocity);
+            }
+
             ObjectAnimator oa = ObjectAnimator.ofFloat(allAppsContainer, "translationY", 0);
-            oa.setDuration(500);
+            oa.setDuration(duration);
             oa.start();
+
+            ObjectAnimator oa2 = ObjectAnimator.ofFloat(dockBar, "translationY", -dm.heightPixels);
+            oa2.setDuration(duration);
+            oa2.start();
 
             strayTouchCatch.setVisibility(View.VISIBLE);
         } else {
-            if(allAppsContainer.getTranslationX() != 0) return; //Might be animating; let it do its thing
             ObjectAnimator oa = ObjectAnimator.ofFloat(allAppsContainer, "translationY", dm.heightPixels);
             oa.setDuration(500);
             oa.start();
+
+            ObjectAnimator oa2 = ObjectAnimator.ofFloat(dockBar, "translationY", 0);
+            oa2.setDuration(500);
+            oa2.start();
 
             strayTouchCatch.setVisibility(View.GONE);
         }
@@ -2152,89 +2205,6 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    public void setDockbarState(final DockbarState states, boolean animate){
-        dockbarApps.setVisibility(View.VISIBLE);
-        dropLayout.setVisibility(View.VISIBLE);
-        searchActionBar.setVisibility(View.VISIBLE);
-
-        final DisplayMetrics dm = getResources().getDisplayMetrics();
-        if(!animate) {
-            finalizeSwitch(dm, states);
-        } else {
-            View leavingView = null;
-            View enteringView = null;
-            int deltaX = 0;
-            if(currentState == DockbarState.STATE_HOME){
-                leavingView = dockbarApps;
-                if(states == DockbarState.STATE_DROP){
-                    dropLayout.setTranslationX(-dm.widthPixels);
-                    deltaX = dm.widthPixels;
-                    enteringView = dropLayout;
-                } else if (states == DockbarState.STATE_APPS){
-                    searchActionBar.setTranslationX(dm.widthPixels);
-                    deltaX = -dm.widthPixels;
-                    enteringView = searchActionBar;
-                }
-            } else if (currentState == DockbarState.STATE_DROP){
-                //Can only go to home now
-                leavingView = dropLayout;
-                enteringView = dockbarApps;
-                deltaX = -dm.widthPixels;
-                dockbarApps.setTranslationX(dm.widthPixels);
-            } else if (currentState == DockbarState.STATE_APPS){
-                leavingView = searchActionBar;
-                if(states == DockbarState.STATE_DROP){
-                    deltaX = -dm.widthPixels;
-                    dropLayout.setTranslationX(dm.widthPixels);
-                    enteringView = dropLayout;
-                } else if (states == DockbarState.STATE_HOME){
-                    deltaX = dm.widthPixels;
-                    dockbarApps.setTranslationX(-dm.widthPixels);
-                    enteringView = dockbarApps;
-                }
-            }
-
-            if(enteringView == null || leavingView == null) return;
-
-            float start = enteringView.getTranslationX();
-            ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(enteringView, "translationX",
-                    start, 0);
-            enteringAnim.setDuration(400);
-            enteringAnim.start();
-
-            ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(leavingView, "translationX",
-                    deltaX);
-            leavingAnim.setDuration(400);
-            leavingAnim.start();
-
-            if(states == DockbarState.STATE_HOME){
-                fadeDateTime(1, 400);
-            } else {
-                fadeDateTime(0, 400);
-            }
-        }
-        currentState = states;
-    }
-
-    private void finalizeSwitch(DisplayMetrics dm, DockbarState states){
-        switch (states) {
-            case STATE_APPS:
-                dockbarApps.setTranslationX(dm.widthPixels);
-                dropLayout.setTranslationX(dm.widthPixels);
-                searchActionBar.setTranslationX(0);
-                break;
-            case STATE_DROP:
-                dockbarApps.setTranslationX(dm.widthPixels);
-                dropLayout.setTranslationX(0);
-                searchActionBar.setTranslationX(dm.widthPixels);
-                break;
-            case STATE_HOME:
-                dockbarApps.setTranslationX(0);
-                dropLayout.setTranslationX(dm.widthPixels);
-                searchActionBar.setTranslationX(dm.widthPixels);
-                break;
-        }
-    }
 
     public void setupDockbarTarget(final ImageView dockbarTarget, final int place){
         /*

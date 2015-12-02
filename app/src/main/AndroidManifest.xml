@@ -61,6 +61,6 @@
 
         <meta-data
             android:name="io.fabric.ApiKey"
-            android:value="NOT_HERE" />
+            android:value="f6b8e457cb9e9aa8020703c8dfb39715d449ed3e" />
     </application>
 </manifest>

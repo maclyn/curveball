@@ -41,11 +41,34 @@ import java.util.TimerTask;
 import static java.lang.Math.*;
 
 public class ShortcutGestureView extends View {
+    //region Constants
     private static final String TAG = "ShortcutGestureView";
     private static final boolean NEEDLE = false; //For debug purposes
+    //endregion
 
-    //Size in DiPs of needed things
-    //Size of drawables onscreen
+    //region Enums
+    /**
+     * What is the program's drawing state?
+     */
+    private enum ViewMode {
+        /** Dragging an ApplicationIcon over this. **/
+        ADDING_ICON,
+        /** Not interacting with the view. **/
+        NONE,
+        /** Choosing a folder to open. **/
+        CHOOSING_FOLDER,
+        /** Choosing an app to open. **/
+        CHOOSING_APP,
+        /** Choosing an option when in a folder. **/
+        CHOOSING_OPTION
+    }
+
+    private enum ScreenSide {
+        LEFT_SIDE, RIGHT_SIDE
+    }
+    //endregion
+
+    //region Size attributes
     @SizeAttribute(value = 48, setting = "icon_size_pref")
     float iconSize;
     @SizeAttribute(value = 60, setting = "big_icon_size_pref")
@@ -80,14 +103,15 @@ public class ShortcutGestureView extends View {
     float bigTextSize;
 
     //Help attributes
-    @SizeAttribute(attrType = SizeAttribute.AttributeType.SP, value = 16)
+    @SizeAttribute(attrType = SizeAttribute.AttributeType.SP, value = 18)
     float helpTextSize;
     @SizeAttribute(16)
     float helpPadding;
     @SizeAttribute(4)
     float arrowPadding;
-    @SizeAttribute(18)
+    @SizeAttribute(24)
     float helpArrowSize;
+    //endregion
 
     //Options representing images
     private static final Integer[] folderOptionsDrawables = new Integer[] {
@@ -98,26 +122,6 @@ public class ShortcutGestureView extends View {
             R.string.edit_folder,
             R.string.cancel,
             R.string.open_all_in_folder };
-
-    /**
-     * What is the program's drawing state?
-     */
-    private enum ViewMode {
-        /** Dragging an ApplicationIcon over this. **/
-        ADDING_ICON,
-        /** Not interacting with the view. **/
-        NONE,
-        /** Choosing a folder to open. **/
-        CHOOSING_FOLDER,
-        /** Choosing an app to open. **/
-        CHOOSING_APP,
-        /** Choosing an option when in a folder. **/
-        CHOOSING_OPTION
-    }
-
-    private enum ScreenSide {
-        LEFT_SIDE, RIGHT_SIDE
-    }
 
     float iconSizeDifference;
     float textSizeDifference;
@@ -140,7 +144,7 @@ public class ShortcutGestureView extends View {
     Rect scratchRect = new Rect();
     Rect scratchRect2 = new Rect();
 
-    HomeActivity ha;
+    ShortcutGestureViewHost host;
 
     //Data set used
     List<TypeCard> data;
@@ -158,6 +162,9 @@ public class ShortcutGestureView extends View {
     float touchY = 0;
     float lastTouchY = Integer.MIN_VALUE;
     float lastTouchX = Integer.MIN_VALUE;
+
+    //Start time
+    long startTime = -1;
 
     //Mode we're in
     ViewMode cm;
@@ -193,6 +200,8 @@ public class ShortcutGestureView extends View {
 
         @Override
         public void onRetrievalComplete(Bitmap result) {
+            if(!bitmapColorMap.containsKey(result.hashCode()))
+                getIconColorForBitmap(result);
             invalidate();
         }
     };
@@ -275,12 +284,10 @@ public class ShortcutGestureView extends View {
     }
 
     /**
-     * ShortcutGestureView is *very* tightly connected to HomeActivity. This isn't ideal, but
-     * since the View only makes sense in the context of being hosted by HomeActivity, it's okay
-     * for now -- at some point, though, an SgvHostInterface will be used instead.
+     * ShortcutGestureView is tightly integrated into
      */
-    public void setActivity(HomeActivity ha){
-        this.ha = ha;
+    public void setActivity(ShortcutGestureViewHost host){
+        this.host = host;
     }
 
     public void onActivityResumed(){
@@ -296,10 +303,17 @@ public class ShortcutGestureView extends View {
                 case DragEvent.ACTION_DRAG_ENTERED:
                     startX = event.getX();
                     startY = event.getY();
+                    startTime = System.currentTimeMillis();
                     log("Drag started " + startX + " " + startY, false);
                     cm = ViewMode.ADDING_ICON;
                     invalidate();
-                    ha.fadeDateTime(0, 300);
+
+                    host.dimScreen();
+                    host.hideTopElements();
+                    break;
+                case DragEvent.ACTION_DRAG_EXITED:
+                    selectedY = -1;
+                    invalidate();
                     break;
                 case DragEvent.ACTION_DRAG_LOCATION:
                     if (data.size() != 0) {
@@ -309,20 +323,22 @@ public class ShortcutGestureView extends View {
                     break;
                 case DragEvent.ACTION_DRAG_ENDED:
                     log("Drag ended", false);
-                    if (cm == ViewMode.ADDING_ICON) {
+                    if (cm == ViewMode.ADDING_ICON && selectedY >= 02) {
                         ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
 
                         if (selectedY == data.size()) { //Add a new row
-                            ha.showCreateFolderDialog(ai);
+                            host.showCreateFolderDialog(ai);
                         } else {
                             log("Adding to an old row...", false);
                             data.get(selectedY).getPackages().add(new Pair<>
                                     (ai.getPackageName(), ai.getActivityName()));
-                            ha.persistList(ha.samples);
+                            host.persistList(data);
                             preloadCard(data.get(selectedY));
                         }
                     }
-                    resetState(1, 300);
+
+                    host.brightenScreen();
+                    host.showTopElements();
                     break;
             }
             return true;
@@ -333,6 +349,7 @@ public class ShortcutGestureView extends View {
     }
 
     private void initTouchOp(MotionEvent event){
+        startTime = System.currentTimeMillis();
         startX = event.getX();
         startY = event.getY();
 
@@ -356,7 +373,7 @@ public class ShortcutGestureView extends View {
     private void updateSelectedDragItem(float location){
         int numRows = data.size() + 1; //At least one/two
 
-        float percent = location / (float) (getHeight() - ha.dockBar.getHeight());
+        float percent = location / (float) (getHeight() - host.getBottomMargin());
         log("Percent is: " + percent, false);
         float selection = percent * numRows;
         log("Raw selection is: " + selection, false);
@@ -503,12 +520,12 @@ public class ShortcutGestureView extends View {
                             final String appPackage = data.get(selectedFolder).getPackages().get(selectedY).first;
 
                             //We just switched selectedY's; check if there's a widget
-                            if(ha.hasWidget(appPackage)){
+                            if(host.hasWidget(appPackage)){
                                 //Start timer for 1 second
                                 timer.schedule(new TimerTask() { //Open widget
                                     @Override
                                     public void run() {
-                                        ha.showWidget(appPackage);
+                                        host.showWidget(appPackage);
                                         timerCompleted = true;
                                     }
                                 }, 1000l);
@@ -584,13 +601,19 @@ public class ShortcutGestureView extends View {
                 "and mode =" + cm.name(), true);
 
         if(timerCompleted){
-            resetState(1, 300);
+            resetState();
+            host.brightenScreen();
+            host.showTopElements();
+            host.showBottomElements();
             return;
         }
 
         switch(cm){
             case CHOOSING_FOLDER:
-                resetState(1, 300); //Nothing to do here...
+                resetState();
+                host.brightenScreen();
+                host.showTopElements();
+                host.showBottomElements();
                 break;
             case CHOOSING_APP:
                 choosingAppScope: {
@@ -605,7 +628,13 @@ public class ShortcutGestureView extends View {
                         } catch (Exception e) {
                             Toast.makeText(getContext(), "Unable to start. Application may be uninstalled/upgrading.", Toast.LENGTH_SHORT).show();
                         }
-                        resetState(1, 1500); //Slow, because launching an app
+
+                        //TODO: An animation of sorts, perhaps?
+
+                        resetState();
+                        host.brightenScreen();
+                        host.showTopElements();
+                        host.showBottomElements();
                     }
                 }
                 break;
@@ -613,15 +642,19 @@ public class ShortcutGestureView extends View {
                 choosingOptionScope: {
                     switch(selectedY) {
                         case 0:
-                            ha.showEditFolderDialog(selectedFolder);
+                            host.showEditFolderDialog(selectedFolder);
                             break;
                         case 1:
                             break;
                         case 2:
-                            ha.batchOpen(selectedFolder);
+                            host.batchOpen(selectedFolder);
                             break;
                     }
-                    resetState(1, 300);
+
+                    resetState();
+                    host.brightenScreen();
+                    host.showTopElements();
+                    host.showBottomElements();
                 }
         }
     }
@@ -653,8 +686,17 @@ public class ShortcutGestureView extends View {
 
     private void drawHelp(Canvas c, String helpText, String subText, boolean showLeftArrow,
                           boolean showRightArrow){
+        //For the first 1000ms of display, it's a "fade in"
+        float durationOfEvent = System.currentTimeMillis() - startTime;
+        float alphaMultiplier;
+        if(durationOfEvent > 1000){
+            alphaMultiplier = 1;
+        } else {
+            alphaMultiplier = durationOfEvent / 1000f;
+        }
+
         //Draw the main text
-        labelPaint.setAlpha(180);
+        labelPaint.setAlpha((int) (240f * alphaMultiplier));
         labelPaint.setTextSize(helpTextSize);
         labelPaint.getTextBounds(helpText, 0, helpText.length(), outRect);
 
@@ -673,7 +715,7 @@ public class ShortcutGestureView extends View {
             float subCenterYLine = helpPadding + outRect.height() + (helpPadding / 4);
 
             //Draw the sub-text
-            labelPaint.setAlpha(180);
+            labelPaint.setAlpha((int) (240f * alphaMultiplier));
             labelPaint.setTextSize((float) (helpTextSize * 0.75));
             labelPaint.getTextBounds(subText, 0, subText.length(), outRect);
 
@@ -693,7 +735,7 @@ public class ShortcutGestureView extends View {
         scratchRect2.set(0, 0, left.getWidth(), left.getHeight());
         scratchRect.set( (int) (x - arrowPadding - helpArrowSize), (int) (centerYLine - (outRect.height() / 4) - (helpArrowSize / 2)),
                 (int) (x - arrowPadding), (int) (centerYLine - (outRect.height() / 4) + (helpArrowSize / 2)));
-        transparencyPaint.setAlpha(showLeftArrow ? 180 : 120);
+        transparencyPaint.setAlpha((int) (alphaMultiplier * (showLeftArrow ? 240f : 120f)));
         c.drawBitmap(left, scratchRect2, scratchRect, transparencyPaint);
 
         Bitmap right = IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_keyboard_arrow_right_white_18dp,
@@ -702,7 +744,7 @@ public class ShortcutGestureView extends View {
         scratchRect.set( (int) (x + outRect.width() + arrowPadding), (int) (centerYLine - (outRect.height() / 4) - (helpArrowSize / 2)),
                 (int) (x + outRect.width() + arrowPadding + helpArrowSize),
                 (int) (centerYLine - (outRect.height() / 4) + (helpArrowSize / 2)));
-        transparencyPaint.setAlpha(showRightArrow ? 180 : 120);
+        transparencyPaint.setAlpha((int) (alphaMultiplier * (showRightArrow ? 240f : 120f)));
         c.drawBitmap(right, scratchRect2, scratchRect, transparencyPaint);
     }
 
@@ -825,8 +867,9 @@ public class ShortcutGestureView extends View {
 
     private void drawFolderHints(Canvas canvas) {
         //Draw icons in a line
-        float top = ha.timeDateContainer.getY() + ha.timeDateContainer.getHeight();
-        float bottom = ha.dockbarApps.getY();
+        Pair<Float, Float> bounds = host.getBoundsWhenNotFullscreen();
+        float top = bounds.first;
+        float bottom = bounds.second;
         float space = bottom - top - (previewIconPadding * 2);
 
         if(space < 0) return; //Low-res display..? WEIRD.
@@ -857,7 +900,7 @@ public class ShortcutGestureView extends View {
 
     private void drawAddIcon(Canvas canvas) {
         int divisions = data.size() + 1;
-        float roomForEach = (getHeight() - ha.dockBar.getHeight()) / divisions;
+        float roomForEach = (getHeight() - host.getBottomMargin()) / divisions;
 
         for(int i = 0; i < data.size(); i++){
             float start = roomForEach * i;
@@ -1431,9 +1474,12 @@ public class ShortcutGestureView extends View {
         switch(event.getAction()){
             case MotionEvent.ACTION_DOWN:
                 log("Motion event action down", false);
-                initTouchOp(event);
-                ha.fadeDateTime(0, 300);
                 cleanTouchEvents();
+                initTouchOp(event);
+
+                host.dimScreen();
+                host.hideTopElements();
+                host.hideBottomElements();
                 break;
             case MotionEvent.ACTION_MOVE:
                 if(lastTouchY == Integer.MIN_VALUE){
@@ -1472,29 +1518,8 @@ public class ShortcutGestureView extends View {
                 break;
             case MotionEvent.ACTION_UP: //Up means we ought select something if we are in the right mode
                 log("Motion event action up", false);
-
-                float totalXMovement = startX - event.getX();
-                float totalXPercent = totalXMovement / 100;
-                if(totalXPercent < -1) totalXPercent = -1;
-                if(totalXPercent > 1) totalXPercent = 1;
-                long animationXTime = (long) (300 * abs(totalXPercent));
                 switch(cm){
                     case NONE:
-                        log("Mode none; checking for taps", false);
-                        if (Utilities.withinView(event, ha.timeLayout)) {
-                            log("Within time", false);
-                            ha.timeLayout.performClick();
-                            resetState(1, 300);
-                        } else if (Utilities.withinView(event, ha.date)) {
-                            log("Within date", false);
-                            ha.date.performClick();
-                            resetState(1, 300);
-                        } else { //Open app drawer
-                            log("Falling back to app drawer", false);
-                            ha.toggleAppsContainer(true);
-                            resetState(1, -1);
-                        }
-                        break;
                     case ADDING_ICON:
                         break;
                     case CHOOSING_APP:
@@ -1507,8 +1532,11 @@ public class ShortcutGestureView extends View {
                 break;
             case MotionEvent.ACTION_CANCEL:
                 log("Motion event action cancel", false);
-                //Shouldn't do anything
-                resetState(1, 1);
+
+                resetState();
+                host.brightenScreen();
+                host.showTopElements();
+                host.showBottomElements();
                 break;
         }
         return true;
@@ -1527,7 +1555,7 @@ public class ShortcutGestureView extends View {
         }
     }
 
-    public void resetState(int animateTo, int animateTime){
+    public void resetState(){
         cm = ViewMode.NONE;
 
         //Reset widget timer tasks
@@ -1540,6 +1568,7 @@ public class ShortcutGestureView extends View {
         startY = 0;
         touchX = 0;
         touchY = 0;
+        startTime = -1;
         gestureStartX = 0;
         gestureStartY = 0;
         selectedY = 0;
@@ -1552,8 +1581,6 @@ public class ShortcutGestureView extends View {
         synchronized (touchEventList) { touchEventList.clear(); }
 
         this.postInvalidate();
-
-        if(animateTime > 0l) ha.fadeDateTime(animateTo, animateTime);
 
         log("resetState() finished", true);
     }

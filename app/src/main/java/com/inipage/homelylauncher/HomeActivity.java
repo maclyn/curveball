@@ -4,7 +4,6 @@ import android.Manifest;
 import android.animation.ObjectAnimator;
 import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
-import android.app.ActionBar;
 import android.app.Activity;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
@@ -31,9 +30,7 @@ import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.graphics.Color;
 import android.graphics.Typeface;
-import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
 import android.os.AsyncTask;
@@ -46,10 +43,8 @@ import android.preference.PreferenceManager;
 import android.provider.CalendarContract;
 import android.provider.Settings;
 import android.support.v4.graphics.drawable.DrawableCompat;
-import android.support.v4.view.ViewPager;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.RecyclerView;
-import android.support.v7.widget.Toolbar;
 import android.telephony.TelephonyManager;
 import android.text.Editable;
 import android.text.TextWatcher;
@@ -67,10 +62,7 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
-import android.widget.Button;
-import android.widget.CheckBox;
 import android.widget.EditText;
-import android.widget.FrameLayout;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -95,7 +87,6 @@ import com.inipage.homelylauncher.swiper.AppEditAdapter;
 import com.inipage.homelylauncher.swiper.RowEditAdapter;
 import com.inipage.homelylauncher.utils.Utilities;
 import com.inipage.homelylauncher.views.DragToOpenView;
-import com.inipage.homelylauncher.widgets.UpdateItem;
 import com.inipage.homelylauncher.widgets.WidgetAddAdapter;
 import com.inipage.homelylauncher.widgets.WidgetContainer;
 import com.mobeta.android.dslv.DragSortListView;
@@ -120,6 +111,7 @@ import butterknife.ButterKnife;
 
 @SuppressWarnings("unchecked")
 public class HomeActivity extends Activity implements ShortcutGestureViewHost {
+    //region Constants
     public static final String TAG = "HomeActivity";
 
     public static final int REQUEST_CHOOSE_ICON = 200;
@@ -131,11 +123,16 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
     public static final int HOST_ID = 505;
     private static final long ONE_DAY_MILLIS = 1000 * 60 * 60 * 24;
+    private static final long DEFAULT_ANIMATION_DURATION = 300;
+    //endregion
 
+    //region Enums
     public enum ScreenSize {
         PHONE, SMALL_TABLET, LARGE_TABLET
     }
+    //endregion
 
+    //region Fields
     //Dock states
     ScreenSize size;
 
@@ -299,21 +296,15 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //Tell when things have changed
     BroadcastReceiver packageReceiver;
     BroadcastReceiver storageReceiver;
+    //endregion
 
+    //region Activity lifecycle
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_home);
 
         ButterKnife.bind(this);
-
-        testHandler = new Handler();
-        testHandler.postDelayed(new Runnable() {
-            @Override
-            public void run() {
-                spillWidgets();
-            }
-        }, 5000);
 
         if(Utilities.isSmallTablet(this)){
             size = ScreenSize.SMALL_TABLET;
@@ -374,6 +365,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         //Set up dockbar apps
         dockBar.setOnDragToOpenListener(new DragToOpenView.OnDragToOpenListener() {
+            boolean hasHiddenClock = false;
+
             @Override
             public void onDragStarted() {
                 allAppsContainer.setVisibility(View.VISIBLE);
@@ -382,17 +375,30 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             @Override
             public void onDragChanged(float distance) {
                 dockBar.setTranslationY(-distance);
-                float translationToSet = (dockBar.getHeight() + allAppsContainer.getHeight()) - distance;
+                float translationToSet = (allAppsContainer.getHeight()) - distance;
                 if (translationToSet < 0) {
                     allAppsContainer.setTranslationY(0);
                 } else {
+                    float threshold = sgv.getHeight() / 2;
+
+                    if(!hasHiddenClock && (Math.abs(distance) > threshold)){
+                        hideDateTime();
+                        hasHiddenClock = true;
+                    }
+
                     allAppsContainer.setTranslationY(translationToSet);
                 }
             }
 
             @Override
             public void onDragCompleted(boolean dragAccepted, float finalDistance, float finalVelocity) {
-                toggleAppsContainer(dragAccepted);
+                if(dragAccepted){
+                    if(!hasHiddenClock) hideDateTime();
+                } else {
+                    if(hasHiddenClock) showDateTime();
+                }
+                toggleAppsContainer(dragAccepted, finalVelocity);
+                hasHiddenClock = false;
             }
         });
         setupDockbarTarget(db1, 1);
@@ -437,8 +443,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             @Override
             public void onClick(View v) {
                 toggleAppsContainer(false);
-                hideKeyboard();
-                toggleDropMenu(false);
+                resetState();
             }
         });
         allAppsMenu.setOnClickListener(new View.OnClickListener() {
@@ -530,13 +535,6 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         Toast.makeText(v.getContext(),
                                 "The app is unable to be removed.", Toast.LENGTH_LONG).show();
                     }
-                } else if (event.getAction() == DragEvent.ACTION_DRAG_ENTERED){
-                    //Tint red
-                    Log.d(TAG, "Tinting red");
-                    tintDropLayout(TintColor.RED);
-                } else if (event.getAction() == DragEvent.ACTION_DRAG_EXITED) {
-                    Log.d(TAG, "CLearing tint");
-                    tintDropLayout(TintColor.CLEAR);
                 }
                 return true;
             }
@@ -556,10 +554,6 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         Toast.makeText(v.getContext(),
                                 "The app does not have info.", Toast.LENGTH_LONG).show();
                     }
-                } else if (event.getAction() == DragEvent.ACTION_DRAG_ENTERED){
-                    tintDropLayout(TintColor.BLUE);
-                } else if (event.getAction() == DragEvent.ACTION_DRAG_EXITED) {
-                    tintDropLayout(TintColor.CLEAR);
                 }
                 return true;
             }
@@ -567,13 +561,13 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         addToDock.setOnDragListener(new View.OnDragListener() {
             @Override
             public boolean onDrag(View v, DragEvent event) {
-                if (event.getAction() == DragEvent.ACTION_DRAG_ENTERED) {
-                    tintDropLayout(TintColor.GREEN);
-                    toggleDropMenu(false);
-                } else if (event.getAction() == DragEvent.ACTION_DRAG_EXITED) {
-                    tintDropLayout(TintColor.CLEAR);
+                switch(event.getAction()){
+                    case DragEvent.ACTION_DRAG_ENTERED:
+                        Log.d(TAG, "Showing drop menu...");
+                        showDropMenu();
+                        return true;
                 }
-                return true;
+                return false;
             }
         });
 
@@ -587,11 +581,11 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         if (event.getLocalState() instanceof ApplicationIcon) { //Moving apps around
                             appDropLayout.setVisibility(View.VISIBLE);
                             toggleAppsContainer(false);
-                            toggleDropMenu(true);
+                            showDropMenu();
                         }
                         break;
                     case DragEvent.ACTION_DRAG_ENDED:
-                        toggleDropMenu(false);
+                        showDockApps();
                         break;
                 }
                 return true;
@@ -600,7 +594,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         //Move the screen as needed
         toggleAppsContainer(false);
-        toggleDropMenu(false);
+        showDockApps();
 
         //Check if we've run before
         if (!reader.getBoolean(Constants.HAS_RUN_PREFERENCE, false)) {
@@ -673,212 +667,301 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         updateRowCount(getResources().getConfiguration().orientation);
     }
 
-    private void toggleDropMenu(boolean visible) {
-        final DisplayMetrics dm = getResources().getDisplayMetrics();
+    @Override
+    protected void onDestroy(){
+        super.onDestroy();
 
-        if(visible){ //Show drop menu
-            ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(dropLayout, "translationX", 0);
-            enteringAnim.setDuration(400);
-            enteringAnim.start();
-
-            ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dockbarApps, "translationX",
-                    dm.widthPixels);
-            leavingAnim.setDuration(400);
-            leavingAnim.start();
-        } else { //Show dock
-            ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(dockbarApps, "translationX", 0);
-            enteringAnim.setDuration(400);
-            enteringAnim.start();
-
-            ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dropLayout, "translationX", dm.widthPixels);
-            leavingAnim.setDuration(400);
-            leavingAnim.start();
+        if(packageReceiver != null){
+            unregisterReceiver(packageReceiver);
+        }
+        if(storageReceiver != null){
+            unregisterReceiver(storageReceiver);
         }
     }
 
-    private enum TintColor {
-        RED, BLUE, GREEN, CLEAR
+    @Override
+    protected void onStart() {
+        super.onStart();
+        widgetHost.startListening();
     }
 
-    private void tintDropLayout(TintColor color){
-        Drawable newBg = new ColorDrawable(Color.TRANSPARENT);
-        switch(color){
-            case RED:
-                newBg = getResources().getDrawable(R.drawable.light_red_to_transparent_bg);
-                break;
-            case BLUE:
-                newBg = getResources().getDrawable(R.drawable.light_blue_to_transparent_bg);
-                break;
-            case GREEN:
-                newBg = getResources().getDrawable(R.drawable.light_green_to_transparent_bg);
-                break;
-            case CLEAR:
-                break;
-        }
-
-        dropLayout.setBackgroundDrawable(newBg);
+    @Override
+    protected void onStop() {
+        super.onStop();
+        widgetHost.stopListening();
     }
 
-    private void spillWidgets() {
-        /*
-        Log.d(TAG, "Spilling widgets...");
-        String line = "";
-        for(AppWidgetHostView refs : testRef) {
-            line += getTextData(refs);
-        }
-        Log.d(TAG, "Line: " + line);
+    @Override
+    public void onResume(){
+        super.onResume();
+        updateDisplay();
 
-        testHandler.postDelayed(new Runnable() {
+        //Update most parts on timer
+        TimerTask t = new TimerTask(){
             @Override
             public void run() {
-                spillWidgets();
+                updateDisplay();
             }
-        }, 5000);
-        */
+        };
+        timer = new Timer();
+        timer.scheduleAtFixedRate(t, 0, 1000);
+
+        //Reset widgets
+        hideWidgetOverlay();
+        updateWidgetInfo();
+
+        sgv.onActivityResumed();
+        startSuggestionsPopulation();
     }
 
-    private String getTextData(ViewGroup layout){
-        if(layout == null) return "";
+    @Override
+    protected void onPause() {
+        super.onPause();
 
-        String toReturn = "";
-        for(int i = 0; i < layout.getChildCount(); i++){
-            View child = layout.getChildAt(0);
-            if(child instanceof ViewGroup){
-                ViewGroup childGroup = (ViewGroup) child;
-                toReturn += getTextData(childGroup);
-            } else if (child instanceof Button){
-                Button childButton = (Button) child;
-                toReturn += childButton.getText() + ":::";
-            } else if (child instanceof TextView) {
-                TextView childTextView = (TextView) child;
-                toReturn += childTextView.getText() + ":::";
-            }
-        }
-
-        return toReturn;
-    }
-
-    private void loadHiddenApps(List<Pair<String, String>> hiddenApps) {
-        Log.d(TAG, "Loading hidden apps...");
-        hiddenApps.clear();
-
-        loadRows: {
-            Cursor loadItems =
-                    db.query(DatabaseHelper.TABLE_HIDDEN_APPS, null, null, null, null, null, null);
-            if (loadItems.moveToFirst()) {
-                Log.d(TAG, "Found: " + loadItems.getCount());
-
-                int packageColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_PACKAGE);
-                int activityColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_ACTIVITY_NAME);
-                if (packageColumn == -1 || activityColumn == -1) {
-                    loadItems.close();
-                    break loadRows;
-                }
-
-                while (!loadItems.isAfterLast()) {
-                    String packageName = loadItems.getString(packageColumn);
-                    String activityName = loadItems.getString(activityColumn);
-
-                    Log.d(TAG, "Loading '" + packageName + "'...");
-                    hiddenApps.add(new Pair<String, String>(packageName, activityName));
-
-                    loadItems.moveToNext();
-                }
-            } else {
-                Log.d(TAG, "No hidden apps found!");
-            }
-            loadItems.close();
+        if(timer != null){
+            timer.cancel();
         }
     }
 
-    private void showHideAppsMenu() {
-        new AsyncTask<Void, Void, List<ApplicationHiderIcon>>(){
-            @Override
-            protected List<ApplicationHiderIcon> doInBackground(Void... params) {
-                List<ApplicationHiderIcon> applicationIcons = new ArrayList<>();
-
-                //Grab all matching applications
-                try {
-                    final Intent allAppsIntent = new Intent(Intent.ACTION_MAIN, null);
-                    allAppsIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-                    final List<ResolveInfo> packageList = getPackageManager().queryIntentActivities(allAppsIntent, 0);
-                    for (ResolveInfo ri : packageList) {
-                        try {
-                            String name = (String) ri.loadLabel(getPackageManager());
-                            if (hiddenApps.contains(new Pair<>(ri.activityInfo.packageName,
-                                    ri.activityInfo.name))) {
-                                applicationIcons.add(new ApplicationHiderIcon(ri.activityInfo.packageName,
-                                        name, ri.activityInfo.name, true));
-                            } else {
-                                applicationIcons.add(new ApplicationHiderIcon(ri.activityInfo.packageName,
-                                        name, ri.activityInfo.name, false));
-                            }
-                        } catch (Exception e) {
-                            //Failed to add one.
-                        }
-                    }
-
-                    Collections.sort(applicationIcons, new Comparator<ApplicationIcon>() {
-                        @Override
-                        public int compare(ApplicationIcon lhs, ApplicationIcon rhs) {
-                            return lhs.getName().compareToIgnoreCase(rhs.getName());
-                        }
-                    });
-                    return applicationIcons;
-                } catch (RuntimeException packageManagerDiedException){
-                    return new ArrayList<>();
-                }
-            }
-
-            @Override
-            protected void onPostExecute(List<ApplicationHiderIcon> apps){
-                final ApplicationHideAdapter adapter = new ApplicationHideAdapter(HomeActivity.this,
-                        R.layout.application_icon_hidden, apps);
-
-                new MaterialDialog.Builder(HomeActivity.this)
-                        .adapter(adapter, new MaterialDialog.ListCallback() {
-                            @Override
-                            public void onSelection(MaterialDialog materialDialog, View view, int i, CharSequence charSequence) {
-                                //Do nothing
-                            }
-                        })
-                        .title(R.string.hideApps)
-                        .positiveText(R.string.done)
-                        .negativeText(R.string.cancel)
-                        .callback(new MaterialDialog.ButtonCallback() {
-                            @Override
-                            public void onPositive(MaterialDialog dialog) {
-                                persistHidden(adapter.getApps());
-                                loadHiddenApps(hiddenApps);
-                                resetAppsList("", false);
-                            }
-                        }).show();
-            }
-        }.execute();
+    @Override
+    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        if (keyCode == KeyEvent.KEYCODE_BACK) { //Back button pressed
+            resetState();
+            return true;
+        } else {
+            return super.onKeyDown(keyCode, event);
+        }
     }
 
-    private void persistHidden(List<ApplicationHiderIcon> apps) {
-        Log.d(TAG, "Persisting at most " + widgets.size() + " hidden apps");
-        db.delete(DatabaseHelper.TABLE_HIDDEN_APPS, null, null);
-        for(int i = 0; i < apps.size(); i++){
-            if(!apps.get(i).getIsHidden()) continue;
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        writer.putBoolean(Constants.HAS_REQUESTED_PERMISSIONS_PREF, true).commit();
+        boolean allGranted = true;
+        for(int result : grantResults) allGranted &= result == PackageManager.PERMISSION_GRANTED;
 
-            ContentValues cv = new ContentValues();
-            cv.put(DatabaseHelper.COLUMN_ACTIVITY_NAME, apps.get(i).getActivityName());
-            cv.put(DatabaseHelper.COLUMN_PACKAGE, apps.get(i).getPackageName());
+        if (!allGranted) {
+            Toast.makeText(HomeActivity.this, R.string.okay_we_wont_ask, Toast.LENGTH_SHORT).show();
+        }
+        populateSuggestions();
+    }
 
-            Log.d(TAG, "Trying to insert: " + cv);
-
-            long result = db.insert(DatabaseHelper.TABLE_HIDDEN_APPS, null, cv);
-
-            Log.d(TAG, result == -1 ? "Error inserting: " + i :
-                    "Inserted hidden: " + i + " at " + result);
+    @Override
+    public void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        if (intent.getAction().equals(Intent.ACTION_MAIN)) { //Home button press; reset state
+            resetState();
         }
     }
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
         updateRowCount(newConfig.orientation);
+    }
+
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        if(requestCode == REQUEST_CHOOSE_ICON && resultCode == RESULT_OK){
+            String pkg = data.getStringExtra("r_pkg");
+            String rName = data.getStringExtra("r_name");
+            if(packageName == null || rName == null){
+                packageName = this.getClass().getPackage().getName();
+                resourceName = "ic_folder_black_48dp";
+            } else {
+                packageName = pkg;
+                resourceName = rName;
+            }
+
+            Drawable d;
+            try {
+                int resId = getPackageManager().getResourcesForApplication(packageName)
+                        .getIdentifier(rName, "drawable", packageName);
+                if(resId == 0) throw new Exception("");
+                d = getPackageManager().getResourcesForApplication(packageName).getDrawable(resId);
+            } catch (Exception e) {
+                d = getResources().getDrawable(android.R.drawable.sym_def_app_icon);
+            }
+
+            if(dialogView != null) {
+                ((ImageButton) dialogView.findViewById(R.id.chooseIcon)).setImageDrawable(d);
+            }
+        } else if (requestCode == REQUEST_CHOOSE_APPLICATION && resultCode == RESULT_OK){
+            ActivityInfo activityInfo = data.resolveActivityInfo(getPackageManager(), 0);
+            ApplicationIcon ai = new ApplicationIcon(activityInfo.packageName,
+                    (String) activityInfo.loadLabel(getPackageManager()), activityInfo.name);
+
+            //Store data in SharedPreferences
+            Gson gson = new Gson();
+            writer.putString(cachedPref, gson.toJson(ai)).apply();
+        } else if (requestCode == REQUEST_ALLOCATE_ID || requestCode == REQUEST_PICK_APP_WIDGET) {
+            if(resultCode == RESULT_OK) {
+                handleWidgetConfig(data);
+            } else if (data != null) {
+                Toast.makeText(this, "You must allow us to manage widgets to use widgets.", Toast.LENGTH_LONG).show();
+                int appWidgetId = data.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1);
+                if (appWidgetId != -1) {
+                    widgetHost.deleteAppWidgetId(appWidgetId);
+                }
+            }
+        } else if (requestCode == REQUEST_CONFIG_WIDGET) {
+            if(resultCode == RESULT_OK) {
+                addWidget(data);
+                persistWidgets(widgets);
+            } else if (resultCode == RESULT_CANCELED && data != null) {
+                int appWidgetId = data.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1);
+                if (appWidgetId != -1) {
+                    widgetHost.deleteAppWidgetId(appWidgetId);
+                }
+            }
+        }
+    }
+    //endregion
+
+    //region App drawer
+    public void resetAppsList(final String query, final boolean preCacheIcons){
+        IconCache.getInstance().cancelPendingIconTasks();
+
+        if(appsSearch != null && !appsSearch.isCancelled() && appsSearch.getStatus() == AsyncTask.Status.FINISHED){
+            try {
+                appsSearch.cancel(true);
+            } catch (Exception ignored) {}
+        }
+
+        appsSearch = new AsyncTask<Object, Void, List<ApplicationIcon>>(){
+            @Override
+            protected List<ApplicationIcon> doInBackground(Object... params) {
+                PackageManager pm = (PackageManager) params[0];
+                List<ApplicationIcon> applicationIcons = new ArrayList<ApplicationIcon>();
+
+                //Grab all matching applications
+                final Intent allAppsIntent = new Intent(Intent.ACTION_MAIN, null);
+                allAppsIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                final List<ResolveInfo> packageList = pm.queryIntentActivities(allAppsIntent, 0);
+                String lowerQuery = query.toLowerCase(Locale.getDefault());
+                for(ResolveInfo ri : packageList){
+                    try {
+                        String name = (String) ri.loadLabel(pm);
+                        if(lowerQuery.equals("") || name.toLowerCase(Locale.getDefault())
+                                .contains(lowerQuery)) {
+                            if (!hiddenApps.contains(new Pair<>(ri.activityInfo.packageName,
+                                    ri.activityInfo.name))) {
+                                applicationIcons.add(new ApplicationIcon(ri.activityInfo.packageName,
+                                        name, ri.activityInfo.name));
+                            }
+                        }
+                    } catch (Exception e) {
+                        //Failed to add one.
+                    }
+                }
+                Collections.sort(applicationIcons, new Comparator<ApplicationIcon>() {
+                    @Override
+                    public int compare(ApplicationIcon lhs, ApplicationIcon rhs) {
+                        return lhs.getName().compareToIgnoreCase(rhs.getName());
+                    }
+                });
+                return applicationIcons;
+            }
+
+            @Override
+            protected void onPostExecute(List<ApplicationIcon> apps){
+                if(apps != null) {
+                    //Compare old "apps" with cached apps -- if the same, don't reset
+                    int newHash = apps.hashCode();
+                    if(newHash != cachedHash) {
+                        ApplicationIconAdapter adapter = new ApplicationIconAdapter(apps, HomeActivity.this);
+                        adapter.setHasStableIds(true);
+                        allAppsScreen.setAdapter(adapter);
+
+                        if(preCacheIcons && reader.getBoolean(Constants.AGGRESIVE_CACHING_PREF, true)){
+                            for(ApplicationIcon ai : apps){
+                                IconCache.getInstance().setIcon(ai.getPackageName(), ai.getActivityName(), null);
+                            }
+                        }
+
+                        FastScroller scroller = new FastScroller(allAppsScreen, scrollerBar, startLetter,
+                                endLetter, popup);
+
+                        scroller.setupList((List)apps);
+                        scroller.setupScrollbar();
+
+                        cachedHash = newHash;
+                    }
+                }
+            }
+        };
+
+        try {
+            //Default SERIAL_EXECUTOR will hang, but sometimes we have to use it
+            appsSearch.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, this.getPackageManager());
+        } catch (RejectedExecutionException tooManyOnThreadPool) {
+            appsSearch.execute(this.getPackageManager());
+        }
+
+        clearSearch.setVisibility(query == null || query.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    public void toggleAppsContainer(boolean visible){
+        toggleAppsContainer(visible, -1);
+    }
+
+    public void toggleAppsContainer(boolean visible, float animationVelocity){
+        //Do the popup for usage requests if needed
+        if(visible && !reader.getBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, false) &&
+                Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            try {
+                @SuppressWarnings("ResourceType")
+                final UsageStatsManager usm = (UsageStatsManager) HomeActivity.this.getSystemService("usagestats");
+
+                long end = 0l;
+                long start = System.currentTimeMillis() ;
+
+                UsageEvents use = usm.queryEvents(start, end);
+                UsageEvents.Event event = new UsageEvents.Event();
+                if(use.hasNextEvent() && use.getNextEvent(event)) {
+                    Log.d(TAG, "Found usage events...");
+                } else {
+                    showUsageMessage(); //We assume this means a problem..?
+                }
+            } catch (Exception notAllowed) {
+                showUsageMessage();
+            }
+        }
+
+        //Show all apps RecyclerView
+        allAppsContainer.setVisibility(View.VISIBLE);
+
+        DisplayMetrics dm = this.getResources().getDisplayMetrics();
+        if(visible){
+            long duration;
+            if(animationVelocity > 0){
+                float distanceToGo = allAppsContainer.getTranslationY();
+                duration = (long) (distanceToGo / animationVelocity);
+                if(duration > 600) duration = 600;
+            } else {
+                duration = 500;
+            }
+
+
+            ObjectAnimator oa = ObjectAnimator.ofFloat(allAppsContainer, "translationY", 0);
+            oa.setDuration(duration);
+            oa.start();
+
+            ObjectAnimator oa2 = ObjectAnimator.ofFloat(dockBar, "translationY", -dm.heightPixels);
+            oa2.setDuration(duration);
+            oa2.start();
+
+            strayTouchCatch.setVisibility(View.VISIBLE);
+        } else {
+            ObjectAnimator oa = ObjectAnimator.ofFloat(allAppsContainer, "translationY", dm.heightPixels);
+            oa.setDuration(500);
+            oa.start();
+
+            ObjectAnimator oa2 = ObjectAnimator.ofFloat(dockBar, "translationY", 0);
+            oa2.setDuration(500);
+            oa2.start();
+
+            strayTouchCatch.setVisibility(View.GONE);
+        }
     }
 
     public void updateRowCount(int orientation){
@@ -917,314 +1000,15 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         resetAppsList("", true);
     }
 
-    private void showTutorial() {
-        new MaterialDialog.Builder(this)
-                .title(R.string.welcome_title)
-                .content(R.string.welcome_message)
-                .positiveText(R.string.lets_go)
-                .neutralText(R.string.tutorial_please)
-                .callback(new MaterialDialog.ButtonCallback() {
-                    @Override
-                    public void onNeutral(MaterialDialog dialog) {
-                        Uri urlUri = Uri.parse("http://youtu.be/IX-c5GJ3FZE");
-                        Intent i = new Intent();
-                        i.setAction(Intent.ACTION_VIEW);
-                        i.setData(urlUri);
-                        dialog.getContext().startActivity(i);
-                    }
-                })
-                .dismissListener(new DialogInterface.OnDismissListener() {
-                    @Override
-                    public void onDismiss(DialogInterface dialog) {
-                        Log.d(TAG, "Saving has run preferences...");
-                        writer.putBoolean(Constants.HAS_RUN_PREFERENCE, true).apply();
-                        startSuggestionsPopulation();
-                    }
-                }).show();
+    public void hideKeyboard(){
+        //Hide keyboard
+        InputMethodManager imm = (InputMethodManager)
+                HomeActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
+        imm.hideSoftInputFromWindow(this.bigTint.getWindowToken(), 0);
     }
+    //endregion
 
-    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-    private void showUsageMessage(){
-        writer.putBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, true).commit();
-
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            //Show usage settings dialog
-            new MaterialDialog.Builder(this)
-                .title(R.string.enable_usage_viewing)
-                .content(R.string.enable_usage_viewing_message)
-                .positiveText(R.string.enable)
-                .negativeText(R.string.nope)
-                .callback(new MaterialDialog.ButtonCallback() {
-                    @Override
-                    public void onNegative(MaterialDialog dialog) {
-                        Toast.makeText(HomeActivity.this, R.string.aww, Toast.LENGTH_SHORT).show();
-                    }
-
-                    @Override
-                    public void onPositive(MaterialDialog dialog) {
-                        Intent showIntent = new Intent();
-                        showIntent.setAction(Settings.ACTION_USAGE_ACCESS_SETTINGS);
-                        startActivity(showIntent);
-                        HomeActivity.this.finish();
-                    }
-                }).show();
-        }
-    }
-
-    public void batchOpen(int row) {
-        if(row >= 0 && row < sgv.data.size()){
-            Intent sequentialLauncherService = new Intent(this, SequentialLauncherService.class);
-            sequentialLauncherService.putExtra("row_position", row);
-            this.startService(sequentialLauncherService);
-        }
-    }
-
-    @Override
-    public boolean hasWidget(String packageName) {
-        Boolean widgetExists = hasWidgetMap.get(packageName);
-        return widgetExists == null ? false : widgetExists;
-    }
-
-    public WidgetContainer findContainer(String packageName){
-        for (int i = 0; i < widgets.size(); i++) {
-            if (packageName.equalsIgnoreCase(widgets.get(i).getWidgetPackage())) {
-                return widgets.get(i);
-            }
-        }
-        return null;
-    }
-
-    @Override
-    public void showWidget(final String packageName) {
-        Log.d(TAG, "Showing widget for: " + packageName);
-
-        this.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                //Show the widget overlay
-                //(1) Do we have a match?
-                int matchIndex = -1;
-                for (int i = 0; i < widgets.size(); i++) {
-                    if (packageName.equalsIgnoreCase(widgets.get(i).getWidgetPackage())) {
-                        matchIndex = i;
-                        break;
-                    }
-                }
-
-                //(2) Yes -- show overlay and make widget visible
-                if (matchIndex != -1) {
-                    widgetOverlayContainer.getChildAt(matchIndex).setVisibility(View.VISIBLE);
-                    //Wow that's a lot in one line.
-                    try {
-                        Drawable icon = getPackageManager().getActivityIcon(getPackageManager().getLaunchIntentForPackage(packageName));
-                        widgetOverlayIcon.setImageDrawable(icon);
-                    } catch (Exception ignored) {
-                    }
-                    widgetOverlayClose.setOnClickListener(new View.OnClickListener() {
-                        @Override
-                        public void onClick(View v) {
-                            hideWidgetOverlay();
-                        }
-                    });
-                    widgetOverlaySettings.setOnClickListener(new View.OnClickListener() {
-                        @Override
-                        public void onClick(View v) {
-                            PopupMenu pm = new PopupMenu(v.getContext(), widgetOverlaySettings);
-                            pm.inflate(R.menu.widget_context_menu);
-                            pm.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
-                                @Override
-                                public boolean onMenuItemClick(MenuItem item) {
-                                    WidgetContainer wc = findContainer(packageName);
-                                    int indexOfWidget = widgets.indexOf(wc);
-
-                                    if (wc == null) {
-                                        hideWidgetOverlay();
-                                        return false; //Should we just crash? This should never happen
-                                    }
-
-                                    switch (item.getItemId()) {
-                                        case R.id.resizeWidget:
-                                            showResizeDialog(wc.getWidgetId(),
-                                                    (AppWidgetHostView) widgetOverlayContainer.getChildAt(indexOfWidget));
-                                            break;
-                                        case R.id.swapWidget:
-                                            widgetOverlayContainer.removeViewAt(indexOfWidget);
-                                            widgetHost.deleteAppWidgetId(wc.getWidgetId());
-                                            widgets.remove(wc);
-                                            showAddWidgetMenu(packageName);
-                                            break;
-                                    }
-                                    return true;
-                                }
-                            });
-                            pm.show();
-                        }
-                    });
-                    widgetOverlay.setVisibility(View.VISIBLE);
-                } else { //(2) No -- show add menu
-                    showAddWidgetMenu(packageName);
-                }
-            }
-        });
-    }
-
-    @Override
-    public void hideWidgetOverlay() {
-        for (int i = 0; i < widgetOverlayContainer.getChildCount(); i++) {
-            widgetOverlayContainer.getChildAt(i).setVisibility(View.GONE);
-        }
-        widgetOverlay.setVisibility(View.GONE);
-    }
-
-    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-    private void showAddWidgetMenu(final String packageName) {
-        this.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                List<AppWidgetProviderInfo> installedProviders = widgetManager.getInstalledProviders();
-                List<AppWidgetProviderInfo> matchingProviders = new ArrayList<>();
-                for (AppWidgetProviderInfo awpi : installedProviders) {
-                    if (((awpi.widgetCategory & AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN) == AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN)
-                            && awpi.provider.getPackageName().equalsIgnoreCase(packageName)) {
-                        matchingProviders.add(awpi);
-                    }
-                }
-
-                final WidgetAddAdapter adapter = new WidgetAddAdapter(HomeActivity.this, R.layout.widget_preview, matchingProviders);
-
-                final MaterialDialog md = new MaterialDialog.Builder(HomeActivity.this)
-                        .adapter(adapter, new MaterialDialog.ListCallback() {
-                            @Override
-                            public void onSelection(MaterialDialog materialDialog, View view, int i, CharSequence charSequence) {
-                            }
-                        })
-                        .title("Select a " + matchingProviders.get(0).label + " Widget")
-                        .negativeText(R.string.cancel)
-                        .build();
-
-                ListView lv = md.getListView();
-                if (lv != null)
-                    lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-                        @Override
-                        public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                            AppWidgetProviderInfo awpi = adapter.getItem(position);
-                            int appWidgetId = widgetHost.allocateAppWidgetId();
-                            if (widgetManager.bindAppWidgetIdIfAllowed(appWidgetId, awpi.provider)) {
-                                //Carry on with configuring
-                                handleWidgetConfig(appWidgetId, awpi);
-                            } else {
-                                //Ask for permission
-                                Intent intent = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
-                                intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
-                                intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, awpi.provider);
-                                startActivityForResult(intent, REQUEST_ALLOCATE_ID);
-                            }
-                            md.hide();
-                        }
-                    });
-
-                md.show();
-            }
-        });
-    }
-
-    private void showReorderRowsDialog() {
-        DragSortListView dsiv = (DragSortListView) LayoutInflater.from(this).inflate(R.layout.sort_row_list, null);
-        dsiv.setAdapter(new RowEditAdapter(this,
-                R.layout.row_edit_row, samples));
-        dsiv.setChoiceMode(AbsListView.CHOICE_MODE_NONE);
-        new MaterialDialog.Builder(this)
-                .customView(dsiv, false)
-                .title("Re-order")
-                .positiveText("Done")
-                .dismissListener(new DialogInterface.OnDismissListener() {
-                    @Override
-                    public void onDismiss(DialogInterface dialog) {
-                        persistList(samples);
-                    }
-                })
-                .show();
-    }
-
-    private void verifyWidgets() {
-        Log.d(TAG, "Verifying widgets...");
-        final List<WidgetContainer> toRemove = new ArrayList<>();
-        for(WidgetContainer wc : widgets){
-            if(widgetManager.getAppWidgetInfo(wc.getWidgetId()) == null){
-                Log.d(TAG, wc.getWidgetId() + " @ height " + wc.getWidgetHeight() + " is null...");
-                toRemove.add(wc);
-            }
-
-            try {
-                getPackageManager().getResourcesForApplication(widgetManager.getAppWidgetInfo(wc.getWidgetId()).provider.getPackageName());
-            } catch (Exception e){
-                Log.d(TAG, wc.getWidgetId() + " @ height " + wc.getWidgetHeight() + " isn't installed...");
-                toRemove.add(wc);
-            }
-        }
-
-        this.runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                for (WidgetContainer wc : toRemove) {
-                    Log.d(TAG, "Removing " + wc.getWidgetId());
-                    int removalIndex = widgets.indexOf(wc);
-                    if (removalIndex != -1) {
-                        widgets.remove(removalIndex);
-                        if (removalIndex < widgetOverlayContainer.getChildCount())
-                            widgetOverlayContainer.removeViewAt(removalIndex);
-                    }
-                }
-            }
-        });
-    }
-
-    @Override
-    protected void onDestroy(){
-        super.onDestroy();
-
-        if(packageReceiver != null){
-            unregisterReceiver(packageReceiver);
-        }
-        if(storageReceiver != null){
-            unregisterReceiver(storageReceiver);
-        }
-    }
-
-    @Override
-    public void onResume(){
-        super.onResume();
-        updateDisplay();
-
-        //Update most parts on timer
-        TimerTask t = new TimerTask(){
-            @Override
-            public void run() {
-                updateDisplay();
-            }
-        };
-        timer = new Timer();
-        timer.scheduleAtFixedRate(t, 0, 1000);
-
-        //Reset widgets
-        hideWidgetOverlay();
-        updateWidgetInfo();
-
-        sgv.onActivityResumed();
-        startSuggestionsPopulation();
-    }
-
-    private void updateWidgetInfo() {
-        hasWidgetMap.clear();
-        List<AppWidgetProviderInfo> installedProviders = widgetManager.getInstalledProviders();
-        for (AppWidgetProviderInfo awpi : installedProviders) {
-            if ((awpi.widgetCategory & AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN)
-                    == AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN) {
-                hasWidgetMap.put(awpi.provider.getPackageName(), true);
-            }
-        }
-    }
-
+    //region Suggested apps
     private void startSuggestionsPopulation(){
         if(!reader.getBoolean(Constants.HAS_RUN_PREFERENCE, false)) return;
 
@@ -1232,7 +1016,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         //We always show a prompt UI to explain if we need to ask for permissions.
         String[] permissions = new String[] { Manifest.permission.READ_PHONE_STATE,
-            Manifest.permission.READ_CALENDAR };
+                Manifest.permission.READ_CALENDAR };
         List<String> neededPermissions = new ArrayList<>();
 
         for(String permission : permissions){
@@ -1482,7 +1266,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                                 String packageName = e.getPackageName();
                                 String className = e.getClassName();
 
-                                if(canLaunch(packageName, className)) {
+                                if(isComponentLaunchable(packageName, className)) {
                                     if (count.containsKey(packageName)) {
                                         count.put(packageName, count.get(packageName) + 1);
                                     } else {
@@ -1557,7 +1341,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    public boolean canLaunch(String packageName, String className) {
+    public boolean isComponentLaunchable(String packageName, String className) {
         Intent intent = new Intent();
         intent.setClassName(packageName, className);
         intent.addCategory(Intent.CATEGORY_LAUNCHER);
@@ -1565,132 +1349,770 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         List<ResolveInfo> list = getPackageManager().queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
         return !list.isEmpty();
     }
+    //endregion
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        widgetHost.startListening();
-    }
-    @Override
-    protected void onStop() {
-        super.onStop();
-        widgetHost.stopListening();
-    }
-
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK) { //Back button pressed
-            fadeDateTime(1, 300);
-            resetState();
-            return true;
-        } else {
-            return super.onKeyDown(keyCode, event);
+    //region Dock
+    public void setupDockbarTarget(final ImageView dockbarTarget, final int place){
+        /*
+        //Size the target properly
+        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) dockbarTarget.getLayoutParams();
+        int properSize = (int) Utilities.convertDpToPixel(56, this);
+        if(size == ScreenSize.SMALL_TABLET){
+            properSize = (int) Utilities.convertDpToPixel(64, this);
+        } else if (size == ScreenSize.LARGE_TABLET){
+            properSize = (int) Utilities.convertDpToPixel(72, this);
         }
-    }
+        params.width = properSize;
+        params.height = properSize;
+        dockbarTarget.setLayoutParams(params);
+        */
 
-    @Override
-    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        writer.putBoolean(Constants.HAS_REQUESTED_PERMISSIONS_PREF, true).commit();
-        boolean allGranted = true;
-        for(int result : grantResults) allGranted &= result == PackageManager.PERMISSION_GRANTED;
-
-        if (!allGranted) {
-            Toast.makeText(HomeActivity.this, R.string.okay_we_wont_ask, Toast.LENGTH_SHORT).show();
-        }
-        populateSuggestions();
-    }
-
-    @Override
-    public void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        if (intent.getAction().equals(Intent.ACTION_MAIN)) { //Home button press; reset state
-            fadeDateTime(1, 300);
-            resetState();
-        }
-    }
-
-    public void resetState() {
-        this.runOnUiThread(new Runnable() {
+        dockbarTarget.setOnDragListener(new View.OnDragListener() {
             @Override
-            public void run() {
-                try {
-                    //Clear search
-                    if (!searchBox.getText().toString().equals("")) searchBox.setText("");
+            public boolean onDrag(View v, DragEvent event) {
+                if (event.getAction() == DragEvent.ACTION_DROP) {
+                    Log.d(TAG, "Drop occured!");
 
-                    hideKeyboard();
-                    toggleAppsContainer(false);
-                    toggleDropMenu(false);
-                } catch (Exception e) { //May fail at boot due to uncreated UI
-                    Log.d(TAG, "Exception: " + e);
-                    Log.d(TAG, "Message: " + e.getMessage());
+                    final ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
+                    initDockbar(ai, dockbarTarget, place);
+                    //Store data in SharedPreferences
+                    Gson gson = new Gson();
+                    writer.putString("dockbarTarget_" + place, gson.toJson(ai)).apply();
+                } else if (event.getAction() == DragEvent.ACTION_DRAG_STARTED) {
+                    String existingData = reader.getString("dockbarTarget_" + place, "null");
+                    if (existingData.equals("null")) { //Show (+) icon on target
+                        dockbarTarget.setImageResource(R.drawable.ic_add_circle_outline_white_48dp);
+                    }
+                } else if (event.getAction() == DragEvent.ACTION_DRAG_ENDED) {
+                    //If we still have no data, set null
+                    String existingData = reader.getString("dockbarTarget_" + place, "null");
+                    if (existingData.equals("null")) { //Show (+) icon on target
+                        dockbarTarget.setImageDrawable(null);
+                    }
+                }
+                return true;
+            }
+        });
+
+        String existingData = reader.getString("dockbarTarget_" + place, "null");
+        if(!existingData.equals("null")){
+            Gson gson = new Gson();
+            try {
+                ApplicationIcon ai = gson.fromJson(existingData, ApplicationIcon.class);
+                initDockbar(ai, dockbarTarget, place);
+            } catch (Exception e) {
+            }
+        }
+    }
+
+    public void initDockbar(final ApplicationIcon ai, final ImageView dockbarTarget, final int location){
+        dockbarTarget.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                try {
+                    Intent appLaunch = new Intent();
+                    appLaunch.setClassName(ai.getPackageName(), ai.getActivityName());
+                    appLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    v.getContext().startActivity(appLaunch);
+                } catch (Exception e) {
+                    Toast.makeText(v.getContext(), "Couldn't start this app!", Toast.LENGTH_SHORT)
+                            .show();
                 }
             }
         });
-    }
 
-    public void hideKeyboard(){
-        //Hide keyboard
-        InputMethodManager imm = (InputMethodManager)
-                HomeActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
-        imm.hideSoftInputFromWindow(this.bigTint.getWindowToken(), 0);
-    }
+        //Long-click to clear
+        dockbarTarget.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                new MaterialDialog.Builder(v.getContext())
+                        .title(R.string.remove_dock_item)
+                        .content(R.string.remove_dock_item_message)
+                        .positiveText(R.string.yes)
+                        .negativeText(R.string.cancel)
+                        .callback(new MaterialDialog.ButtonCallback() {
+                            @Override
+                            public void onPositive(MaterialDialog dialog) {
+                                dockbarTarget.setOnClickListener(null);
+                                dockbarTarget.setOnLongClickListener(null);
+                                dockbarTarget.setImageDrawable(null);
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if(requestCode == REQUEST_CHOOSE_ICON && resultCode == RESULT_OK){
-            String pkg = data.getStringExtra("r_pkg");
-            String rName = data.getStringExtra("r_name");
-            if(packageName == null || rName == null){
-                packageName = this.getClass().getPackage().getName();
-                resourceName = "ic_folder_black_48dp";
-            } else {
-                packageName = pkg;
-                resourceName = rName;
+                                //Remove stored data
+                                writer.putString("dockbarTarget_" + location, "null").apply();
+                            }
+                        }).show();
+                return true;
             }
+        });
+
+        try {
+            Drawable icon = getPackageManager()
+                    .getActivityIcon(new ComponentName(ai.getPackageName(), ai.getActivityName()));
+            dockbarTarget.setImageDrawable(icon);
+        } catch (Exception e) {
+            dockbarTarget.setImageDrawable(getResources().getDrawable(android.R.drawable.sym_def_app_icon));
+        }
+    }
+    //endregion
+
+    //region Manage ShortcutGestureView apps
+    private void loadList(List<TypeCard> samples){
+        Log.d(TAG, "Loading list...");
+
+        loadRows: {
+            Cursor loadItems =
+                    db.query(DatabaseHelper.TABLE_ROWS, null, null, null, null, null, null);
+            if (loadItems.moveToFirst()) {
+                Log.d(TAG, "Found: " + loadItems.getCount());
+
+                int dataColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_DATA);
+                int graphicColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_GRAPHIC);
+                int graphicPackageColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_GRAPHIC_PACKAGE);
+                int titleColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_TITLE);
+                if (dataColumn == -1 || graphicColumn == -1 || graphicPackageColumn == -1 || titleColumn == -1) {
+                    loadItems.close();
+                    break loadRows;
+                }
+
+                while (!loadItems.isAfterLast()) {
+                    String data = loadItems.getString(dataColumn);
+                    String graphicPackage = loadItems.getString(graphicPackageColumn);
+                    String title = loadItems.getString(titleColumn);
+                    String graphic = loadItems.getString(graphicColumn);
+
+                    Log.d(TAG, "Loading '" + data + "'...");
+
+                    //Generate package/activity pairs by splitting data
+                    if(data.startsWith("<!--APPTYPE-->")){ //This is just one app, not a full row
+                        String appName = data.replace("<!--APPTYPE-->", "");
+                        String[] split = appName.split("\\|");
+                        TypeCard tc = new TypeCard(new Pair<>(split[0], split[1]));
+                        samples.add(tc);
+                    } else { //A full row type (this is the default)
+                        List<Pair<String, String>> paPairs = new ArrayList<>();
+                        String[] pairs = data.split(",");
+                        Log.d(TAG, pairs.length + " elements in this");
+                        for (int i = 0; i < pairs.length; i++) {
+                            String[] packAndAct = pairs[i].split("\\|");
+                            paPairs.add(new Pair<>(packAndAct[0], packAndAct[1]));
+                        }
+                        TypeCard tc = new TypeCard(title, graphicPackage, graphic, paPairs);
+                        samples.add(tc);
+                    }
+                    loadItems.moveToNext();
+                }
+            } else {
+                Log.d(TAG, "No rows found!");
+            }
+            loadItems.close();
+        }
+
+        sgv.setCards(samples);
+    }
+
+    /**
+     * Saves cards to the database.
+     * @param cards Cards to save.
+     */
+    public void persistList(List<TypeCard> cards){
+        Log.d(TAG, "Persisting at most " + cards.size() + " cards");
+        db.delete(DatabaseHelper.TABLE_ROWS, null, null);
+        for(int i = 0; i < cards.size(); i++){
+            ContentValues cv = new ContentValues();
+            cv.put(DatabaseHelper.COLUMN_GRAPHIC, cards.get(i).getDrawableName());
+            cv.put(DatabaseHelper.COLUMN_GRAPHIC_PACKAGE, cards.get(i).getDrawablePackage());
+            cv.put(DatabaseHelper.COLUMN_TITLE, cards.get(i).getTitle());
+            cv.put(DatabaseHelper.COLUMN_ORDER, i);
+            String data = "";
+            List<Pair<String, String>> pkgList = cards.get(i).getPackages();
+            for (Pair<String, String> pkgs : pkgList) {
+                data += pkgs.first + "|" + pkgs.second + ",";
+            }
+            data = data.substring(0, data.length() - 1);
+            cv.put(DatabaseHelper.COLUMN_DATA, data);
+
+            Log.d(TAG, "Trying to insert: " + cv);
+
+            long result = db.insert(DatabaseHelper.TABLE_ROWS, null, cv);
+
+            Log.d(TAG, result == -1 ? "Error inserting: " + i :
+                    "Inserted row: " + i + " at " + result);
+        }
+    }
+
+    public void showCreateFolderDialog(final ApplicationIcon ai){
+        packageName = "null";
+        resourceName = "null";
+
+        dialogView = getLayoutInflater().inflate(R.layout.dialog_new_folder, null);
+        dialogView.findViewById(R.id.chooseIcon).setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent i = new Intent(v.getContext(), IconChooserActivity.class);
+                startActivityForResult(i, REQUEST_CHOOSE_ICON);
+            }
+        });
+        final EditText et = (EditText) dialogView.findViewById(R.id.chooseName);
+        new MaterialDialog.Builder(this)
+                .customView(dialogView, true)
+                .title("Add Folder")
+                .positiveText("Save")
+                .negativeText("Cancel")
+                .callback(new MaterialDialog.ButtonCallback() {
+                    @Override
+                    public void onNegative(MaterialDialog dialog) {
+                        super.onNegative(dialog);
+                    }
+
+                    @Override
+                    public void onPositive(MaterialDialog dialog) {
+                        String name = et.getText().toString();
+                        if(name == null || name.length() == 0){
+                            name = "Folder";
+                        }
+                        if(packageName.equals("null")){
+                            packageName = this.getClass().getPackage().getName();
+                            resourceName = "ic_folder_white_48dp";
+                        }
+                        List<Pair<String, String>> apps = new ArrayList<Pair<String, String>>();
+                        apps.add(new Pair<>(ai.getPackageName(), ai.getActivityName()));
+                        sgv.data.add(new TypeCard(name, packageName, resourceName, apps));
+                        persistList(samples);
+                        dialog.dismiss();
+                    }
+                }).show();
+    }
+
+    public void showEditFolderDialog(final int row){
+        if(row >= 0 && row < sgv.data.size()){
+            packageName = sgv.data.get(row).getDrawablePackage();
+            resourceName = sgv.data.get(row).getDrawableName();
+
+            dialogView = getLayoutInflater().inflate(R.layout.dialog_new_folder, null);
+            dialogView.findViewById(R.id.chooseIcon).setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    Intent i = new Intent(v.getContext(), IconChooserActivity.class);
+                    startActivityForResult(i, REQUEST_CHOOSE_ICON);
+                }
+            });
 
             Drawable d;
             try {
                 int resId = getPackageManager().getResourcesForApplication(packageName)
-                        .getIdentifier(rName, "drawable", packageName);
+                        .getIdentifier(resourceName, "drawable", packageName);
                 if(resId == 0) throw new Exception("");
                 d = getPackageManager().getResourcesForApplication(packageName).getDrawable(resId);
             } catch (Exception e) {
                 d = getResources().getDrawable(android.R.drawable.sym_def_app_icon);
             }
 
-            if(dialogView != null) {
-                ((ImageButton) dialogView.findViewById(R.id.chooseIcon)).setImageDrawable(d);
-            }
-        } else if (requestCode == REQUEST_CHOOSE_APPLICATION && resultCode == RESULT_OK){
-            ActivityInfo activityInfo = data.resolveActivityInfo(getPackageManager(), 0);
-            ApplicationIcon ai = new ApplicationIcon(activityInfo.packageName,
-                    (String) activityInfo.loadLabel(getPackageManager()), activityInfo.name);
+            ((ImageButton) dialogView.findViewById(R.id.chooseIcon)).setImageDrawable(d);
+            final EditText et = (EditText) dialogView.findViewById(R.id.chooseName);
+            et.setText(sgv.data.get(row).getTitle());
+            new MaterialDialog.Builder(this)
+                    .customView(dialogView, false)
+                    .title(R.string.edit_folder)
+                    .positiveText(R.string.save)
+                    .neutralText(R.string.edit_items)
+                    .negativeText(R.string.delete)
+                    .callback(new MaterialDialog.ButtonCallback() {
+                        @Override
+                        public void onNeutral(MaterialDialog dialog) {
+                            showReorderDialog(row);
+                        }
 
-            //Store data in SharedPreferences
-            Gson gson = new Gson();
-            writer.putString(cachedPref, gson.toJson(ai)).apply();
-        } else if (requestCode == REQUEST_ALLOCATE_ID || requestCode == REQUEST_PICK_APP_WIDGET) {
-            if(resultCode == RESULT_OK) {
-                handleWidgetConfig(data);
-            } else if (data != null) {
-                Toast.makeText(this, "You must allow us to manage widgets to use widgets.", Toast.LENGTH_LONG).show();
-                int appWidgetId = data.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1);
-                if (appWidgetId != -1) {
-                    widgetHost.deleteAppWidgetId(appWidgetId);
+                        @Override
+                        public void onNegative(MaterialDialog dialog) {
+                            sgv.data.remove(row);
+                            persistList(samples);
+                            sgv.notifyShortcutsChanged();
+                        }
+
+                        @Override
+                        public void onPositive(MaterialDialog dialog) {
+                            String name = et.getText().toString();
+                            if(name == null || name.length() == 0){
+                                name = "Folder";
+                            }
+
+                            if(packageName.equals("null")){
+                                packageName = this.getClass().getPackage().getName();
+                                resourceName = "ic_folder_white_48dp";
+                            }
+                            sgv.data.get(row).setTitle(name);
+                            sgv.data.get(row).setDrawable(resourceName, packageName);
+
+                            persistList(samples);
+                            sgv.notifyShortcutsChanged();
+                        }
+                    }).show();
+        }
+    }
+
+    public void showReorderDialog(final int row){
+        depthThreeDialogRaised = false;
+
+        DragSortListView dsiv = (DragSortListView) LayoutInflater.from(this).inflate(R.layout.sort_list, null);
+        dsiv.setAdapter(new AppEditAdapter(this,
+                R.layout.app_edit_row, sgv.data.get(row).getPackages()));
+        dsiv.setChoiceMode(AbsListView.CHOICE_MODE_NONE);
+        new MaterialDialog.Builder(this)
+                .customView(dsiv, false)
+                .title(R.string.edit_items)
+                .positiveText(R.string.save)
+                .neutralText(R.string.help)
+                .dismissListener(new DialogInterface.OnDismissListener() {
+                    @Override
+                    public void onDismiss(DialogInterface dialog) {
+                        if(!depthThreeDialogRaised) showEditFolderDialog(row);
+                    }
+                })
+                .callback(new MaterialDialog.ButtonCallback() {
+                    @Override
+                    public void onPositive(MaterialDialog dialog) {
+                        persistList(samples);
+                        sgv.notifyShortcutsChanged();
+                    }
+
+                    @Override
+                    public void onNeutral(MaterialDialog dialog) {
+                        depthThreeDialogRaised = true;
+                        new MaterialDialog.Builder(HomeActivity.this)
+                                .title(R.string.help)
+                                .positiveText(R.string.got_it)
+                                .dismissListener(new DialogInterface.OnDismissListener() {
+                                    @Override
+                                    public void onDismiss(DialogInterface dialog) {
+                                        showReorderDialog(row); //The help dialog dismisses the main dialog, weirdly enough
+                                    }
+                                })
+                                .content(R.string.edit_items_help)
+                                .show();
+                    }
+                })
+                .show();
+    }
+
+    public void batchOpen(int row) {
+        if(row >= 0 && row < sgv.data.size()){
+            Intent sequentialLauncherService = new Intent(this, SequentialLauncherService.class);
+            sequentialLauncherService.putExtra("row_position", row);
+            this.startService(sequentialLauncherService);
+        }
+    }
+
+    private void showReorderRowsDialog() {
+        DragSortListView dsiv = (DragSortListView) LayoutInflater.from(this).inflate(R.layout.sort_row_list, null);
+        dsiv.setAdapter(new RowEditAdapter(this,
+                R.layout.row_edit_row, samples));
+        dsiv.setChoiceMode(AbsListView.CHOICE_MODE_NONE);
+        new MaterialDialog.Builder(this)
+                .customView(dsiv, false)
+                .title("Re-order")
+                .positiveText("Done")
+                .dismissListener(new DialogInterface.OnDismissListener() {
+                    @Override
+                    public void onDismiss(DialogInterface dialog) {
+                        persistList(samples);
+                    }
+                })
+                .show();
+    }
+
+
+    //endregion
+
+    //region Manage hidden apps
+    private void loadHiddenApps(List<Pair<String, String>> hiddenApps) {
+        Log.d(TAG, "Loading hidden apps...");
+        hiddenApps.clear();
+
+        loadRows: {
+            Cursor loadItems =
+                    db.query(DatabaseHelper.TABLE_HIDDEN_APPS, null, null, null, null, null, null);
+            if (loadItems.moveToFirst()) {
+                Log.d(TAG, "Found: " + loadItems.getCount());
+
+                int packageColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_PACKAGE);
+                int activityColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_ACTIVITY_NAME);
+                if (packageColumn == -1 || activityColumn == -1) {
+                    loadItems.close();
+                    break loadRows;
+                }
+
+                while (!loadItems.isAfterLast()) {
+                    String packageName = loadItems.getString(packageColumn);
+                    String activityName = loadItems.getString(activityColumn);
+
+                    Log.d(TAG, "Loading '" + packageName + "'...");
+                    hiddenApps.add(new Pair<String, String>(packageName, activityName));
+
+                    loadItems.moveToNext();
+                }
+            } else {
+                Log.d(TAG, "No hidden apps found!");
+            }
+            loadItems.close();
+        }
+    }
+
+    private void showHideAppsMenu() {
+        new AsyncTask<Void, Void, List<ApplicationHiderIcon>>(){
+            @Override
+            protected List<ApplicationHiderIcon> doInBackground(Void... params) {
+                List<ApplicationHiderIcon> applicationIcons = new ArrayList<>();
+
+                //Grab all matching applications
+                try {
+                    final Intent allAppsIntent = new Intent(Intent.ACTION_MAIN, null);
+                    allAppsIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                    final List<ResolveInfo> packageList = getPackageManager().queryIntentActivities(allAppsIntent, 0);
+                    for (ResolveInfo ri : packageList) {
+                        try {
+                            String name = (String) ri.loadLabel(getPackageManager());
+                            if (hiddenApps.contains(new Pair<>(ri.activityInfo.packageName,
+                                    ri.activityInfo.name))) {
+                                applicationIcons.add(new ApplicationHiderIcon(ri.activityInfo.packageName,
+                                        name, ri.activityInfo.name, true));
+                            } else {
+                                applicationIcons.add(new ApplicationHiderIcon(ri.activityInfo.packageName,
+                                        name, ri.activityInfo.name, false));
+                            }
+                        } catch (Exception e) {
+                            //Failed to add one.
+                        }
+                    }
+
+                    Collections.sort(applicationIcons, new Comparator<ApplicationIcon>() {
+                        @Override
+                        public int compare(ApplicationIcon lhs, ApplicationIcon rhs) {
+                            return lhs.getName().compareToIgnoreCase(rhs.getName());
+                        }
+                    });
+                    return applicationIcons;
+                } catch (RuntimeException packageManagerDiedException){
+                    return new ArrayList<>();
                 }
             }
-        } else if (requestCode == REQUEST_CONFIG_WIDGET) {
-            if(resultCode == RESULT_OK) {
-                addWidget(data);
-                persistWidgets(widgets);
-            } else if (resultCode == RESULT_CANCELED && data != null) {
-                int appWidgetId = data.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1);
-                if (appWidgetId != -1) {
-                    widgetHost.deleteAppWidgetId(appWidgetId);
+
+            @Override
+            protected void onPostExecute(List<ApplicationHiderIcon> apps){
+                final ApplicationHideAdapter adapter = new ApplicationHideAdapter(HomeActivity.this,
+                        R.layout.application_icon_hidden, apps);
+
+                new MaterialDialog.Builder(HomeActivity.this)
+                        .adapter(adapter, new MaterialDialog.ListCallback() {
+                            @Override
+                            public void onSelection(MaterialDialog materialDialog, View view, int i, CharSequence charSequence) {
+                                //Do nothing
+                            }
+                        })
+                        .title(R.string.hideApps)
+                        .positiveText(R.string.done)
+                        .negativeText(R.string.cancel)
+                        .callback(new MaterialDialog.ButtonCallback() {
+                            @Override
+                            public void onPositive(MaterialDialog dialog) {
+                                persistHidden(adapter.getApps());
+                                loadHiddenApps(hiddenApps);
+                                resetAppsList("", false);
+                            }
+                        }).show();
+            }
+        }.execute();
+    }
+
+    private void persistHidden(List<ApplicationHiderIcon> apps) {
+        Log.d(TAG, "Persisting at most " + widgets.size() + " hidden apps");
+        db.delete(DatabaseHelper.TABLE_HIDDEN_APPS, null, null);
+        for(int i = 0; i < apps.size(); i++){
+            if(!apps.get(i).getIsHidden()) continue;
+
+            ContentValues cv = new ContentValues();
+            cv.put(DatabaseHelper.COLUMN_ACTIVITY_NAME, apps.get(i).getActivityName());
+            cv.put(DatabaseHelper.COLUMN_PACKAGE, apps.get(i).getPackageName());
+
+            Log.d(TAG, "Trying to insert: " + cv);
+
+            long result = db.insert(DatabaseHelper.TABLE_HIDDEN_APPS, null, cv);
+
+            Log.d(TAG, result == -1 ? "Error inserting: " + i :
+                    "Inserted hidden: " + i + " at " + result);
+        }
+    }
+    //endregion
+
+    //region ShortcutGestureViewHost helpers
+    @Override
+    public Pair<Float, Float> getBoundsWhenNotFullscreen() {
+        float top = timeDateContainer.getY() + timeDateContainer.getHeight();
+        float bottom = dockbarApps.getY();
+
+        return new Pair<>(top, bottom);
+    }
+
+    @Override
+    public float getTopMargin() {
+        return timeDateContainer.getY() + timeDateContainer.getHeight();
+    }
+
+    @Override
+    public float getBottomMargin() {
+        return dockBar.getHeight();
+    }
+    //endregion
+
+    //region Widgets
+    private void loadWidgets(List<WidgetContainer> widgets) {
+        Log.d(TAG, "Loading widgets...");
+
+        loadRows: {
+            Cursor loadItems =
+                    db.query(DatabaseHelper.TABLE_WIDGETS, null, null, null, null, null,
+                            DatabaseHelper.COLUMN_POSITION + " asc");
+            if (loadItems.moveToFirst()) {
+                Log.d(TAG, "Found: " + loadItems.getCount());
+
+                int idColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_WIDGET_ID);
+                int sizeColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_SIZE_DP);
+                if (idColumn == -1 || sizeColumn == -1) {
+                    loadItems.close();
+                    break loadRows;
                 }
+
+                while (!loadItems.isAfterLast()) {
+                    int widgetId = loadItems.getInt(idColumn);
+                    int size = loadItems.getInt(sizeColumn);
+
+                    Log.d(TAG, "Loading '" + widgetId + "'...");
+                    addWidget(widgetId, size);
+
+                    loadItems.moveToNext();
+                }
+            } else {
+                Log.d(TAG, "No widgets found!");
+            }
+            loadItems.close();
+        }
+    }
+
+    private void verifyWidgets() {
+        Log.d(TAG, "Verifying widgets...");
+        final List<WidgetContainer> toRemove = new ArrayList<>();
+        for(WidgetContainer wc : widgets){
+            if(widgetManager.getAppWidgetInfo(wc.getWidgetId()) == null){
+                Log.d(TAG, wc.getWidgetId() + " @ height " + wc.getWidgetHeight() + " is null...");
+                toRemove.add(wc);
+            }
+
+            try {
+                getPackageManager().getResourcesForApplication(widgetManager.getAppWidgetInfo(wc.getWidgetId()).provider.getPackageName());
+            } catch (Exception e){
+                Log.d(TAG, wc.getWidgetId() + " @ height " + wc.getWidgetHeight() + " isn't installed...");
+                toRemove.add(wc);
             }
         }
+
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                for (WidgetContainer wc : toRemove) {
+                    Log.d(TAG, "Removing " + wc.getWidgetId());
+                    int removalIndex = widgets.indexOf(wc);
+                    if (removalIndex != -1) {
+                        widgets.remove(removalIndex);
+                        if (removalIndex < widgetOverlayContainer.getChildCount())
+                            widgetOverlayContainer.removeViewAt(removalIndex);
+                    }
+                }
+            }
+        });
+    }
+
+    /** Save widgets to the database.
+     *
+     * @param widgets Widgets to save.
+     */
+    public void persistWidgets(List<WidgetContainer> widgets){
+        Log.d(TAG, "Persisting at most " + widgets.size() + " widgets");
+        db.delete(DatabaseHelper.TABLE_WIDGETS, null, null);
+        for(int i = 0; i < widgets.size(); i++){
+            ContentValues cv = new ContentValues();
+            cv.put(DatabaseHelper.COLUMN_WIDGET_ID, widgets.get(i).getWidgetId());
+            cv.put(DatabaseHelper.COLUMN_SIZE_DP, widgets.get(i).getWidgetHeight());
+            cv.put(DatabaseHelper.COLUMN_POSITION, i);
+
+            Log.d(TAG, "Trying to insert: " + cv);
+
+            long result = db.insert(DatabaseHelper.TABLE_WIDGETS, null, cv);
+
+            Log.d(TAG, result == -1 ? "Error inserting: " + i :
+                    "Inserted widget: " + i + " at " + result);
+        }
+    }
+
+    @Override
+    public void showWidget(final String packageName) {
+        Log.d(TAG, "Showing widget for: " + packageName);
+
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                //Show the widget overlay
+                //(1) Do we have a match?
+                int matchIndex = -1;
+                for (int i = 0; i < widgets.size(); i++) {
+                    if (packageName.equalsIgnoreCase(widgets.get(i).getWidgetPackage())) {
+                        matchIndex = i;
+                        break;
+                    }
+                }
+
+                //(2) Yes -- show overlay and make widget visible
+                if (matchIndex != -1) {
+                    widgetOverlayContainer.getChildAt(matchIndex).setVisibility(View.VISIBLE);
+                    //Wow that's a lot in one line.
+                    try {
+                        Drawable icon = getPackageManager().getActivityIcon(getPackageManager().getLaunchIntentForPackage(packageName));
+                        widgetOverlayIcon.setImageDrawable(icon);
+                    } catch (Exception ignored) {
+                    }
+                    widgetOverlayClose.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            hideWidgetOverlay();
+                        }
+                    });
+                    widgetOverlaySettings.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            PopupMenu pm = new PopupMenu(v.getContext(), widgetOverlaySettings);
+                            pm.inflate(R.menu.widget_context_menu);
+                            pm.setOnMenuItemClickListener(new PopupMenu.OnMenuItemClickListener() {
+                                @Override
+                                public boolean onMenuItemClick(MenuItem item) {
+                                    WidgetContainer wc = findContainer(packageName);
+                                    int indexOfWidget = widgets.indexOf(wc);
+
+                                    if (wc == null) {
+                                        hideWidgetOverlay();
+                                        return false; //Should we just crash? This should never happen
+                                    }
+
+                                    switch (item.getItemId()) {
+                                        case R.id.resizeWidget:
+                                            showResizeDialog(wc.getWidgetId(),
+                                                    (AppWidgetHostView) widgetOverlayContainer.getChildAt(indexOfWidget));
+                                            break;
+                                        case R.id.swapWidget:
+                                            widgetOverlayContainer.removeViewAt(indexOfWidget);
+                                            widgetHost.deleteAppWidgetId(wc.getWidgetId());
+                                            widgets.remove(wc);
+                                            showAddWidgetMenu(packageName);
+                                            break;
+                                    }
+                                    return true;
+                                }
+                            });
+                            pm.show();
+                        }
+                    });
+                    widgetOverlay.setVisibility(View.VISIBLE);
+                } else { //(2) No -- show add menu
+                    showAddWidgetMenu(packageName);
+                }
+            }
+        });
+    }
+
+    @Override
+    public void hideWidgetOverlay() {
+        for (int i = 0; i < widgetOverlayContainer.getChildCount(); i++) {
+            widgetOverlayContainer.getChildAt(i).setVisibility(View.GONE);
+        }
+        widgetOverlay.setVisibility(View.GONE);
+    }
+
+    @Override
+    public boolean hasWidget(String packageName) {
+        Boolean widgetExists = hasWidgetMap.get(packageName);
+        return widgetExists == null ? false : widgetExists;
+    }
+
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private void showAddWidgetMenu(final String packageName) {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                List<AppWidgetProviderInfo> installedProviders = widgetManager.getInstalledProviders();
+                List<AppWidgetProviderInfo> matchingProviders = new ArrayList<>();
+                for (AppWidgetProviderInfo awpi : installedProviders) {
+                    if (((awpi.widgetCategory & AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN) == AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN)
+                            && awpi.provider.getPackageName().equalsIgnoreCase(packageName)) {
+                        matchingProviders.add(awpi);
+                    }
+                }
+
+                final WidgetAddAdapter adapter = new WidgetAddAdapter(HomeActivity.this, R.layout.widget_preview, matchingProviders);
+
+                final MaterialDialog md = new MaterialDialog.Builder(HomeActivity.this)
+                        .adapter(adapter, new MaterialDialog.ListCallback() {
+                            @Override
+                            public void onSelection(MaterialDialog materialDialog, View view, int i, CharSequence charSequence) {
+                            }
+                        })
+                        .title("Select a " + matchingProviders.get(0).label + " Widget")
+                        .negativeText(R.string.cancel)
+                        .build();
+
+                ListView lv = md.getListView();
+                if (lv != null)
+                    lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+                        @Override
+                        public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                            AppWidgetProviderInfo awpi = adapter.getItem(position);
+                            int appWidgetId = widgetHost.allocateAppWidgetId();
+                            if (widgetManager.bindAppWidgetIdIfAllowed(appWidgetId, awpi.provider)) {
+                                //Carry on with configuring
+                                handleWidgetConfig(appWidgetId, awpi);
+                            } else {
+                                //Ask for permission
+                                Intent intent = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
+                                intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
+                                intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, awpi.provider);
+                                startActivityForResult(intent, REQUEST_ALLOCATE_ID);
+                            }
+                            md.hide();
+                        }
+                    });
+
+                md.show();
+            }
+        });
+    }
+
+
+
+
+    private void updateWidgetInfo() {
+        hasWidgetMap.clear();
+        List<AppWidgetProviderInfo> installedProviders = widgetManager.getInstalledProviders();
+        for (AppWidgetProviderInfo awpi : installedProviders) {
+            if ((awpi.widgetCategory & AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN)
+                    == AppWidgetProviderInfo.WIDGET_CATEGORY_HOME_SCREEN) {
+                hasWidgetMap.put(awpi.provider.getPackageName(), true);
+            }
+        }
+    }
+
+    private WidgetContainer findContainer(String packageName){
+        for (int i = 0; i < widgets.size(); i++) {
+            if (packageName.equalsIgnoreCase(widgets.get(i).getWidgetPackage())) {
+                return widgets.get(i);
+            }
+        }
+        return null;
     }
 
     public void handleWidgetConfig(Intent data){
@@ -1864,605 +2286,179 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 }).build();
         md.show();
     }
+    //endregion
 
-    @Override
-    protected void onPause() {
-        super.onPause();
-
-        if(timer != null){
-            timer.cancel();
-        }
-    }
-
-    public void fadeDateTime(float to, long duration){
-        //Log.d(TAG, "Fade date time called with: " + to + " and " + duration);
-        if(duration < 0l){ //Apply immediately
-            timeDateContainer.setAlpha(to);
-            dockbarApps.setAlpha(to);
-            bigTint.setAlpha(to);
-        } else {
-            ObjectAnimator.ofFloat(timeDateContainer, "alpha", to)
-                    .setDuration(duration)
-                    .start();
-            ObjectAnimator.ofFloat(dockbarApps, "alpha", to)
-                    .setDuration(duration)
-                    .start();
-            ObjectAnimator.ofFloat(bigTint, "alpha", 1 - to)
-                    .setDuration(duration)
-                    .start();
-        }
-    }
-
-    public void handleDedicatedAppButton(String pref, boolean slideTransition){
-        cachedPref = pref;
-        String existingData = reader.getString(pref, "null");
-        if(!existingData.equals("null")){
-            Log.d(TAG, "Existing data: " + existingData);
-            Gson gson = new Gson();
-            try {
-                ApplicationIcon ai = gson.fromJson(existingData, ApplicationIcon.class);
-                try {
-                    Intent appLaunch = new Intent();
-                    appLaunch.setClassName(ai.getPackageName(), ai.getActivityName());
-                    appLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    if(slideTransition && Build.VERSION.SDK_INT > Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1){
-                        startActivity(appLaunch, ActivityOptions.makeCustomAnimation(this,
-                                R.anim.search_slide_anim, R.anim.slide_out_right_anim).toBundle());
-                    } else {
-                        startActivity(appLaunch);
-                    }
-                } catch (Exception e) { //Show launcher!
-                    Utilities.grabActivity(this, HomeActivity.REQUEST_CHOOSE_APPLICATION);
-                }
-            } catch (Exception ignored) {
-                Utilities.grabActivity(this, HomeActivity.REQUEST_CHOOSE_APPLICATION);
-            }
-        } else {
-            Toast.makeText(this,
-                    "Choose an application to launch when you perform this action.", Toast.LENGTH_SHORT).show();
-            Utilities.grabActivity(this, HomeActivity.REQUEST_CHOOSE_APPLICATION);
-        }
-    }
-
-    public void toggleAppsContainer(boolean visible){
-        toggleAppsContainer(visible, -1);
-    }
-
-    public void toggleAppsContainer(boolean visible, float animationVelocity){
-        //Do the popup for usage requests if needed
-        if(visible && !reader.getBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, false) &&
-            Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            try {
-                @SuppressWarnings("ResourceType")
-                final UsageStatsManager usm = (UsageStatsManager) HomeActivity.this.getSystemService("usagestats");
-
-                long end = 0l;
-                long start = System.currentTimeMillis() ;
-
-                UsageEvents use = usm.queryEvents(start, end);
-                UsageEvents.Event event = new UsageEvents.Event();
-                if(use.hasNextEvent() && use.getNextEvent(event)) {
-                    Log.d(TAG, "Found usage events...");
-                } else {
-                    showUsageMessage(); //We assume this means a problem..?
-                }
-            } catch (Exception notAllowed) {
-                showUsageMessage();
-            }
-        }
-
-        //Show all apps RecyclerView
-        allAppsContainer.setVisibility(View.VISIBLE);
-
-        DisplayMetrics dm = this.getResources().getDisplayMetrics();
-        if(visible){
-            long duration = 500;
-            if(animationVelocity > 0){
-                float distanceToGo = allAppsContainer.getTranslationY();
-                duration = (long) (distanceToGo / animationVelocity);
-            }
-
-            ObjectAnimator oa = ObjectAnimator.ofFloat(allAppsContainer, "translationY", 0);
-            oa.setDuration(duration);
-            oa.start();
-
-            ObjectAnimator oa2 = ObjectAnimator.ofFloat(dockBar, "translationY", -dm.heightPixels);
-            oa2.setDuration(duration);
-            oa2.start();
-
-            strayTouchCatch.setVisibility(View.VISIBLE);
-        } else {
-            ObjectAnimator oa = ObjectAnimator.ofFloat(allAppsContainer, "translationY", dm.heightPixels);
-            oa.setDuration(500);
-            oa.start();
-
-            ObjectAnimator oa2 = ObjectAnimator.ofFloat(dockBar, "translationY", 0);
-            oa2.setDuration(500);
-            oa2.start();
-
-            strayTouchCatch.setVisibility(View.GONE);
-        }
-    }
-
-    public void resetAppsList(final String query, final boolean preCacheIcons){
-        IconCache.getInstance().cancelPendingIconTasks();
-
-        if(appsSearch != null && !appsSearch.isCancelled() && appsSearch.getStatus() == AsyncTask.Status.FINISHED){
-            try {
-                appsSearch.cancel(true);
-            } catch (Exception ignored) {}
-        }
-
-        appsSearch = new AsyncTask<Object, Void, List<ApplicationIcon>>(){
-            @Override
-            protected List<ApplicationIcon> doInBackground(Object... params) {
-                PackageManager pm = (PackageManager) params[0];
-                List<ApplicationIcon> applicationIcons = new ArrayList<ApplicationIcon>();
-
-                //Grab all matching applications
-                final Intent allAppsIntent = new Intent(Intent.ACTION_MAIN, null);
-                allAppsIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-                final List<ResolveInfo> packageList = pm.queryIntentActivities(allAppsIntent, 0);
-                String lowerQuery = query.toLowerCase(Locale.getDefault());
-                for(ResolveInfo ri : packageList){
-                    try {
-                        String name = (String) ri.loadLabel(pm);
-                        if(lowerQuery.equals("") || name.toLowerCase(Locale.getDefault())
-                            .contains(lowerQuery)) {
-                            if (!hiddenApps.contains(new Pair<>(ri.activityInfo.packageName,
-                                    ri.activityInfo.name))) {
-                                applicationIcons.add(new ApplicationIcon(ri.activityInfo.packageName,
-                                        name, ri.activityInfo.name));
-                            }
-                        }
-                    } catch (Exception e) {
-                        //Failed to add one.
-                    }
-                }
-                Collections.sort(applicationIcons, new Comparator<ApplicationIcon>() {
-                    @Override
-                    public int compare(ApplicationIcon lhs, ApplicationIcon rhs) {
-                        return lhs.getName().compareToIgnoreCase(rhs.getName());
-                    }
-                });
-                return applicationIcons;
-            }
-
-            @Override
-            protected void onPostExecute(List<ApplicationIcon> apps){
-                if(apps != null) {
-                    //Compare old "apps" with cached apps -- if the same, don't reset
-                    int newHash = apps.hashCode();
-                    if(newHash != cachedHash) {
-                        ApplicationIconAdapter adapter = new ApplicationIconAdapter(apps, HomeActivity.this);
-                        adapter.setHasStableIds(true);
-                        allAppsScreen.setAdapter(adapter);
-
-                        if(preCacheIcons && reader.getBoolean(Constants.AGGRESIVE_CACHING_PREF, true)){
-                            for(ApplicationIcon ai : apps){
-                                IconCache.getInstance().setIcon(ai.getPackageName(), ai.getActivityName(), null);
-                            }
-                        }
-
-                        FastScroller scroller = new FastScroller(allAppsScreen, scrollerBar, startLetter,
-                                endLetter, popup);
-
-                        scroller.setupList((List)apps);
-                        scroller.setupScrollbar();
-
-                        cachedHash = newHash;
-                    }
-                }
-            }
-        };
-
-        try {
-            //Default SERIAL_EXECUTOR will hang, but sometimes we have to use it
-            appsSearch.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, this.getPackageManager());
-        } catch (RejectedExecutionException tooManyOnThreadPool) {
-            appsSearch.execute(this.getPackageManager());
-        }
-
-        clearSearch.setVisibility(query == null || query.isEmpty() ? View.GONE : View.VISIBLE);
-    }
-
-    private void loadList(List<TypeCard> samples){
-        Log.d(TAG, "Loading list...");
-
-        loadRows: {
-            Cursor loadItems =
-                    db.query(DatabaseHelper.TABLE_ROWS, null, null, null, null, null, null);
-            if (loadItems.moveToFirst()) {
-                Log.d(TAG, "Found: " + loadItems.getCount());
-
-                int dataColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_DATA);
-                int graphicColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_GRAPHIC);
-                int graphicPackageColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_GRAPHIC_PACKAGE);
-                int titleColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_TITLE);
-                if (dataColumn == -1 || graphicColumn == -1 || graphicPackageColumn == -1 || titleColumn == -1) {
-                    loadItems.close();
-                    break loadRows;
-                }
-
-                while (!loadItems.isAfterLast()) {
-                    String data = loadItems.getString(dataColumn);
-                    String graphicPackage = loadItems.getString(graphicPackageColumn);
-                    String title = loadItems.getString(titleColumn);
-                    String graphic = loadItems.getString(graphicColumn);
-
-                    Log.d(TAG, "Loading '" + data + "'...");
-
-                    //Generate package/activity pairs by splitting data
-                    if(data.startsWith("<!--APPTYPE-->")){ //This is just one app, not a full row
-                        String appName = data.replace("<!--APPTYPE-->", "");
-                        String[] split = appName.split("\\|");
-                        TypeCard tc = new TypeCard(new Pair<>(split[0], split[1]));
-                        samples.add(tc);
-                    } else { //A full row type (this is the default)
-                        List<Pair<String, String>> paPairs = new ArrayList<>();
-                        String[] pairs = data.split(",");
-                        Log.d(TAG, pairs.length + " elements in this");
-                        for (int i = 0; i < pairs.length; i++) {
-                            String[] packAndAct = pairs[i].split("\\|");
-                            paPairs.add(new Pair<>(packAndAct[0], packAndAct[1]));
-                        }
-                        TypeCard tc = new TypeCard(title, graphicPackage, graphic, paPairs);
-                        samples.add(tc);
-                    }
-                    loadItems.moveToNext();
-                }
-            } else {
-                Log.d(TAG, "No rows found!");
-            }
-            loadItems.close();
-        }
-
-        sgv.setCards(samples);
-    }
-
-    private void loadWidgets(List<WidgetContainer> widgets) {
-        Log.d(TAG, "Loading widgets...");
-
-        loadRows: {
-            Cursor loadItems =
-                    db.query(DatabaseHelper.TABLE_WIDGETS, null, null, null, null, null,
-                            DatabaseHelper.COLUMN_POSITION + " asc");
-            if (loadItems.moveToFirst()) {
-                Log.d(TAG, "Found: " + loadItems.getCount());
-
-                int idColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_WIDGET_ID);
-                int sizeColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_SIZE_DP);
-                if (idColumn == -1 || sizeColumn == -1) {
-                    loadItems.close();
-                    break loadRows;
-                }
-
-                while (!loadItems.isAfterLast()) {
-                    int widgetId = loadItems.getInt(idColumn);
-                    int size = loadItems.getInt(sizeColumn);
-
-                    Log.d(TAG, "Loading '" + widgetId + "'...");
-                    addWidget(widgetId, size);
-
-                    loadItems.moveToNext();
-                }
-            } else {
-                Log.d(TAG, "No widgets found!");
-            }
-            loadItems.close();
-        }
-    }
-
-    /**
-     * Saves cards to the database.
-     * @param cards Cards to save.
-     */
-    public void persistList(List<TypeCard> cards){
-        Log.d(TAG, "Persisting at most " + cards.size() + " cards");
-        db.delete(DatabaseHelper.TABLE_ROWS, null, null);
-        for(int i = 0; i < cards.size(); i++){
-            ContentValues cv = new ContentValues();
-            cv.put(DatabaseHelper.COLUMN_GRAPHIC, cards.get(i).getDrawableName());
-            cv.put(DatabaseHelper.COLUMN_GRAPHIC_PACKAGE, cards.get(i).getDrawablePackage());
-            cv.put(DatabaseHelper.COLUMN_TITLE, cards.get(i).getTitle());
-            cv.put(DatabaseHelper.COLUMN_ORDER, i);
-            String data = "";
-            List<Pair<String, String>> pkgList = cards.get(i).getPackages();
-            for (Pair<String, String> pkgs : pkgList) {
-                data += pkgs.first + "|" + pkgs.second + ",";
-            }
-            data = data.substring(0, data.length() - 1);
-            cv.put(DatabaseHelper.COLUMN_DATA, data);
-
-            Log.d(TAG, "Trying to insert: " + cv);
-
-            long result = db.insert(DatabaseHelper.TABLE_ROWS, null, cv);
-
-            Log.d(TAG, result == -1 ? "Error inserting: " + i :
-                    "Inserted row: " + i + " at " + result);
-        }
-    }
-
-    /** Save widgets to the database.
-     *
-     * @param widgets Widgets to save.
-     */
-    public void persistWidgets(List<WidgetContainer> widgets){
-        Log.d(TAG, "Persisting at most " + widgets.size() + " widgets");
-        db.delete(DatabaseHelper.TABLE_WIDGETS, null, null);
-        for(int i = 0; i < widgets.size(); i++){
-            ContentValues cv = new ContentValues();
-            cv.put(DatabaseHelper.COLUMN_WIDGET_ID, widgets.get(i).getWidgetId());
-            cv.put(DatabaseHelper.COLUMN_SIZE_DP, widgets.get(i).getWidgetHeight());
-            cv.put(DatabaseHelper.COLUMN_POSITION, i);
-
-            Log.d(TAG, "Trying to insert: " + cv);
-
-            long result = db.insert(DatabaseHelper.TABLE_WIDGETS, null, cv);
-
-            Log.d(TAG, result == -1 ? "Error inserting: " + i :
-                    "Inserted widget: " + i + " at " + result);
-        }
-    }
-
-
-    public void setupDockbarTarget(final ImageView dockbarTarget, final int place){
-        /*
-        //Size the target properly
-        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) dockbarTarget.getLayoutParams();
-        int properSize = (int) Utilities.convertDpToPixel(56, this);
-        if(size == ScreenSize.SMALL_TABLET){
-            properSize = (int) Utilities.convertDpToPixel(64, this);
-        } else if (size == ScreenSize.LARGE_TABLET){
-            properSize = (int) Utilities.convertDpToPixel(72, this);
-        }
-        params.width = properSize;
-        params.height = properSize;
-        dockbarTarget.setLayoutParams(params);
-        */
-
-        dockbarTarget.setOnDragListener(new View.OnDragListener() {
-            @Override
-            public boolean onDrag(View v, DragEvent event) {
-                if(event.getAction() == DragEvent.ACTION_DROP){
-                    Log.d(TAG, "Drop occured!");
-
-                    final ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
-                    initDockbar(ai, dockbarTarget, place);
-                    //Store data in SharedPreferences
-                    Gson gson = new Gson();
-                    writer.putString("dockbarTarget_" + place, gson.toJson(ai)).apply();
-                } else if (event.getAction() == DragEvent.ACTION_DRAG_STARTED) {
-                    String existingData = reader.getString("dockbarTarget_" + place, "null");
-                    if(existingData.equals("null")){ //Show (+) icon on target
-                        dockbarTarget.setImageResource(R.drawable.ic_add_circle_outline_white_48dp);
-                    }
-                } else if (event.getAction() == DragEvent.ACTION_DRAG_ENDED) {
-                    //If we still have no data, set null
-                    String existingData = reader.getString("dockbarTarget_" + place, "null");
-                    if(existingData.equals("null")){ //Show (+) icon on target
-                        dockbarTarget.setImageDrawable(null);
-                    }
-                }
-                return true;
-            }
-        });
-
-        String existingData = reader.getString("dockbarTarget_" + place, "null");
-        if(!existingData.equals("null")){
-            Gson gson = new Gson();
-            try {
-                ApplicationIcon ai = gson.fromJson(existingData, ApplicationIcon.class);
-                initDockbar(ai, dockbarTarget, place);
-            } catch (Exception e) {
-            }
-        }
-    }
-
-    public void showCreateFolderDialog(final ApplicationIcon ai){
-        packageName = "null";
-        resourceName = "null";
-
-        dialogView = getLayoutInflater().inflate(R.layout.dialog_new_folder, null);
-        dialogView.findViewById(R.id.chooseIcon).setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent i = new Intent(v.getContext(), IconChooserActivity.class);
-                startActivityForResult(i, REQUEST_CHOOSE_ICON);
-            }
-        });
-        final EditText et = (EditText) dialogView.findViewById(R.id.chooseName);
+    //region Help/getting started
+    private void showTutorial() {
         new MaterialDialog.Builder(this)
-                .customView(dialogView, true)
-                .title("Add Folder")
-                .positiveText("Save")
-                .negativeText("Cancel")
+                .title(R.string.welcome_title)
+                .content(R.string.welcome_message)
+                .positiveText(R.string.lets_go)
+                .neutralText(R.string.tutorial_please)
                 .callback(new MaterialDialog.ButtonCallback() {
                     @Override
-                    public void onNegative(MaterialDialog dialog) {
-                        super.onNegative(dialog);
+                    public void onNeutral(MaterialDialog dialog) {
+                        Uri urlUri = Uri.parse("http://youtu.be/IX-c5GJ3FZE");
+                        Intent i = new Intent();
+                        i.setAction(Intent.ACTION_VIEW);
+                        i.setData(urlUri);
+                        dialog.getContext().startActivity(i);
                     }
-
+                })
+                .dismissListener(new DialogInterface.OnDismissListener() {
                     @Override
-                    public void onPositive(MaterialDialog dialog) {
-                        String name = et.getText().toString();
-                        if(name == null || name.length() == 0){
-                            name = "Folder";
-                        }
-                        if(packageName.equals("null")){
-                            packageName = this.getClass().getPackage().getName();
-                            resourceName = "ic_folder_white_48dp";
-                        }
-                        List<Pair<String, String>> apps = new ArrayList<Pair<String, String>>();
-                        apps.add(new Pair<>(ai.getPackageName(), ai.getActivityName()));
-                        sgv.data.add(new TypeCard(name, packageName, resourceName, apps));
-                        persistList(samples);
-                        dialog.dismiss();
+                    public void onDismiss(DialogInterface dialog) {
+                        Log.d(TAG, "Saving has run preferences...");
+                        writer.putBoolean(Constants.HAS_RUN_PREFERENCE, true).apply();
+                        startSuggestionsPopulation();
                     }
                 }).show();
     }
 
-    public void showEditFolderDialog(final int row){
-        if(row >= 0 && row < sgv.data.size()){
-            packageName = sgv.data.get(row).getDrawablePackage();
-            resourceName = sgv.data.get(row).getDrawableName();
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
+    private void showUsageMessage(){
+        writer.putBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, true).commit();
 
-            dialogView = getLayoutInflater().inflate(R.layout.dialog_new_folder, null);
-            dialogView.findViewById(R.id.chooseIcon).setOnClickListener(new View.OnClickListener() {
-                @Override
-                public void onClick(View v) {
-                    Intent i = new Intent(v.getContext(), IconChooserActivity.class);
-                    startActivityForResult(i, REQUEST_CHOOSE_ICON);
-                }
-            });
-
-            Drawable d;
-            try {
-                int resId = getPackageManager().getResourcesForApplication(packageName)
-                        .getIdentifier(resourceName, "drawable", packageName);
-                if(resId == 0) throw new Exception("");
-                d = getPackageManager().getResourcesForApplication(packageName).getDrawable(resId);
-            } catch (Exception e) {
-                d = getResources().getDrawable(android.R.drawable.sym_def_app_icon);
-            }
-
-            ((ImageButton) dialogView.findViewById(R.id.chooseIcon)).setImageDrawable(d);
-            final EditText et = (EditText) dialogView.findViewById(R.id.chooseName);
-            et.setText(sgv.data.get(row).getTitle());
+        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            //Show usage settings dialog
             new MaterialDialog.Builder(this)
-                    .customView(dialogView, false)
-                    .title(R.string.edit_folder)
-                    .positiveText(R.string.save)
-                    .neutralText(R.string.edit_items)
-                    .negativeText(R.string.delete)
+                    .title(R.string.enable_usage_viewing)
+                    .content(R.string.enable_usage_viewing_message)
+                    .positiveText(R.string.enable)
+                    .negativeText(R.string.nope)
                     .callback(new MaterialDialog.ButtonCallback() {
                         @Override
-                        public void onNeutral(MaterialDialog dialog) {
-                            showReorderDialog(row);
-                        }
-
-                        @Override
                         public void onNegative(MaterialDialog dialog) {
-                            sgv.data.remove(row);
-                            persistList(samples);
-                            sgv.notifyShortcutsChanged();
+                            Toast.makeText(HomeActivity.this, R.string.aww, Toast.LENGTH_SHORT).show();
                         }
 
                         @Override
                         public void onPositive(MaterialDialog dialog) {
-                            String name = et.getText().toString();
-                            if(name == null || name.length() == 0){
-                                name = "Folder";
-                            }
-
-                            if(packageName.equals("null")){
-                                packageName = this.getClass().getPackage().getName();
-                                resourceName = "ic_folder_white_48dp";
-                            }
-                            sgv.data.get(row).setTitle(name);
-                            sgv.data.get(row).setDrawable(resourceName, packageName);
-
-                            persistList(samples);
-                            sgv.notifyShortcutsChanged();
+                            Intent showIntent = new Intent();
+                            showIntent.setAction(Settings.ACTION_USAGE_ACCESS_SETTINGS);
+                            startActivity(showIntent);
+                            HomeActivity.this.finish();
                         }
                     }).show();
         }
     }
 
-    public void showReorderDialog(final int row){
-        depthThreeDialogRaised = false;
 
-        DragSortListView dsiv = (DragSortListView) LayoutInflater.from(this).inflate(R.layout.sort_list, null);
-        dsiv.setAdapter(new AppEditAdapter(this,
-                R.layout.app_edit_row, sgv.data.get(row).getPackages()));
-        dsiv.setChoiceMode(AbsListView.CHOICE_MODE_NONE);
-        new MaterialDialog.Builder(this)
-                .customView(dsiv, false)
-                .title(R.string.edit_items)
-                .positiveText(R.string.save)
-                .neutralText(R.string.help)
-                .dismissListener(new DialogInterface.OnDismissListener() {
-                    @Override
-                    public void onDismiss(DialogInterface dialog) {
-                        if(!depthThreeDialogRaised) showEditFolderDialog(row);
-                    }
-                })
-                .callback(new MaterialDialog.ButtonCallback() {
-                    @Override
-                    public void onPositive(MaterialDialog dialog) {
-                        persistList(samples);
-                        sgv.notifyShortcutsChanged();
-                    }
+    //endregion
 
-                    @Override
-                    public void onNeutral(MaterialDialog dialog) {
-                        depthThreeDialogRaised = true;
-                        new MaterialDialog.Builder(HomeActivity.this)
-                                .title(R.string.help)
-                                .positiveText(R.string.got_it)
-                                .dismissListener(new DialogInterface.OnDismissListener() {
-                                    @Override
-                                    public void onDismiss(DialogInterface dialog) {
-                                        showReorderDialog(row); //The help dialog dismisses the main dialog, weirdly enough
-                                    }
-                                })
-                                .content(R.string.edit_items_help)
-                                .show();
-                    }
-                })
-                .show();
+    //region Adjust visibility/position of UI elements
+    @Override
+    public void showTopElements() {
+        showDock();
     }
 
-    public void initDockbar(final ApplicationIcon ai, final ImageView dockbarTarget, final int location){
-        dockbarTarget.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                try {
-                    Intent appLaunch = new Intent();
-                    appLaunch.setClassName(ai.getPackageName(), ai.getActivityName());
-                    appLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    v.getContext().startActivity(appLaunch);
-                } catch (Exception e) {
-                    Toast.makeText(v.getContext(), "Couldn't start this app!", Toast.LENGTH_SHORT)
-                            .show();
-                }
-            }
-        });
+    @Override
+    public void hideTopElements() {
+        hideDateTime();
+    }
 
-        //Long-click to clear
-        dockbarTarget.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                new MaterialDialog.Builder(v.getContext())
-                        .title(R.string.remove_dock_item)
-                        .content(R.string.remove_dock_item_message)
-                        .positiveText(R.string.yes)
-                        .negativeText(R.string.cancel)
-                        .callback(new MaterialDialog.ButtonCallback() {
-                            @Override
-                            public void onPositive(MaterialDialog dialog) {
-                                dockbarTarget.setOnClickListener(null);
-                                dockbarTarget.setOnLongClickListener(null);
-                                dockbarTarget.setImageDrawable(null);
+    @Override
+    public void showBottomElements() {
+        showDateTime();
+    }
 
-                                //Remove stored data
-                                writer.putString("dockbarTarget_" + location, "null").apply();
-                            }
-                        }).show();
-                return true;
-            }
-        });
+    @Override
+    public void hideBottomElements() {
+        hideDock();
+    }
 
-        try {
-            Drawable icon = getPackageManager()
-                    .getActivityIcon(new ComponentName(ai.getPackageName(), ai.getActivityName()));
-            dockbarTarget.setImageDrawable(icon);
-        } catch (Exception e) {
-            dockbarTarget.setImageDrawable(getResources().getDrawable(android.R.drawable.sym_def_app_icon));
+    private void showDateTime() {
+        ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(timeDateContainer, "translationY", 0);
+        leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
+        leavingAnim.start();
+    }
+
+    private void hideDateTime() {
+        ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(timeDateContainer, "translationY",
+                -(timeDateContainer.getY() + timeDateContainer.getHeight()));
+        leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
+        leavingAnim.start();
+    }
+
+    public void brightenScreen(){
+        ObjectAnimator.ofFloat(bigTint, "alpha", 0)
+                .setDuration(DEFAULT_ANIMATION_DURATION)
+                .start();
+    }
+
+    public void dimScreen(){
+        ObjectAnimator.ofFloat(bigTint, "alpha", 1)
+                .setDuration(DEFAULT_ANIMATION_DURATION)
+                .start();
+    }
+
+    public void showDock(){
+        ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dockBar, "translationY",
+                dockBar.getHeight(), 0);
+        leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
+        leavingAnim.start();
+    }
+
+    private void hideDock(){
+        ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dockBar, "translationY",
+                0, dockBar.getHeight());
+        leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
+        leavingAnim.start();
+    }
+
+    private void showDropMenu(){
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+
+        ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(dockbarApps, "translationX",
+                -dm.widthPixels);
+        enteringAnim.setDuration(DEFAULT_ANIMATION_DURATION);
+        enteringAnim.start();
+
+        ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dropLayout, "translationX",
+                0);
+        leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
+        leavingAnim.start();
+    }
+
+    private void showDockApps(){
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+
+        ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(dockbarApps, "translationX",
+                0);
+        enteringAnim.setDuration(DEFAULT_ANIMATION_DURATION);
+        enteringAnim.start();
+
+        ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dropLayout, "translationX",
+                getResources().getDisplayMetrics().widthPixels);
+        leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
+        leavingAnim.start();
+    }
+
+    private void toggleDropMenu(boolean visible) {
+        final DisplayMetrics dm = getResources().getDisplayMetrics();
+
+        if(visible){ //Show drop menu
+            ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(dropLayout, "translationX", 0);
+            enteringAnim.setDuration(400);
+            enteringAnim.start();
+
+            ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dockbarApps, "translationX",
+                    dm.widthPixels);
+            leavingAnim.setDuration(400);
+            leavingAnim.start();
+        } else { //Show dock
+            ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(dockbarApps, "translationX", 0);
+            enteringAnim.setDuration(400);
+            enteringAnim.start();
+
+            ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dropLayout, "translationX", dm.widthPixels);
+            leavingAnim.setDuration(400);
+            leavingAnim.start();
         }
     }
+    //endregion
 
-    //Update clock
+    //region Clock
     void updateDisplay(){
         Runnable runnable = new Runnable() {
             @Override
@@ -2526,5 +2522,58 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         } else {
             this.runOnUiThread(runnable);
         }
+    }
+
+    public void handleDedicatedAppButton(String pref, boolean slideTransition){
+        cachedPref = pref;
+        String existingData = reader.getString(pref, "null");
+        if(!existingData.equals("null")){
+            Log.d(TAG, "Existing data: " + existingData);
+            Gson gson = new Gson();
+            try {
+                ApplicationIcon ai = gson.fromJson(existingData, ApplicationIcon.class);
+                try {
+                    Intent appLaunch = new Intent();
+                    appLaunch.setClassName(ai.getPackageName(), ai.getActivityName());
+                    appLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                    if(slideTransition && Build.VERSION.SDK_INT > Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1){
+                        startActivity(appLaunch, ActivityOptions.makeCustomAnimation(this,
+                                R.anim.search_slide_anim, R.anim.slide_out_right_anim).toBundle());
+                    } else {
+                        startActivity(appLaunch);
+                    }
+                } catch (Exception e) { //Show launcher!
+                    Utilities.grabActivity(this, HomeActivity.REQUEST_CHOOSE_APPLICATION);
+                }
+            } catch (Exception ignored) {
+                Utilities.grabActivity(this, HomeActivity.REQUEST_CHOOSE_APPLICATION);
+            }
+        } else {
+            Toast.makeText(this,
+                    "Choose an application to launch when you perform this action.", Toast.LENGTH_SHORT).show();
+            Utilities.grabActivity(this, HomeActivity.REQUEST_CHOOSE_APPLICATION);
+        }
+    }
+    //endregion
+
+    public void resetState() {
+        this.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                try {
+                    //Clear search
+                    if (!searchBox.getText().toString().equals("")) searchBox.setText("");
+
+                    hideKeyboard();
+                    brightenScreen();
+                    showDateTime();
+                    toggleAppsContainer(false);
+                    showDockApps();
+                } catch (Exception e) { //May fail at boot due to uncreated UI
+                    Log.d(TAG, "Exception: " + e);
+                    Log.d(TAG, "Message: " + e.getMessage());
+                }
+            }
+        });
     }
 }

@@ -24,6 +24,7 @@ public class DragToOpenView extends RelativeLayout {
 
     float startY = -1;
     float lastY = -1;
+    float lastDist = -1;
     float lastTime = -1;
     OnDragToOpenListener listener;
 
@@ -52,20 +53,20 @@ public class DragToOpenView extends RelativeLayout {
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         float dist = startY - event.getRawY();
-        lastY = event.getRawY();
-        lastTime = event.getEventTime();
 
         switch (event.getAction()){
             case MotionEvent.ACTION_MOVE:
+                lastDist = event.getRawY() - (lastY == -1 ? event.getRawY() : lastY);
+                lastY = event.getRawY();
+                lastTime = event.getEventTime();
                 if(listener != null) listener.onDragChanged(dist);
                 break;
             case MotionEvent.ACTION_UP:
-                float lastDistance = event.getRawY() - lastY;
                 float time = event.getEventTime() - lastTime;
                 if(time == 0) time = 1;
 
-                if(listener != null) listener.onDragCompleted(dist > startSwipeDistance * 2, dist,
-                        Math.abs(lastDistance / time));
+                if(listener != null) listener.onDragCompleted(dist > startSwipeDistance * 4, dist,
+                        Math.abs(lastDist / time));
                 break;
         }
         return true;

@@ -156,4 +156,6 @@
     <string name="help">Help</string>
     <string name="edit_items_help">Drag a shorcut by the handle to reorder it, and swipe it away (like a notification) to remove it.</string>
     <string name="swap_widget">Swap Widget</string>
+    <string name="error">Error!</string>
+    <string name="store_not_installed">Store app not installed on this phone.</string>
 </resources>

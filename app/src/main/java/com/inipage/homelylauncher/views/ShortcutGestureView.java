@@ -1,4 +1,4 @@
-package com.inipage.homelylauncher;
+package com.inipage.homelylauncher.views;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -14,6 +14,7 @@ import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.graphics.Typeface;
+import android.os.AsyncTask;
 import android.support.annotation.NonNull;
 import android.support.v7.graphics.Palette;
 import android.util.AttributeSet;
@@ -25,11 +26,13 @@ import android.view.View;
 import android.view.ViewConfiguration;
 import android.widget.Toast;
 
+import com.inipage.homelylauncher.BuildConfig;
+import com.inipage.homelylauncher.R;
+import com.inipage.homelylauncher.TypeCard;
 import com.inipage.homelylauncher.drawer.ApplicationIcon;
 import com.inipage.homelylauncher.icons.IconCache;
 import com.inipage.homelylauncher.utils.AttributeApplier;
 import com.inipage.homelylauncher.utils.SizeAttribute;
-import com.inipage.homelylauncher.utils.Utilities;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -37,13 +40,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.concurrent.RejectedExecutionException;
 
 import static java.lang.Math.*;
 
 public class ShortcutGestureView extends View {
     //region Constants
     private static final String TAG = "ShortcutGestureView";
-    private static final boolean NEEDLE = false; //For debug purposes
+    private static final boolean NEEDLE = true; //For debug purposes
+    private static final long WIDGET_HOLD_DURATION = 1200;
     //endregion
 
     //region Enums
@@ -111,6 +116,8 @@ public class ShortcutGestureView extends View {
     float arrowPadding;
     @SizeAttribute(24)
     float helpArrowSize;
+    @SizeAttribute(64)
+    float widgetPadding;
     //endregion
 
     //Options representing images
@@ -205,6 +212,9 @@ public class ShortcutGestureView extends View {
             invalidate();
         }
     };
+
+    //Whether we should reject the next touch event (return false from onTouchEvent)
+    boolean rejectNextEvent = false;
 
     //For widget
     Timer timer;
@@ -307,9 +317,6 @@ public class ShortcutGestureView extends View {
                     log("Drag started " + startX + " " + startY, false);
                     cm = ViewMode.ADDING_ICON;
                     invalidate();
-
-                    host.dimScreen();
-                    host.hideTopElements();
                     break;
                 case DragEvent.ACTION_DRAG_EXITED:
                     selectedY = -1;
@@ -323,7 +330,7 @@ public class ShortcutGestureView extends View {
                     break;
                 case DragEvent.ACTION_DRAG_ENDED:
                     log("Drag ended", false);
-                    if (cm == ViewMode.ADDING_ICON && selectedY >= 02) {
+                    if (cm == ViewMode.ADDING_ICON && selectedY >= 0) {
                         ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
 
                         if (selectedY == data.size()) { //Add a new row
@@ -336,9 +343,7 @@ public class ShortcutGestureView extends View {
                             preloadCard(data.get(selectedY));
                         }
                     }
-
-                    host.brightenScreen();
-                    host.showTopElements();
+                    resetState();
                     break;
             }
             return true;
@@ -525,10 +530,21 @@ public class ShortcutGestureView extends View {
                                 timer.schedule(new TimerTask() { //Open widget
                                     @Override
                                     public void run() {
-                                        host.showWidget(appPackage);
+                                        resetState();
+                                        getHandler().post(new Runnable() {
+                                            @Override
+                                            public void run() {
+                                                host.brightenScreen();
+                                                host.showTopElements();
+                                                host.showBottomElements();
+                                            }
+                                        });
+
+                                        rejectNextEvent = true;
                                         timerCompleted = true;
+                                        host.showWidget(appPackage);
                                     }
-                                }, 1000l);
+                                }, WIDGET_HOLD_DURATION);
                                 timer.scheduleAtFixedRate(new TimerTask() { //Update display
                                     @Override
                                     public void run() {
@@ -600,14 +616,6 @@ public class ShortcutGestureView extends View {
         log("Open item with a selected folder/icon of: " + selectedFolder + "/" + selectedY +
                 "and mode =" + cm.name(), true);
 
-        if(timerCompleted){
-            resetState();
-            host.brightenScreen();
-            host.showTopElements();
-            host.showBottomElements();
-            return;
-        }
-
         switch(cm){
             case CHOOSING_FOLDER:
                 resetState();
@@ -668,7 +676,8 @@ public class ShortcutGestureView extends View {
                 break;
             case CHOOSING_FOLDER:
                 drawFolderSelection(canvas);
-                drawHelp(canvas, "Swipe right to select folder", "", false, true);
+                if(data.size() != 0)
+                    drawHelp(canvas, "Swipe right to select folder", "", false, true);
                 break;
             case CHOOSING_APP:
                 drawAppSelection(canvas);
@@ -808,11 +817,11 @@ public class ShortcutGestureView extends View {
             float maxFor = idealPosition + halfPerElementSize;
             for(int i = 0; i < folderOptionsDrawables.length; i++){
                 log("At position __, touchY/ideal/min/max/selectedY: " + i + " " + touchY + " " + idealPosition + " " +
-                        minFor + " " + maxFor + " " + selectedY, true);
+                        minFor + " " + maxFor + " " + selectedY, false);
                 if(i == selectedY){
-                    log("Calculating from selectedY", true);
+                    log("Calculating from selectedY", false);
                     float drawPercent = 1f - ((maxFor - touchY) / perElementSize); //By calculation, this will be between 0 and 1
-                    log("Draw percent: " + drawPercent, true);
+                    log("Draw percent: " + drawPercent, false);
                     float diff;
                     if(drawPercent > 0.5f){
                         diff = 1.5f - drawPercent;
@@ -826,7 +835,7 @@ public class ShortcutGestureView extends View {
                     //log("Calculating from selectedY - 1", true);
                     if(touchY <= idealPosition){ //We're involved
                         float difference = 0.5f - ((touchY - minFor) / perElementSize);
-                        log("SelectedY - 1 VALID at position " + i + " difference " + difference, true);
+                        log("SelectedY - 1 VALID at position " + i + " difference " + difference, false);
                         sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
                                 textSize + (difference * textSizeDifference)));
                     } else { //Not so much
@@ -836,20 +845,21 @@ public class ShortcutGestureView extends View {
                     //log("Calculating from selectedY + 1", true);
                     if(touchY >= idealPosition){ //We're involved
                         float difference = 0.5f - ((maxFor - touchY) / perElementSize);
-                        log("SelectedY + 1 VALID at position " + i + " difference " + difference, true);
+                        log("SelectedY + 1 VALID at position " + i + " difference " + difference, false);
                         sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
                                 textSize + (difference * textSizeDifference)));
                     } else { //Not so much
                         sizeQueue.add(new Pair<>(iconSize, textSize));
                     }
                 } else { //Default case
-                    //log("Calculating from default case", true);
                     sizeQueue.add(new Pair<>(iconSize, textSize));
                 }
             }
         }
 
-        float yPosition = drawStartY;
+        float folderSize = (folderOptionsTitles.length - 1) * iconSize;
+        folderSize += bigIconSize;
+        float yPosition = (getHeight() / 2) - (folderSize / 2);;
 
         //Occasionally this'll temporarily glitch
         if(selectedY >= folderOptionsDrawables.length || selectedY < 0)
@@ -987,11 +997,11 @@ public class ShortcutGestureView extends View {
                 float maxFor = idealPosition + halfPerElementSize;
                 for(int i = 0; i < data.size(); i++){
                     log("At position __, touchY/ideal/min/max/selectedY: " + i + " " + touchY + " " + idealPosition + " " +
-                            minFor + " " + maxFor + " " + selectedY, true);
+                            minFor + " " + maxFor + " " + selectedY, false);
                     if(i == selectedY){
-                        log("Calculating from selectedY", true);
+                        log("Calculating from selectedY", false);
                         float drawPercent = 1f - ((maxFor - touchY) / perElementSize); //By calculation, this will be between 0 and 1
-                        log("Draw percent: " + drawPercent, true);
+                        log("Draw percent: " + drawPercent, false);
                         float diff;
                         if(drawPercent > 0.5f){
                             diff = 1.5f - drawPercent;
@@ -1002,20 +1012,18 @@ public class ShortcutGestureView extends View {
                         sizeQueue.add(new Pair<>(iconSize + (diff * iconSizeDifference),
                                 textSize + (diff * textSizeDifference)));
                     } else if (i == (selectedY - 1)){
-                        //log("Calculating from selectedY - 1", true);
                         if(touchY <= idealPosition){ //We're involved
                             float difference = 0.5f - ((touchY - minFor) / perElementSize);
-                            log("SelectedY - 1 VALID at position " + i + " difference " + difference, true);
+                            log("SelectedY - 1 VALID at position " + i + " difference " + difference, false);
                             sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
                                     textSize + (difference * textSizeDifference)));
                         } else { //Not so much
                             sizeQueue.add(new Pair<>(iconSize, textSize));
                         }
                     } else if (i == (selectedY + 1)){
-                        //log("Calculating from selectedY + 1", true);
                         if(touchY >= idealPosition){ //We're involved
                             float difference = 0.5f - ((maxFor - touchY) / perElementSize);
-                            log("SelectedY + 1 VALID at position " + i + " difference " + difference, true);
+                            log("SelectedY + 1 VALID at position " + i + " difference " + difference, false);
                             sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
                                     textSize + (difference * textSizeDifference)));
                         } else { //Not so much
@@ -1076,7 +1084,7 @@ public class ShortcutGestureView extends View {
             Bitmap b = IconCache.getInstance().getSwipeCacheAppIcon(app.first,
                     app.second, bigIconSize, retrievalInterface);
 
-            log("For package " + (j + 1) + " of " + packages.size(), true);
+            log("For package " + (j + 1) + " of " + packages.size(), false);
 
                 /* Uncomment for debugging purposes
                 Paint thickLine = new Paint();
@@ -1160,7 +1168,7 @@ public class ShortcutGestureView extends View {
                 log("At position __, touchY/ideal/min/max/selectedY: " + i + " " + touchY + " " + idealPosition + " " +
                         minFor + " " + maxFor + " " + selectedY, true);
                 if(i == selectedY){
-                    log("Calculating from selectedY", true);
+                    log("Calculating from selectedY", false);
                     float drawPercent = 1f - ((maxFor - touchY) / perElementSize); //By calculation, this will be between 0 and 1
                     log("drawpercent: " + drawPercent, false);
                     float diff;
@@ -1176,7 +1184,7 @@ public class ShortcutGestureView extends View {
                     //log("Calculating from selectedY - 1", true);
                     if(touchY <= idealPosition){ //We're involved
                         float difference = 0.5f - ((touchY - minFor) / perElementSize);
-                        log("SelectedY - 1 VALID at position " + i + " difference " + difference, true);
+                        log("SelectedY - 1 VALID at position " + i + " difference " + difference, false);
                         sizeQueue.add(new Pair<>(iconSize + (difference * iconSizeDifference),
                                 textSize + (difference * textSizeDifference)));
                     } else { //Not so much
@@ -1210,8 +1218,98 @@ public class ShortcutGestureView extends View {
             String label = grabLabel(cm);
 
             //Right-justify the icons
-            drawLineToSide(canvas, b, label, selectedY == i, ScreenSide.RIGHT_SIDE, getWidth() - edgeSlop,
-                    iconsStartY, sizes.first, sizes.second, iconPadding);
+            if(selectedY != i || timerStart == -1l) {
+                drawLineToSide(canvas, b, label, selectedY == i, ScreenSide.RIGHT_SIDE, getWidth() - edgeSlop,
+                        iconsStartY, sizes.first, sizes.second, iconPadding);
+            } else { //SelectedY is a slightly modified version of drawLineToSide(...) but with text offset for widget data
+                float x = getWidth() - edgeSlop;
+                float y = iconsStartY;
+
+                float margin = iconPadding;
+                float iconSize = sizes.first;
+                float textSize = sizes.second;
+
+                //Add color to the icon row if selected
+                int transparentColor = getResources().getColor(android.R.color.transparent);
+                int color = getIconColorForBitmap(b);
+                int paddingOverTwo = (int) (iconPadding / 2);
+
+                int shadingXStart = getWidth() / 2;
+                int shadingXEnd = getWidth();
+
+                Shader linear = new LinearGradient(shadingXStart, y - paddingOverTwo, shadingXEnd,
+                        y + iconSize + paddingOverTwo, transparentColor, color, Shader.TileMode.CLAMP);
+                glowPaint.setShader(linear);
+                canvas.drawRect(shadingXStart, y - paddingOverTwo, shadingXEnd, y + iconSize + paddingOverTwo,
+                        glowPaint);
+
+                //Draw the icon
+                int bitmapXStart = (int) ((int) x - iconSize);
+                int bitmapXEnd = (int) x;
+                scratchRect.set(bitmapXStart, (int) y, bitmapXEnd, (int) (y + iconSize));
+                scratchRect2.set(0, 0, b.getWidth(), b.getHeight());
+
+                transparencyPaint.setAlpha(255);
+                canvas.drawBitmap(b, scratchRect2, scratchRect, transparencyPaint);
+
+                //Draw text from the text + subtext
+                String text = label;
+                String widgetText = "Hold for widget";
+
+                float adjustedTextSize = (float) (textSize * 0.8);
+                float adjustedHelpTextSize = (float) (adjustedTextSize * 0.6);
+
+                labelPaint.setAlpha(255);
+                labelPaint.setTextSize(adjustedTextSize);
+                labelPaint.getTextBounds(text, 0, text.length(), outRect);
+
+                float textHeight = outRect.height();
+
+                labelPaint.setTextSize(adjustedHelpTextSize);
+                labelPaint.getTextBounds(widgetText, 0, widgetText.length(), outRect);
+
+                textHeight += outRect.height(); //Text height is height of the text we're to print
+                float marginOnEitherSideOfText  = ((iconSize + margin) - textHeight) / 2;
+
+                labelPaint.setTextSize(adjustedTextSize);
+                labelPaint.getTextBounds(text, 0, text.length(), outRect);
+
+                float heightOfMainText = outRect.height();
+
+                float centerYLine = y - paddingOverTwo + marginOnEitherSideOfText; //Now we're at the center of the space for the top text
+                centerYLine += (outRect.height() / 2); //Center it
+
+                x -= iconSize;
+                x -= margin;
+
+                //Draw the text
+                canvas.drawText(text, x - outRect.width(), centerYLine, labelPaint);
+
+                //Work on the subtext
+                labelPaint.setTextSize(adjustedHelpTextSize);
+                labelPaint.getTextBounds(widgetText, 0, widgetText.length(), outRect);
+
+                //Center text vertically
+                centerYLine = y - paddingOverTwo + marginOnEitherSideOfText + heightOfMainText;
+                centerYLine += outRect.height() / 2;
+
+                int white = getResources().getColor(R.color.white);
+                int lighterWhite = Color.argb(120, 255, 255, 255);
+
+                float startTransparency = ((float) (System.currentTimeMillis() - timerStart)) / ((float) WIDGET_HOLD_DURATION);
+                float endTransparency = startTransparency + 0.1f > 1f ? 1f : startTransparency + 0.1f;
+
+                log(startTransparency + " to " + endTransparency, true);
+
+                LinearGradient scratchGradient = new LinearGradient(x - outRect.width(), centerYLine, x,
+                        centerYLine,
+                        new int[] { white, white, lighterWhite, lighterWhite },
+                        new float[] { 0, startTransparency, endTransparency, 1 },
+                        Shader.TileMode.CLAMP);
+                labelPaint.setShader(scratchGradient);
+                canvas.drawText(widgetText, x - outRect.width(), centerYLine, labelPaint);
+                labelPaint.setShader(null);
+            }
 
             iconsStartY += sizes.first + iconPadding;
         }
@@ -1293,15 +1391,27 @@ public class ShortcutGestureView extends View {
             return Color.WHITE;
         }
 
-        Palette.from(b).generate(new Palette.PaletteAsyncListener() {
+        //TODO: Migrate to custom AsyncTask
+        AsyncTask<Bitmap, Void, Palette> task = new AsyncTask<Bitmap, Void, Palette>(){
             @Override
-            public void onGenerated(Palette palette) {
-                bitmapColorMap.put(hashCode, grabFromPalette(palette));
-                invalidate(); //Stop just drawing white.
+            protected Palette doInBackground(Bitmap... params) {
+                return Palette.from(params[0]).generate();
             }
-        });
 
-        bitmapColorMap.put(b.hashCode(), Color.WHITE);
+            @Override
+            protected void onPostExecute(Palette palette) {
+                bitmapColorMap.put(hashCode, grabFromPalette(palette));
+                invalidate(); //Stop just drawing white.;
+            }
+        };
+
+        try {
+            task.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, b);
+        } catch (RejectedExecutionException e) {
+            task.executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, b);
+        }
+
+        bitmapColorMap.put(hashCode, Color.WHITE);
         return Color.WHITE;
     }
 
@@ -1473,6 +1583,8 @@ public class ShortcutGestureView extends View {
 
         switch(event.getAction()){
             case MotionEvent.ACTION_DOWN:
+                if(rejectNextEvent) return false;
+
                 log("Motion event action down", false);
                 cleanTouchEvents();
                 initTouchOp(event);
@@ -1480,8 +1592,20 @@ public class ShortcutGestureView extends View {
                 host.dimScreen();
                 host.hideTopElements();
                 host.hideBottomElements();
+
+                touchX = event.getX();
+                touchY = event.getY();
+                lastTouchX = touchX;
+                lastTouchY = touchY;
+                gestureStartX = touchX;
+                gestureStartY = touchY;
+                cm = ViewMode.CHOOSING_FOLDER;
+                updateTouchEventsList();
+                updateSelectedTouchItem();
                 break;
             case MotionEvent.ACTION_MOVE:
+                if(rejectNextEvent) return false;
+
                 if(lastTouchY == Integer.MIN_VALUE){
                     lastTouchY = startY;
                 } else {
@@ -1496,9 +1620,6 @@ public class ShortcutGestureView extends View {
 
                 touchX = event.getX();
                 touchY = event.getY();
-
-                float dx = startX - event.getX();
-                float dy = startY - event.getY();
 
                 switch(cm){
                     case NONE:
@@ -1518,6 +1639,12 @@ public class ShortcutGestureView extends View {
                 break;
             case MotionEvent.ACTION_UP: //Up means we ought select something if we are in the right mode
                 log("Motion event action up", false);
+
+                if(rejectNextEvent){
+                    rejectNextEvent = false;
+                    return false;
+                }
+
                 switch(cm){
                     case NONE:
                     case ADDING_ICON:
@@ -1532,6 +1659,11 @@ public class ShortcutGestureView extends View {
                 break;
             case MotionEvent.ACTION_CANCEL:
                 log("Motion event action cancel", false);
+
+                if(rejectNextEvent){
+                    rejectNextEvent = false;
+                    return false;
+                }
 
                 resetState();
                 host.brightenScreen();
@@ -1582,7 +1714,7 @@ public class ShortcutGestureView extends View {
 
         this.postInvalidate();
 
-        log("resetState() finished", true);
+        log("resetState() finished", false);
     }
 
     private void preloadCard(TypeCard card){

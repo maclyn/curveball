@@ -18,7 +18,9 @@ public class Constants {
     public static final String CHARGING_APP_PREFERENCE = "charging_app_pref";
     public static final String LOW_POWER_APP_PREFERENCE = "low_power_app_pref";
 
+    @Deprecated
     public static final String SEARCH_APP_PREFERENCE = "search_pref";
+
     public static final String RESIZE_ALL_PREFERENCE = "resize_all_pref";
 
     public static final String SMART_BAR_NUM_PREFERENCE = "smart_bar_num_pref";
@@ -27,7 +29,6 @@ public class Constants {
     public static final String AGGRESIVE_CACHING_PREF = "aggresive_caching_pref";
 
     public static final String DEBUG_MODULES = "debug_modules_pref";
-
     public static final String WAKEUP_INTENT = "smartercardhome.inipage.com.usagehome.WAKEUP";
     public static final String FOUND_DATA_INTENT = "smartercardhome.inipage.com.usagehome.FOUND_DATA";
 

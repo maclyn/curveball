@@ -61,6 +61,7 @@ public class DragToOpenView extends RelativeLayout {
                 lastTime = event.getEventTime();
                 if(listener != null) listener.onDragChanged(dist);
                 break;
+            case MotionEvent.ACTION_CANCEL:
             case MotionEvent.ACTION_UP:
                 float time = event.getEventTime() - lastTime;
                 if(time == 0) time = 1;

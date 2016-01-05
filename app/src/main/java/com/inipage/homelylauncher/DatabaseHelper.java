@@ -86,14 +86,38 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     @Override
     public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
-        if (oldVersion == 1) { //v1 didn't have a widget table
+        if (oldVersion < 1) { //v1 didn't have a widget table
             db.execSQL(WIDGET_TABLE_CREATE);
             db.execSQL(SMARTAPPS_TABLE_CREATE);
-        } else if (oldVersion == 2){ //v2 didn't have a smartapps table
+        } else if (oldVersion < 2){ //v2 didn't have a smartapps table
             db.execSQL(SMARTAPPS_TABLE_CREATE);
-        } else if (oldVersion == 3) { //v3's widget table is corrupt!
+        } else if (oldVersion < 3) { //v3's widget table is corrupt!
             db.delete(TABLE_WIDGETS, null, null);
             db.execSQL(WIDGET_TABLE_CREATE);
+        }
+    }
+
+    @Override
+    public void onOpen(SQLiteDatabase db) {
+        try {
+            super.onOpen(db);
+        } catch (Exception e){
+            try {
+                db.delete(TABLE_WIDGETS, null, null);
+            } catch (Exception ignored) {}
+
+            try {
+                db.delete(TABLE_HIDDEN_APPS, null, null);
+            } catch (Exception ignored) {}
+
+            try {
+                db.delete(TABLE_ROWS, null, null);
+            } catch (Exception ignored) {}
+
+            try {
+                db.delete(TABLE_SMARTAPPS, null, null);
+            } catch (Exception ignored) {}
+            super.onOpen(db);
         }
     }
 }

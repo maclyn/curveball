@@ -8,4 +8,6 @@
     <color name="edit_folder_color">#f57c00</color>
     <color name="cancel_color">#d32f2f</color>
     <color name="open_all_color">#388e3c</color>
+    <color name="triangle_color">#80ffffff</color>
+    <color name="transparent">#00000000</color>
 </resources>

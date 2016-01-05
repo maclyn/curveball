@@ -14,7 +14,9 @@ import android.appwidget.AppWidgetHost;
 import android.appwidget.AppWidgetHostView;
 import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProviderInfo;
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
+import android.content.ClipData;
 import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.ContentUris;
@@ -87,6 +89,8 @@ import com.inipage.homelylauncher.swiper.AppEditAdapter;
 import com.inipage.homelylauncher.swiper.RowEditAdapter;
 import com.inipage.homelylauncher.utils.Utilities;
 import com.inipage.homelylauncher.views.DragToOpenView;
+import com.inipage.homelylauncher.views.ShortcutGestureView;
+import com.inipage.homelylauncher.views.ShortcutGestureViewHost;
 import com.inipage.homelylauncher.widgets.WidgetAddAdapter;
 import com.inipage.homelylauncher.widgets.WidgetContainer;
 import com.mobeta.android.dslv.DragSortListView;
@@ -183,7 +187,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
     //Home dockbar
     @Bind(R.id.dockApps)
-    LinearLayout dockbarApps;
+    RelativeLayout dockbarApps;
     @Bind(R.id.dockApp1)
     ImageView db1;
     @Bind(R.id.dockApp2)
@@ -206,6 +210,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     ImageView backToHome;
     @Bind(R.id.moreOptions)
     ImageView allAppsMenu;
+    @Bind(R.id.playStore)
+    ImageView playStoreButton;
     @Bind(R.id.clearSearch)
     ImageView clearSearch;
     @Bind(R.id.searchBox)
@@ -214,6 +220,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //Drop layout
     @Bind(R.id.dropLayout)
     LinearLayout dropLayout;
+
     //App drop layout
     @Bind(R.id.appDropIcons)
     RelativeLayout appDropLayout;
@@ -486,6 +493,29 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             public void onClick(View v) {
                 searchBox.setText("");
                 clearSearch.setVisibility(View.GONE);
+                playStoreButton.setVisibility(View.GONE);
+                hideKeyboard();
+            }
+        });
+        playStoreButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String text = searchBox.getText().toString();
+                String uri = "market://search?q=" + text;
+
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setData(Uri.parse(uri));
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                try {
+                    startActivity(intent);
+                } catch (ActivityNotFoundException anfe) {
+                    Toast.makeText(HomeActivity.this, R.string.store_not_installed,
+                            Toast.LENGTH_SHORT).show();
+                }
+
+                searchBox.setText("");
+                clearSearch.setVisibility(View.GONE);
+                playStoreButton.setVisibility(View.GONE);
                 hideKeyboard();
             }
         });
@@ -507,67 +537,73 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         searchBox.setOnEditorActionListener(new TextView.OnEditorActionListener() {
             @Override
             public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
-                boolean handled = false;
-                if (actionId == EditorInfo.IME_ACTION_GO) {
+                if (actionId == EditorInfo.IME_ACTION_GO ||
+                        (actionId == EditorInfo.IME_NULL && event.getAction() == KeyEvent.ACTION_DOWN)) {
                     //Try and open app
                     ((ApplicationIconAdapter) allAppsScreen.getAdapter()).launchTop();
                 }
-                return handled;
+                return false;
             }
         });
 
         //Set drag type of dockbar
-        uninstallApp.setOnDragListener(new View.OnDragListener() {
-            @Override
-            public boolean onDrag(View v, DragEvent event) {
-                //We only can operate an "apps"
-                if (event.getLocalState() == null ||
-                        !(event.getLocalState() instanceof ApplicationIcon)) return false;
-
-                ApplicationIcon ai  = (ApplicationIcon) event.getLocalState();
-                if (event.getAction() == DragEvent.ACTION_DROP) {
-                    try {
-                        Uri uri = Uri.parse("package:" + ai.getPackageName());
-                        Intent uninstallIntent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE, uri);
-                        uninstallIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_TASK_ON_HOME);
-                        v.getContext().startActivity(uninstallIntent);
-                    } catch (Exception e) {
-                        Toast.makeText(v.getContext(),
-                                "The app is unable to be removed.", Toast.LENGTH_LONG).show();
-                    }
-                }
-                return true;
-            }
-        });
-        appInfo.setOnDragListener(new View.OnDragListener() {
-            @Override
-            public boolean onDrag(View v, DragEvent event) {
-                if (event.getAction() == DragEvent.ACTION_DROP) {
-                    ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
-                    try {
-                        Uri uri = Uri.parse("package:" + ai.getPackageName());
-                        Intent uninstallIntent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
-                        uninstallIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_TASK_ON_HOME);
-                        uninstallIntent.setData(uri);
-                        v.getContext().startActivity(uninstallIntent);
-                    } catch (Exception e) {
-                        Toast.makeText(v.getContext(),
-                                "The app does not have info.", Toast.LENGTH_LONG).show();
-                    }
-                }
-                return true;
-            }
-        });
-        addToDock.setOnDragListener(new View.OnDragListener() {
+        appDropLayout.setOnDragListener(new View.OnDragListener() {
             @Override
             public boolean onDrag(View v, DragEvent event) {
                 switch(event.getAction()){
                     case DragEvent.ACTION_DRAG_ENTERED:
-                        Log.d(TAG, "Showing drop menu...");
-                        showDropMenu();
                         return true;
+                    case DragEvent.ACTION_DRAG_EXITED:
+                        return true;
+                    case DragEvent.ACTION_DRAG_LOCATION:
+                        if(event.getLocalState() == null || !(event.getLocalState() instanceof ApplicationIcon)) return false;
+
+                        double sw = getResources().getDisplayMetrics().widthPixels;
+                        double prog = event.getX() / sw;
+
+                        if(prog >= (2d/3d)){
+                            showDockApps();
+                            return true;
+                        }
+                        return false;
+                    case DragEvent.ACTION_DROP:
+                        if(event.getLocalState() == null || !(event.getLocalState() instanceof ApplicationIcon)) return false;
+
+                        double screenWidth = getResources().getDisplayMetrics().widthPixels;
+                        double progress = event.getX() / screenWidth;
+
+                        if(progress <= (1d/3d)){
+
+                            ApplicationIcon ai  = (ApplicationIcon) event.getLocalState();
+                            try {
+                                Uri uri = Uri.parse("package:" + ai.getPackageName());
+                                Intent uninstallIntent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE, uri);
+                                uninstallIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_TASK_ON_HOME);
+                                v.getContext().startActivity(uninstallIntent);
+                            } catch (Exception e) {
+                                Toast.makeText(v.getContext(),
+                                        "The app is unable to be removed.", Toast.LENGTH_LONG).show();
+                            }
+                            return true;
+                        } else if (progress <= (2d/3d)) {
+                            ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
+                            try {
+                                Uri uri = Uri.parse("package:" + ai.getPackageName());
+                                Intent uninstallIntent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                                uninstallIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_TASK_ON_HOME);
+                                uninstallIntent.setData(uri);
+                                v.getContext().startActivity(uninstallIntent);
+                            } catch (Exception e) {
+                                Toast.makeText(v.getContext(),
+                                        "The app does not have info.", Toast.LENGTH_LONG).show();
+                            }
+                            return true;
+                        } else {
+                            return false; //Should've already moved
+                        }
                 }
-                return false;
+
+                return true;
             }
         });
 
@@ -579,13 +615,13 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 switch (action) {
                     case DragEvent.ACTION_DRAG_STARTED:
                         if (event.getLocalState() instanceof ApplicationIcon) { //Moving apps around
-                            appDropLayout.setVisibility(View.VISIBLE);
                             toggleAppsContainer(false);
-                            showDropMenu();
+                            dimScreen();
+                            showDropMenuFast();
                         }
                         break;
                     case DragEvent.ACTION_DRAG_ENDED:
-                        showDockApps();
+                        resetState();
                         break;
                 }
                 return true;
@@ -897,7 +933,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             appsSearch.execute(this.getPackageManager());
         }
 
-        clearSearch.setVisibility(query == null || query.isEmpty() ? View.GONE : View.VISIBLE);
+        int visibility = query == null || query.isEmpty() ? View.GONE : View.VISIBLE;
+        clearSearch.setVisibility(visibility);
+        playStoreButton.setVisibility(visibility);
     }
 
     public void toggleAppsContainer(boolean visible){
@@ -1077,6 +1115,25 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 }
             }
         });
+        //Set drag option
+        v.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View v) {
+                //Start drag
+                try {
+                    PackageManager pm = getPackageManager();
+                    String label = pm.getActivityInfo(launchIntent.getComponent(), 0).loadLabel(pm).toString();
+
+                    ClipData cd = ClipData.newPlainText("description", "Passing app customIcon");
+                    View.DragShadowBuilder dsb = new View.DragShadowBuilder(v.findViewById(R.id.appIconSmall));
+                    v.startDrag(cd, dsb, new ApplicationIcon(launchIntent.getPackage(), label,
+                            launchIntent.getComponent().getClassName()), 0);
+                } catch (Exception e) {
+                    Toast.makeText(v.getContext(), R.string.error, Toast.LENGTH_SHORT).show();
+                }
+                return true;
+            }
+        });
 
         IconCache.getInstance().setSuggestionsIcon(packageName, (ImageView) v);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
@@ -1104,6 +1161,24 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     Toast.makeText(v.getContext(), "Couldn't start this app!", Toast.LENGTH_SHORT)
                             .show();
                 }
+            }
+        });
+        v.setOnLongClickListener(new View.OnLongClickListener() { //Setup drag
+            @Override
+            public boolean onLongClick(View v) {
+                //Start drag
+                try {
+                    PackageManager pm = getPackageManager();
+                    String label = pm.getActivityInfo(appLaunch.getComponent(), 0).loadLabel(pm).toString();
+
+                    ClipData cd = ClipData.newPlainText("description", "Passing app customIcon");
+                    View.DragShadowBuilder dsb = new View.DragShadowBuilder(v.findViewById(R.id.appIconImage));
+                    v.startDrag(cd, dsb, new ApplicationIcon(appLaunch.getPackage(), label,
+                            appLaunch.getComponent().getClassName()), 0);
+                } catch (Exception e) {
+                    Toast.makeText(v.getContext(), R.string.error, Toast.LENGTH_SHORT).show();
+                }
+                return true;
             }
         });
 
@@ -1576,7 +1651,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         }
                         List<Pair<String, String>> apps = new ArrayList<Pair<String, String>>();
                         apps.add(new Pair<>(ai.getPackageName(), ai.getActivityName()));
-                        sgv.data.add(new TypeCard(name, packageName, resourceName, apps));
+                        samples.add(new TypeCard(name, packageName, resourceName, apps));
                         persistList(samples);
                         dialog.dismiss();
                     }
@@ -1584,9 +1659,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     }
 
     public void showEditFolderDialog(final int row){
-        if(row >= 0 && row < sgv.data.size()){
-            packageName = sgv.data.get(row).getDrawablePackage();
-            resourceName = sgv.data.get(row).getDrawableName();
+        if(row >= 0 && row < samples.size()){
+            packageName = samples.get(row).getDrawablePackage();
+            resourceName = samples.get(row).getDrawableName();
 
             dialogView = getLayoutInflater().inflate(R.layout.dialog_new_folder, null);
             dialogView.findViewById(R.id.chooseIcon).setOnClickListener(new View.OnClickListener() {
@@ -1609,7 +1684,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
             ((ImageButton) dialogView.findViewById(R.id.chooseIcon)).setImageDrawable(d);
             final EditText et = (EditText) dialogView.findViewById(R.id.chooseName);
-            et.setText(sgv.data.get(row).getTitle());
+            et.setText(samples.get(row).getTitle());
             new MaterialDialog.Builder(this)
                     .customView(dialogView, false)
                     .title(R.string.edit_folder)
@@ -1624,7 +1699,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
                         @Override
                         public void onNegative(MaterialDialog dialog) {
-                            sgv.data.remove(row);
+                            samples.remove(row);
                             persistList(samples);
                             sgv.notifyShortcutsChanged();
                         }
@@ -1640,8 +1715,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                                 packageName = this.getClass().getPackage().getName();
                                 resourceName = "ic_folder_white_48dp";
                             }
-                            sgv.data.get(row).setTitle(name);
-                            sgv.data.get(row).setDrawable(resourceName, packageName);
+                            samples.get(row).setTitle(name);
+                            samples.get(row).setDrawable(resourceName, packageName);
 
                             persistList(samples);
                             sgv.notifyShortcutsChanged();
@@ -1655,7 +1730,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         DragSortListView dsiv = (DragSortListView) LayoutInflater.from(this).inflate(R.layout.sort_list, null);
         dsiv.setAdapter(new AppEditAdapter(this,
-                R.layout.app_edit_row, sgv.data.get(row).getPackages()));
+                R.layout.app_edit_row, samples.get(row).getPackages()));
         dsiv.setChoiceMode(AbsListView.CHOICE_MODE_NONE);
         new MaterialDialog.Builder(this)
                 .customView(dsiv, false)
@@ -1695,7 +1770,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     }
 
     public void batchOpen(int row) {
-        if(row >= 0 && row < sgv.data.size()){
+        if(row >= 0 && row < samples.size()){
             Intent sequentialLauncherService = new Intent(this, SequentialLauncherService.class);
             sequentialLauncherService.putExtra("row_position", row);
             this.startService(sequentialLauncherService);
@@ -1846,8 +1921,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //region ShortcutGestureViewHost helpers
     @Override
     public Pair<Float, Float> getBoundsWhenNotFullscreen() {
-        float top = timeDateContainer.getY() + timeDateContainer.getHeight();
-        float bottom = dockbarApps.getY();
+        //We don't
+
+        float top = timeDateContainer.getTop() + timeDateContainer.getHeight();
+        float bottom = dockBar.getTop();
 
         return new Pair<>(top, bottom);
     }
@@ -1867,12 +1944,14 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     private void loadWidgets(List<WidgetContainer> widgets) {
         Log.d(TAG, "Loading widgets...");
 
+        int foundCount = 0;
         loadRows: {
             Cursor loadItems =
                     db.query(DatabaseHelper.TABLE_WIDGETS, null, null, null, null, null,
                             DatabaseHelper.COLUMN_POSITION + " asc");
             if (loadItems.moveToFirst()) {
-                Log.d(TAG, "Found: " + loadItems.getCount());
+                foundCount = loadItems.getCount();
+                Log.d(TAG, "Found: " + foundCount);
 
                 int idColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_WIDGET_ID);
                 int sizeColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_SIZE_DP);
@@ -1894,6 +1973,11 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 Log.d(TAG, "No widgets found!");
             }
             loadItems.close();
+        }
+
+        verifyWidgets();
+        if(foundCount != widgets.size()){
+            persistWidgets(widgets); //Some were lost in update
         }
     }
 
@@ -2009,6 +2093,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                                             widgetOverlayContainer.removeViewAt(indexOfWidget);
                                             widgetHost.deleteAppWidgetId(wc.getWidgetId());
                                             widgets.remove(wc);
+                                            persistWidgets(widgets);
                                             showAddWidgetMenu(packageName);
                                             break;
                                     }
@@ -2019,6 +2104,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         }
                     });
                     widgetOverlay.setVisibility(View.VISIBLE);
+                    widgetOverlay.setOnClickListener(new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            hideWidgetOverlay();
+                        }
+                    });
                 } else { //(2) No -- show add menu
                     showAddWidgetMenu(packageName);
                 }
@@ -2092,9 +2183,6 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         });
     }
 
-
-
-
     private void updateWidgetInfo() {
         hasWidgetMap.clear();
         List<AppWidgetProviderInfo> installedProviders = widgetManager.getInstalledProviders();
@@ -2144,7 +2232,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
     public void addWidget(int appWidgetId, int height){
         try {
-            addWidget(appWidgetId, widgetManager.getAppWidgetInfo(appWidgetId), height);
+            AppWidgetProviderInfo awpi = widgetManager.getAppWidgetInfo(appWidgetId);
+            if(awpi == null) throw new Exception("AWPI null!");
+            addWidget(appWidgetId, awpi, height);
         } catch (Exception e) {
             Log.d(TAG, "Failed to add widget; removing from database...");
 
@@ -2418,6 +2508,13 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 0);
         leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
         leavingAnim.start();
+    }
+
+    private void showDropMenuFast() {
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+
+        dockbarApps.setTranslationX(-dm.widthPixels);
+        dropLayout.setTranslationX(0);
     }
 
     private void showDockApps(){

@@ -1,7 +1,8 @@
-package com.inipage.homelylauncher;
+package com.inipage.homelylauncher.views;
 
 import android.util.Pair;
 
+import com.inipage.homelylauncher.TypeCard;
 import com.inipage.homelylauncher.drawer.ApplicationIcon;
 
 import java.util.List;

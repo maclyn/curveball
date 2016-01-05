@@ -18,14 +18,12 @@ import java.util.Map;
 public class ApplicationHideAdapter extends ArrayAdapter<ApplicationHiderIcon> {
     List<ApplicationHiderIcon> apps;
     Context ctx;
-    Map<ApplicationIcon, Drawable> drawableMap;
 
     private float iconSize;
 
     public ApplicationHideAdapter(Context context, int resource, List<ApplicationHiderIcon> objects) {
         super(context, resource, objects);
         this.ctx = context;
-        this.drawableMap = drawableMap;
         this.apps = objects;
     }
 

@@ -23,15 +23,7 @@
         android:layout_height="match_parent"
         android:fitsSystemWindows="true">
 
-        <!-- An empty view whose purpose is just to manage the homescreen in response to drop
-            events. -->
-        <View
-            android:id="@+id/dropListener"
-            android:background="@android:color/transparent"
-            android:layout_width="0dp"
-            android:layout_height="0dp" />
-
-        <com.inipage.homelylauncher.ShortcutGestureView
+        <com.inipage.homelylauncher.views.ShortcutGestureView
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="@android:color/transparent"
@@ -318,7 +310,7 @@
                     android:layout_height="wrap_content"
                     android:layout_width="match_parent"
                     android:layout_toRightOf="@+id/backToHome"
-                    android:layout_toLeftOf="@+id/clearSearch"
+                    android:layout_toLeftOf="@+id/playStore"
                     android:hint="@string/search_hint"
                     android:textSize="18sp"
                     android:textColor="#111111"
@@ -351,6 +343,17 @@
                     android:src="@drawable/ic_close_grey_900_36dp"
                     android:visibility="gone"
                     android:padding="4dp" />
+
+                <ImageView
+                    android:id="@+id/playStore"
+                    android:layout_toLeftOf="@+id/clearSearch"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:layout_centerVertical="true"
+                    android:layout_marginLeft="8dp"
+                    android:src="@drawable/ic_shop_grey_900_36dp"
+                    android:visibility="gone"
+                    android:padding="4dp" />
             </RelativeLayout>
         </RelativeLayout>
 
@@ -362,7 +365,7 @@
             android:background="@android:color/transparent">
 
             <!-- Home screen mode -->
-            <LinearLayout
+            <RelativeLayout
                 android:id="@+id/dockApps"
                 android:layout_width="match_parent"
                 android:layout_height="64dp"
@@ -370,109 +373,119 @@
                 android:layout_alignParentBottom="true"
                 android:visibility="visible">
 
-                <ImageView
-                    android:id="@+id/dockApp1"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:padding="4dp"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:visibility="visible"
-                    android:layout_gravity="center_vertical"
-                    android:layout_marginLeft="16dp" />
+                <com.inipage.homelylauncher.views.TriangleView
+                    android:layout_centerInParent="true"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent" />
 
-                <View
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_weight="1" >
-                </View>
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
 
-                <ImageView
-                    android:id="@+id/dockApp2"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:padding="4dp"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:layout_gravity="center_vertical"
-                    android:visibility="visible" />
+                    <ImageView
+                        android:id="@+id/dockApp1"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:padding="4dp"
+                        android:background="?android:attr/selectableItemBackground"
+                        android:visibility="visible"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginLeft="16dp" />
 
-                <View
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_weight="1" >
-                </View>
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" >
+                    </View>
 
-                <ImageView
-                    android:id="@+id/dockApp3"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:padding="4dp"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:visibility="visible"
-                    android:layout_gravity="center_vertical" />
+                    <ImageView
+                        android:id="@+id/dockApp2"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:padding="4dp"
+                        android:background="?android:attr/selectableItemBackground"
+                        android:layout_gravity="center_vertical"
+                        android:visibility="visible" />
 
-                <View
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_weight="1" >
-                </View>
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" >
+                    </View>
 
-                <ImageView
-                    android:id="@+id/dockApp4"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:padding="4dp"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:visibility="visible"
-                    android:layout_gravity="center_vertical" />
+                    <ImageView
+                        android:id="@+id/dockApp3"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:padding="4dp"
+                        android:background="?android:attr/selectableItemBackground"
+                        android:visibility="visible"
+                        android:layout_gravity="center_vertical" />
 
-                <View
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_weight="1" >
-                </View>
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" >
+                    </View>
 
-                <ImageView
-                    android:id="@+id/dockApp5"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:padding="4dp"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:visibility="visible"
-                    android:layout_gravity="center_vertical"/>
+                    <ImageView
+                        android:id="@+id/dockApp4"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:padding="4dp"
+                        android:background="?android:attr/selectableItemBackground"
+                        android:visibility="visible"
+                        android:layout_gravity="center_vertical" />
 
-                <View
-                    android:id="@+id/fiveToSix"
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_weight="1" >
-                </View>
+                    <View
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" >
+                    </View>
 
-                <ImageView
-                    android:id="@+id/dockApp6"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:padding="4dp"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:visibility="visible"
-                    android:layout_gravity="center_vertical" />
+                    <ImageView
+                        android:id="@+id/dockApp5"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:padding="4dp"
+                        android:background="?android:attr/selectableItemBackground"
+                        android:visibility="visible"
+                        android:layout_gravity="center_vertical"/>
 
-                <View
-                    android:id="@+id/sixToSeven"
-                    android:layout_width="0dp"
-                    android:layout_height="1dp"
-                    android:layout_weight="1" >
-                </View>
+                    <View
+                        android:id="@+id/fiveToSix"
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" >
+                    </View>
 
-                <ImageView
-                    android:id="@+id/dockApp7"
-                    android:layout_width="56dp"
-                    android:layout_height="56dp"
-                    android:padding="4dp"
-                    android:background="?android:attr/selectableItemBackground"
-                    android:visibility="visible"
-                    android:layout_gravity="center_vertical"
-                    android:layout_marginRight="16dp" />
-            </LinearLayout>
+                    <ImageView
+                        android:id="@+id/dockApp6"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:padding="4dp"
+                        android:background="?android:attr/selectableItemBackground"
+                        android:visibility="visible"
+                        android:layout_gravity="center_vertical" />
+
+                    <View
+                        android:id="@+id/sixToSeven"
+                        android:layout_width="0dp"
+                        android:layout_height="1dp"
+                        android:layout_weight="1" >
+                    </View>
+
+                    <ImageView
+                        android:id="@+id/dockApp7"
+                        android:layout_width="56dp"
+                        android:layout_height="56dp"
+                        android:padding="4dp"
+                        android:background="?android:attr/selectableItemBackground"
+                        android:visibility="visible"
+                        android:layout_gravity="center_vertical"
+                        android:layout_marginRight="16dp" />
+                </LinearLayout>
+            </RelativeLayout>
 
             <!-- Icon drop mode -->
             <LinearLayout
@@ -485,6 +498,7 @@
                 android:layout_alignParentBottom="true"
                 android:orientation="vertical"
                 android:visibility="visible" >
+
                 <RelativeLayout
                     android:id="@+id/appDropIcons"
                     android:layout_width="match_parent"
@@ -515,6 +529,7 @@
                             android:shadowRadius="4"
                             android:shadowDy="2"/>
                     </LinearLayout>
+
                     <LinearLayout
                         android:id="@+id/appInfo"
                         android:layout_width="wrap_content"
@@ -538,6 +553,7 @@
                             android:shadowRadius="4"
                             android:shadowDy="2"/>
                     </LinearLayout>
+
                     <LinearLayout
                         android:id="@+id/addToDock"
                         android:layout_width="wrap_content"
@@ -637,4 +653,12 @@
         android:layout_height="70dp"
         android:gravity="center"
         android:visibility="gone" />
+
+    <!-- An empty view whose purpose is just to manage the homescreen in response to drop
+    events. -->
+    <View
+        android:id="@+id/dropListener"
+        android:background="@android:color/transparent"
+        android:layout_width="0dp"
+        android:layout_height="0dp" />
 </RelativeLayout>

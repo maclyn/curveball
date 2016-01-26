@@ -158,4 +158,5 @@
     <string name="swap_widget">Swap Widget</string>
     <string name="error">Error!</string>
     <string name="store_not_installed">Store app not installed on this phone.</string>
+    <string name="loading_suggestions">Loading suggestions...</string>
 </resources>

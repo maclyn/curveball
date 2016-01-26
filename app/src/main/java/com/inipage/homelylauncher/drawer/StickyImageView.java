@@ -15,9 +15,9 @@ import android.view.View;
 public class StickyImageView extends View {
     Bitmap bitmap;
 
-    Rect src;
-    Rect dst;
-    Paint paint;
+    Rect src = new Rect();
+    Rect dst = new Rect();
+    Paint paint = new Paint();
 
     public StickyImageView(Context context) {
         super(context);
@@ -34,16 +34,15 @@ public class StickyImageView extends View {
     @Override
     protected synchronized void onLayout(boolean changed, int left, int top, int right, int bottom) {
         if(changed){
-            dst = new Rect(0, 0, getWidth(), getHeight());
+            this.dst.set(0, 0, getWidth(), getHeight());
         }
     }
 
     public synchronized void setImageBitmap(Bitmap bitmap){
         this.bitmap = bitmap;
         if(bitmap != null){
-            this.src = new Rect(0, 0, bitmap.getWidth(), bitmap.getHeight());
-            this.dst = new Rect(0, 0, getWidth(), getHeight());
-            this.paint = new Paint();
+            this.src.set(0, 0, bitmap.getWidth(), bitmap.getHeight());
+            this.dst.set(0, 0, getWidth(), getHeight());
             this.paint.setAntiAlias(true);
         }
         invalidate();
@@ -52,5 +51,10 @@ public class StickyImageView extends View {
     @Override
     protected synchronized void onDraw(Canvas canvas) {
         if(bitmap != null) canvas.drawBitmap(bitmap, src, dst, paint);
+    }
+
+    @Override
+    protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+        setMeasuredDimension(MeasureSpec.getSize(widthMeasureSpec), MeasureSpec.getSize(heightMeasureSpec));
     }
 }

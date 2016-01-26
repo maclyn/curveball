@@ -30,38 +30,29 @@ import java.util.concurrent.RejectedExecutionException;
  * Class for maintaining icons in a memory cache. Very similar to an LRU, although manually
  * tweaked for the application's purposes. Net effect is to great reduce icon redraws.
  */
-public class IconCache {
+public class IconCache-bak {
     private static final String TAG = "IconCache";
 
-    /**
-     * Maximum tries to get an icon if a failure is only partial (e.g. OOM).
-     **/
+    /** Maximum tries to get an icon if a failure is only partial (e.g. OOM). **/
     private static final int MAX_RETRY_COUNT = 5;
 
-    /**
-     * A task that represents an element in the app drawer.
-     **/
+    /** A task that represents an element in the app drawer. **/
     public static final int APP_DRAWER_TASK = 1;
 
-    /**
-     * A task that represents setting an element on the dock.
-     **/
+    /** A task that represents setting an element on the dock. **/
     public static final int DOCK_TASK = 2;
 
-    /**
-     * A task that represents grabbing a R.id.{} for the swipe layout.
-     **/
-    public static final int SWIPE_ICON_LOCAL_RESOURCE_TASK = 3;
+    /** A task that represents grabbing a local icon for suggestions. */
+    public static final int SUGGESTIONS_ICON_TASK = 3;
 
-    /**
-     * A task that represents grabbing a resource from an icon pack. for the swipe layout.
-     **/
-    public static final int SWIPE_ICON_ICON_PACK_TASK = 4;
+    /** A task that represents grabbing a R.id.{} for the swipe layout. **/
+    public static final int SWIPE_ICON_LOCAL_RESOURCE_TASK = 4;
 
-    /**
-     * A task that represents grabbing a local icon for the swipe layout.
-     **/
-    public static final int SWIPE_ICON_APP_ICON_TASK = 5;
+    /** A task that represents grabbing a resource from an icon pack. for the swipe layout. **/
+    public static final int SWIPE_ICON_ICON_PACK_TASK = 5;
+
+    /** A task that represents grabbing a local icon for the swipe layout. **/
+    public static final int SWIPE_ICON_APP_ICON_TASK = 6;
 
     private int DEFAULT_ICON_SIZE = 48;
 
@@ -114,8 +105,8 @@ public class IconCache {
 
                 Drawable d;
                 Bitmap toDraw;
-                if (taskType == APP_DRAWER_TASK || taskType == DOCK_TASK) {
-                    if (taskType == DOCK_TASK) {
+                if(taskType == APP_DRAWER_TASK || taskType ==  DOCK_TASK) {
+                    if(taskType == DOCK_TASK) {
                         location = (ImageView) params[5];
                     } else {
                         location = (StickyImageView) params[5];
@@ -123,18 +114,22 @@ public class IconCache {
                     String componentName = (String) params[6];
                     ComponentName cm = new ComponentName(packageName, componentName);
                     d = pm.getActivityIcon(cm);
-                } else if (taskType == SWIPE_ICON_APP_ICON_TASK) {
+                } else if (taskType == SUGGESTIONS_ICON_TASK) {
+                    //We're just grabbing the package icon
+                    location = (StickyImageView) params[5];
+                    d = pm.getApplicationIcon(packageName);
+                } else if (taskType == SWIPE_ICON_APP_ICON_TASK){
                     String componentName = (String) params[5];
                     retrievalInterface = (ItemRetrievalInterface) params[6];
                     ComponentName cm = new ComponentName(packageName, componentName);
                     d = pm.getActivityIcon(cm);
-                } else if (taskType == SWIPE_ICON_ICON_PACK_TASK) {
+                } else if (taskType == SWIPE_ICON_ICON_PACK_TASK){
                     String resourceName = (String) params[5];
                     retrievalInterface = (ItemRetrievalInterface) params[6];
                     Resources res = pm.getResourcesForApplication(packageName);
                     int resourceId = res.getIdentifier(resourceName, "drawable", packageName);
                     d = res.getDrawable(resourceId);
-                } else if (taskType == SWIPE_ICON_LOCAL_RESOURCE_TASK) {
+                } else if (taskType == SWIPE_ICON_LOCAL_RESOURCE_TASK){
                     Integer resourceId = (Integer) params[5];
                     retrievalInterface = (ItemRetrievalInterface) params[6];
                     d = baseResources.getDrawable(resourceId);
@@ -156,7 +151,7 @@ public class IconCache {
                 evictUntilFree(toDraw.getByteCount() * 4);
 
                 synchronized (cacheLock) {
-                    if (taskType == APP_DRAWER_TASK || taskType == DOCK_TASK) {
+                    if (taskType == APP_DRAWER_TASK || taskType == DOCK_TASK || taskType == SUGGESTIONS_ICON_TASK) {
                         iconCache.put(tag, new Pair<>(1, toDraw));
                     } else if (taskType == SWIPE_ICON_ICON_PACK_TASK || taskType == SWIPE_ICON_LOCAL_RESOURCE_TASK ||
                             taskType == SWIPE_ICON_APP_ICON_TASK) {
@@ -168,14 +163,14 @@ public class IconCache {
             } catch (PackageManager.NameNotFoundException e) {
                 Log.e(TAG, "Unable to retrieve icon for package; " + e.getMessage());
                 return RetrievalTaskResponse.TOTAL_FAILURE;
-            } catch (Resources.NotFoundException e) {
+            } catch (Resources.NotFoundException e){
                 Log.e(TAG, "Unable to retrieve icon pack entry; " + e.getMessage());
                 return RetrievalTaskResponse.TOTAL_FAILURE;
-            } catch (OutOfMemoryError e) { //OOM errors, usually
+            } catch (OutOfMemoryError e){ //OOM errors, usually
                 Log.e(TAG, "OutOfMemory while retrieving icon");
                 int retryCount = (int) params[params.length - 1];
 
-                if (retryCount > MAX_RETRY_COUNT) {
+                if(retryCount > MAX_RETRY_COUNT){
                     return RetrievalTaskResponse.TOTAL_FAILURE;
                 } else {
                     copy = params.clone();
@@ -192,15 +187,15 @@ public class IconCache {
                 taskList.remove(taskRef);
             }
 
-            if (result == RetrievalTaskResponse.PARTIAL_FAILURE) {
+            if(result == RetrievalTaskResponse.PARTIAL_FAILURE){
                 delayedRetry(copy);
-            } else if (result == RetrievalTaskResponse.TOTAL_FAILURE) {
+            } else if (result == RetrievalTaskResponse.TOTAL_FAILURE){
                 return; //Nothing to do here
             }
 
             synchronized (cacheLock) {
                 try {
-                    if (taskType == APP_DRAWER_TASK || taskType == DOCK_TASK) {
+                    if (taskType == APP_DRAWER_TASK || taskType == DOCK_TASK || taskType == SUGGESTIONS_ICON_TASK) {
                         if (location == null || location.getTag() == null) return; //We're done here
 
                         if (location.getTag().equals(tag)) {
@@ -211,19 +206,16 @@ public class IconCache {
                                 else
                                     ((StickyImageView) location).setImageBitmap(res.second);
                             }
-                        } else {
-                        } //Location has changed purpose; request is pointless; OK
+                        } else {} //Location has changed purpose; request is pointless; OK
                     } else if (taskType == SWIPE_ICON_ICON_PACK_TASK || taskType == SWIPE_ICON_LOCAL_RESOURCE_TASK
                             || taskType == SWIPE_ICON_APP_ICON_TASK) {
                         Pair<Integer, Bitmap> res = swipeCache.get(tag);
-                        if (res != null) {
+                        if(res != null) {
                             Bitmap bmpResult = swipeCache.get(tag).second;
-                            if (retrievalInterface != null)
-                                retrievalInterface.onRetrievalComplete(bmpResult);
+                            if (retrievalInterface != null) retrievalInterface.onRetrievalComplete(bmpResult);
                         } else {
                             Log.e(TAG, "Swipe cache unexpected missing element; high memory situation found");
-                            if (retrievalInterface != null)
-                                retrievalInterface.onRetrievalComplete(dummyBitmap);
+                            if (retrievalInterface != null) retrievalInterface.onRetrievalComplete(dummyBitmap);
                         }
                     }
                 } catch (Error memoryError) {
@@ -233,10 +225,8 @@ public class IconCache {
         }
     }
 
-    /**
-     * Retry getting an icon if its initial failure was for memory pressure/strange reasons and
-     * can be expected to succeed if tried again.
-     *
+    /** Retry getting an icon if its initial failure was for memory pressure/strange reasons and
+     *  can be expected to succeed if tried again.
      * @param params The params object from the original task.
      */
     private void delayedRetry(Object[] params) {
@@ -247,6 +237,8 @@ public class IconCache {
             case APP_DRAWER_TASK:
                 break;
             case DOCK_TASK:
+                break;
+            case SUGGESTIONS_ICON_TASK:
                 break;
             case SWIPE_ICON_LOCAL_RESOURCE_TASK:
                 break;
@@ -262,11 +254,11 @@ public class IconCache {
         //Log.d(TAG, "Checking if space present for " + byteCount + " bytes");
 
         long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
-        if (usedMemory < memoryPressureLimit) { //Used > pressure value
+        if(usedMemory < memoryPressureLimit){ //Used > pressure value
 //            Log.d(TAG, "Only " + usedMemory + " bytes used; pressure fine for now");
             return;
         } else {
-            //          Log.d(TAG, "Memory pressure tight; trying to evict");
+  //          Log.d(TAG, "Memory pressure tight; trying to evict");
         }
 
         synchronized (cacheLock) {
@@ -281,7 +273,7 @@ public class IconCache {
                     maximumUsageNumber = entry.getValue().first;
             }
 
-            //        Log.d(TAG, "Most used element has been used " + maximumUsageNumber + " times");
+    //        Log.d(TAG, "Most used element has been used " + maximumUsageNumber + " times");
 
             usageLoop:
             {
@@ -301,10 +293,10 @@ public class IconCache {
                 }
             }
 
-            //      Log.d(TAG, toEvict.size() + " elements removed to free " + bytesFreed + " bytes");
+      //      Log.d(TAG, toEvict.size() + " elements removed to free " + bytesFreed + " bytes");
 
             for (String s : toEvict) {
-                //        Log.d(TAG, "Evicting: " + s);
+        //        Log.d(TAG, "Evicting: " + s);
                 iconCache.remove(s);
             }
         }
@@ -312,14 +304,13 @@ public class IconCache {
 
     public interface ItemRetrievalInterface {
         void onRetrievalStarted();
-
         void onRetrievalComplete(Bitmap result);
     }
 
-    private IconCache() {
+    private IconCache(){
         memoryPressureLimit = (long) (Runtime.getRuntime().maxMemory() * 0.8f); //Max memory in kilobytes
 
-        iconCache = new HashMap<>();
+        iconCache =  new HashMap<>();
         swipeCache = new HashMap<>();
 
         pm = ApplicationClass.getInstance().getPackageManager();
@@ -341,7 +332,7 @@ public class IconCache {
                 ApplicationClass.getInstance().getResources().getDisplayMetrics());
     }
 
-    public static IconCache getInstance() {
+    public static IconCache getInstance(){
         return instance == null ? (instance = new IconCache()) : instance;
     }
 
@@ -359,24 +350,24 @@ public class IconCache {
         }
     }
 
-    private void setIconImpl(String packageName, String componentName, View place, int taskType, int retryCount) {
+    private void setIconImpl(String packageName, String componentName, View place, int taskType, int retryCount){
         final String key = packageName + "|" + componentName;
-        if (place != null) place.setTag(key);
+        if(place != null) place.setTag(key);
 
         Bitmap icon = null;
         synchronized (cacheLock) {
             icon = iconCache.get(key) == null ? null : iconCache.get(key).second;
         }
-        if (icon != null) {
+        if(icon != null){
             try {
-                if (place != null) {
-                    if (taskType == DOCK_TASK)
-                        ((ImageView) place).setImageBitmap(icon);
+                if(place != null){
+                    if(taskType == DOCK_TASK)
+                        ((ImageView)place).setImageBitmap(icon);
                     else
-                        ((StickyImageView) place).setImageBitmap(icon);
+                        ((StickyImageView)place).setImageBitmap(icon);
                 }
                 return;
-            } catch (Exception ignored) { //This means the bitmap has been recycled/otherwise trashed
+            } catch (Exception ignored){ //This means the bitmap has been recycled/otherwise trashed
                 Log.d(TAG, "Icon recycled!");
             }
         }
@@ -399,36 +390,34 @@ public class IconCache {
                 getter.execute(taskType, key, packageName, pair,
                         place != null ? place.getWidth() : DEFAULT_ICON_SIZE, place, componentName,
                         retryCount);
-            } catch (Exception ignored) {
-            }
+            } catch (Exception ignored) {}
         }
     }
 
     /**
      * Set the icon for a given drawable on an icon. Begins a set of tasks for setting icons.
-     *
-     * @param packageName   The package of the icon.
+     * @param packageName The package of the icon.
      * @param componentName The component of the icon.
-     * @param place         Where to set it (can be null just to cache it).
+     * @param place Where to set it (can be null just to cache it).
      */
-    public void setIcon(String packageName, String componentName, StickyImageView place) {
+    public void setIcon(String packageName, String componentName, StickyImageView place){
         setIconImpl(packageName, componentName, place, APP_DRAWER_TASK, 0);
     }
 
-    public Bitmap getSwipeCacheIcon(int resource, float sizeHint, ItemRetrievalInterface callback) {
+    public Bitmap getSwipeCacheIcon(int resource, float sizeHint, ItemRetrievalInterface callback){
         return getSwipeCacheIcon(resource, sizeHint, callback, 0);
     }
 
-    private Bitmap getSwipeCacheIcon(int resource, float sizeHint, ItemRetrievalInterface callback, int retryCount) {
+    private Bitmap getSwipeCacheIcon(int resource, float sizeHint, ItemRetrievalInterface callback, int retryCount){
         String key = "-1|" + resource;
         Pair<Integer, Bitmap> cachedCopy = swipeCache.get(key);
-        if (cachedCopy != null && cachedCopy.second != null && !cachedCopy.second.isRecycled()) {
+        if(cachedCopy != null && cachedCopy.second != null && !cachedCopy.second.isRecycled()){
             swipeCache.put(key, new Pair<>(cachedCopy.first + 1, cachedCopy.second));
             return cachedCopy.second;
         }
 
         //Start a task if needed
-        if (!taskMap.containsKey(key)) {
+        if(!taskMap.containsKey(key)) {
             BitmapRetrievalTask getter = new BitmapRetrievalTask();
             Pair<Integer, BitmapRetrievalTask> pair = new Pair<>(SWIPE_ICON_LOCAL_RESOURCE_TASK, getter);
             taskList.add(pair);
@@ -441,8 +430,7 @@ public class IconCache {
                 try {
                     getter.execute(SWIPE_ICON_LOCAL_RESOURCE_TASK, key, "com.inipage.homelylauncher",
                             pair, (int) sizeHint, resource, callback, retryCount);
-                } catch (Exception ignored) {
-                }
+                } catch (Exception ignored) {}
             }
         }
         return dummyBitmap;
@@ -453,16 +441,16 @@ public class IconCache {
     }
 
 
-    private Bitmap getSwipeCacheIcon(String iconPackPackage, String resource, float sizeHint, ItemRetrievalInterface callback, int retryCount) {
+    private Bitmap getSwipeCacheIcon(String iconPackPackage, String resource, float sizeHint, ItemRetrievalInterface callback, int retryCount){
         String key = iconPackPackage + "|" + resource;
         Pair<Integer, Bitmap> cachedCopy = swipeCache.get(key);
-        if (cachedCopy != null && cachedCopy.second != null && !cachedCopy.second.isRecycled()) {
+        if(cachedCopy != null && cachedCopy.second != null && !cachedCopy.second.isRecycled()){
             swipeCache.put(key, new Pair<>(cachedCopy.first + 1, cachedCopy.second));
             return cachedCopy.second;
         }
 
         //Start a task if needed
-        if (!taskMap.containsKey(key)) {
+        if(!taskMap.containsKey(key)) {
             BitmapRetrievalTask getter = new BitmapRetrievalTask();
             Pair<Integer, BitmapRetrievalTask> pair = new Pair<>(SWIPE_ICON_LOCAL_RESOURCE_TASK, getter);
             taskList.add(pair);
@@ -474,8 +462,7 @@ public class IconCache {
                 try {
                     getter.execute(SWIPE_ICON_ICON_PACK_TASK, key, iconPackPackage, pair, (int) sizeHint,
                             resource, callback, 0);
-                } catch (Exception ignored) {
-                }
+                } catch (Exception ignored) {}
             }
         }
         return dummyBitmap;
@@ -485,17 +472,17 @@ public class IconCache {
         return getSwipeCacheAppIcon(iconPackPackage, activityName, sizeHint, callback, 0);
     }
 
-    private Bitmap getSwipeCacheAppIcon(String iconPackPackage, String activityName, float sizeHint, ItemRetrievalInterface callback, int retryCount) {
+    private Bitmap getSwipeCacheAppIcon(String iconPackPackage, String activityName, float sizeHint, ItemRetrievalInterface callback, int retryCount){
         String key = iconPackPackage + "|" + activityName;
         Pair<Integer, Bitmap> cachedCopy = swipeCache.get(key);
-        if (cachedCopy != null && cachedCopy.second != null && !cachedCopy.second.isRecycled()) {
+        if(cachedCopy != null && cachedCopy.second != null && !cachedCopy.second.isRecycled()){
             swipeCache.put(key, new Pair<>(cachedCopy.first + 1, cachedCopy.second));
             return cachedCopy.second;
         }
 
 
         //Start a task if needed
-        if (!taskMap.containsKey(key)) {
+        if(!taskMap.containsKey(key)) {
             BitmapRetrievalTask getter = new BitmapRetrievalTask();
             Pair<Integer, BitmapRetrievalTask> pair = new Pair<>(SWIPE_ICON_APP_ICON_TASK, getter);
             taskList.add(pair);
@@ -507,8 +494,7 @@ public class IconCache {
                 try {
                     getter.execute(SWIPE_ICON_APP_ICON_TASK, key, iconPackPackage, pair,
                             (int) sizeHint, activityName, callback, retryCount);
-                } catch (Exception ignored) {
-                }
+                } catch (Exception ignored) {}
             }
         }
         return dummyBitmap;
@@ -516,24 +502,61 @@ public class IconCache {
 
     /**
      * Set the icon for a given drawable on an dock element.
-     *
-     * @param packageName   The package of the icon.
+     * @param packageName The package of the icon.
      * @param componentName The component of the icon.
-     * @param place         Where to set it.
+     * @param place Where to set it.
      */
-    public void setDockIcon(String packageName, String componentName, ImageView place) {
+    public void setDockIcon(String packageName, String componentName, ImageView place){
         setIconImpl(packageName, componentName, place, DOCK_TASK, 0);
     }
 
-    private void cancelTaskImpl(int taskType) {
-        for (Pair<Integer, BitmapRetrievalTask> task : taskList) {
-            if (task.first == taskType && !task.second.isCancelled()) {
+    /**
+     * Set the icon for a given drawable on a suggestion element.
+     * @param packageName The package name of the icon.
+     * @param place Where to set it.
+     */
+    public void setSuggestionsIcon(String packageName, StickyImageView place) {
+        setSuggestionsIcon(packageName, place, 0);
+    }
+
+    private void setSuggestionsIcon(String packageName, StickyImageView place, int retryCount){
+        final String key = packageName + "|" + "-1";
+        place.setTag(key);
+
+        Pair<Integer, Bitmap> entry = iconCache.get(key);
+        if(entry != null && entry.second != null){
+            try {
+                place.setImageBitmap(entry.second);
+                return;
+            } catch (Exception ignored){ //This means the bitmap has been recycled
+            }
+        }
+
+        //Start a task
+        BitmapRetrievalTask getter = new BitmapRetrievalTask();
+        Pair<Integer, BitmapRetrievalTask> pair = new Pair<>(SUGGESTIONS_ICON_TASK, getter);
+        taskList.add(pair);
+
+        try {
+            getter.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, SUGGESTIONS_ICON_TASK, key,
+                    packageName, pair, place.getWidth(), place, retryCount);
+        } catch (RejectedExecutionException tooManyRunning) {
+            try {
+                getter.execute(SUGGESTIONS_ICON_TASK, key, packageName, pair, place.getWidth(), place,
+                        retryCount);
+            } catch (Exception ignored) {}
+        }
+    }
+
+    private void cancelTaskImpl(int taskType){
+        for(Pair<Integer, BitmapRetrievalTask> task : taskList){
+            if(task.first == taskType && !task.second.isCancelled()){
                 task.second.cancel(true);
             }
         }
     }
 
-    public void cancelPendingDockTasks() {
+    public void cancelPendingDockTasks(){
         cancelTaskImpl(DOCK_TASK);
     }
 
@@ -546,7 +569,7 @@ public class IconCache {
         cancelTaskImpl(SWIPE_ICON_ICON_PACK_TASK);
     }
 
-    public void cancelPendingIconTaskIfRunning(String tag) {
+    public void cancelPendingIconTaskIfRunning(String tag){
         synchronized (taskLock) {
             if (taskMap.containsKey(tag) && !taskMap.get(tag).isCancelled()) {
                 taskMap.get(tag).cancel(true);

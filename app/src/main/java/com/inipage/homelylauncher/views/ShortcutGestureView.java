@@ -314,8 +314,9 @@ public class ShortcutGestureView extends View {
                     startX = event.getX();
                     startY = event.getY();
                     startTime = System.currentTimeMillis();
-                    log("Drag started " + startX + " " + startY, false);
+                    log("Drag started " + startX + " " + startY, true);
                     cm = ViewMode.ADDING_ICON;
+
                     invalidate();
                     break;
                 case DragEvent.ACTION_DRAG_EXITED:
@@ -323,25 +324,26 @@ public class ShortcutGestureView extends View {
                     invalidate();
                     break;
                 case DragEvent.ACTION_DRAG_LOCATION:
-                    if (data.size() != 0) {
-                        updateSelectedDragItem(event.getY());
-                        invalidate();
-                    }
+                    updateSelectedDragItem(event.getY());
+                    invalidate();
                     break;
                 case DragEvent.ACTION_DRAG_ENDED:
-                    log("Drag ended", false);
+                    log("Drag ended", true);
                     if (cm == ViewMode.ADDING_ICON && selectedY >= 0) {
                         ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
 
                         if (selectedY == data.size()) { //Add a new row
+                            log("Adding to new row...", true);
                             host.showCreateFolderDialog(ai);
                         } else {
-                            log("Adding to an old row...", false);
+                            log("Adding to an old row...", true);
                             data.get(selectedY).getPackages().add(new Pair<>
                                     (ai.getPackageName(), ai.getActivityName()));
                             host.persistList(data);
                             preloadCard(data.get(selectedY));
                         }
+                    } else {
+                        log("Invalid state to end drag...", true);
                     }
                     resetState();
                     break;
@@ -379,14 +381,14 @@ public class ShortcutGestureView extends View {
         int numRows = data.size() + 1; //At least one/two
 
         float percent = location / (float) (getHeight() - host.getBottomMargin());
-        log("Percent is: " + percent, false);
+        log("Percent is: " + percent, true);
         float selection = percent * numRows;
-        log("Raw selection is: " + selection, false);
+        log("Raw selection is: " + selection, true);
         selectedY = (int) floor(selection);
         if (selectedY < 0) selectedY = 0;
         if (selectedY > data.size()) selectedY = data.size();
 
-        log("Selected element is : " + selectedY, false);
+        log("Selected element is : " + selectedY, true);
         invalidate();
     }
 
@@ -1600,6 +1602,7 @@ public class ShortcutGestureView extends View {
                 gestureStartX = touchX;
                 gestureStartY = touchY;
                 cm = ViewMode.CHOOSING_FOLDER;
+
                 updateTouchEventsList();
                 updateSelectedTouchItem();
                 break;
@@ -1623,10 +1626,6 @@ public class ShortcutGestureView extends View {
 
                 switch(cm){
                     case NONE:
-                        gestureStartX = touchX;
-                        gestureStartY = touchY;
-                        cm = ViewMode.CHOOSING_FOLDER;
-                        break;
                     case ADDING_ICON:
                         break;
                     case CHOOSING_FOLDER:

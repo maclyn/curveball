@@ -1,8 +1,8 @@
-<RelativeLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_height="wrap_content"
     android:layout_width="match_parent"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:fitsSystemWindows="false"
     android:clipToPadding="false"
     tools:context=".HomeActivity">
@@ -156,7 +156,7 @@
             android:id="@+id/allAppsContainer"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:visibility="gone"
+            android:visibility="visible"
             android:layout_alignParentTop="true"
             android:background="#d0ffffff">
 
@@ -168,54 +168,80 @@
                 android:background="@drawable/all_apps_bg">
 
                 <!-- Layout for the suggestions box -->
-                <TextView
+                <LinearLayout
+                    android:orientation="vertical"
                     android:layout_alignParentTop="true"
-                    android:id="@+id/suggestionsLabel"
-                    android:text="@string/suggestions"
+                    android:id="@+id/suggestionsBox"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:textSize="16sp"
-                    android:fontFamily="sans-serif-condensed"
-                    android:textColor="#111111"
-                    android:layout_marginTop="8dp"
-                    android:layout_marginLeft="8dp" />
+                    android:layout_height="wrap_content">
 
-                <TextView
-                    android:layout_below="@+id/suggestionsLabel"
-                    android:id="@+id/no_suggestions_right_now"
-                    android:text="@string/no_suggestions_right_now"
-                    android:textColor="#111111"
-                    android:textSize="14sp"
-                    android:padding="8dp"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content" />
-
-                <HorizontalScrollView
-                    android:layout_below="@+id/no_suggestions_right_now"
-                    android:id="@+id/suggestionsScrollView"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:scrollbars="none" >
-
+                    <!-- Icon and no, loading, or actual suggestions -->
                     <LinearLayout
-                        android:id="@+id/suggestionsLayout"
                         android:orientation="horizontal"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:gravity="center" />
-                </HorizontalScrollView>
+                        android:background="@drawable/suggestions_box_background">
 
-                <View
-                    android:layout_below="@+id/suggestionsScrollView"
-                    android:background="#000000"
-                    android:id="@+id/suggestionsDivider"
-                    android:layout_width="match_parent"
-                    android:layout_height="2dp" />
+                        <ImageView
+                            android:id="@+id/suggestionsLabel"
+                            android:src="@drawable/ic_lightbulb_outline_white_48dp"
+                            android:layout_width="48dp"
+                            android:layout_height="48dp"
+                            android:textSize="16sp"
+                            android:fontFamily="sans-serif-condensed"
+                            android:textColor="#111111"
+                            android:layout_marginTop="8dp"
+                            android:layout_marginLeft="8dp" />
+
+                        <FrameLayout
+                            android:id="@+id/suggestionsFillContainer"
+                            android:layout_width="match_parent"
+                            android:layout_height="64dp">
+
+                            <TextView
+                                android:id="@+id/loading_suggestions"
+                                android:text="@string/loading_suggestions"
+                                android:layout_gravity="center"
+                                android:textColor="@color/white"
+                                android:textSize="16sp"
+                                android:padding="8dp"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:visibility="gone"/>
+
+                            <TextView
+                                android:id="@+id/no_suggestions_right_now"
+                                android:text="@string/no_suggestions_right_now"
+                                android:layout_gravity="center"
+                                android:textColor="@color/white"
+                                android:textSize="16sp"
+                                android:padding="8dp"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content" />
+
+                            <HorizontalScrollView
+                                android:id="@+id/suggestionsScrollView"
+                                android:layout_width="match_parent"
+                                android:layout_height="64dp"
+                                android:visibility="gone"
+                                android:scrollbars="none" >
+
+                                <LinearLayout
+                                    android:id="@+id/suggestionsLayout"
+                                    android:orientation="horizontal"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="match_parent"
+                                    android:gravity="center" />
+                            </HorizontalScrollView>
+                        </FrameLayout>
+                    </LinearLayout>
+
+                </LinearLayout>
 
                 <!-- Layout for the apps grid (vertically scrolling list) -->
                 <RelativeLayout
                     android:id="@+id/allAppsLayoutContainer"
-                    android:layout_below="@+id/suggestionsDivider"
+                    android:layout_below="@+id/suggestionsBox"
                     android:layout_above="@+id/appsDivider"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent">
@@ -230,7 +256,7 @@
 
                 <View
                     android:layout_above="@+id/scrollerContainer"
-                    android:background="#000000"
+                    android:background="#a0000000"
                     android:id="@+id/appsDivider"
                     android:layout_width="match_parent"
                     android:layout_height="2dp" />
@@ -264,7 +290,7 @@
                             android:layout_height="32dp">
 
                             <View
-                                android:background="#111111"
+                                android:background="#a0000000"
                                 android:layout_centerVertical="true"
                                 android:layout_width="match_parent"
                                 android:layout_height="2dp" />
@@ -586,7 +612,8 @@
         android:id="@+id/widgetOverlay"
         android:background="#a0000000"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        android:visibility="gone">
 
         <LinearLayout
             android:orientation="vertical"
@@ -645,14 +672,15 @@
 
     <TextView
         android:text="A"
-        android:background="@drawable/quick_scroll_bg"
+        android:background="@drawable/quick_scroll_tab"
         android:id="@+id/popup"
-        android:textSize="48sp"
+        android:textSize="42sp"
         android:textColor="#101010"
         android:layout_width="70dp"
         android:layout_height="70dp"
         android:gravity="center"
-        android:visibility="gone" />
+        android:visibility="gone"
+        android:paddingBottom="18dp" />
 
     <!-- An empty view whose purpose is just to manage the homescreen in response to drop
     events. -->

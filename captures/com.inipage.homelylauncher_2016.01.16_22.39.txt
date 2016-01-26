@@ -1,0 +1,61 @@
+Applications Graphics Acceleration Info:
+Uptime: 751829 Realtime: 751829
+
+** Graphics info for pid 10116 [com.inipage.homelylauncher] **
+
+Stats since: 48978871212ns
+Total frames rendered: 1019
+Janky frames: 638 (62.61%)
+90th percentile: 113ms
+95th percentile: 121ms
+99th percentile: 133ms
+Number Missed Vsync: 379
+Number High input latency: 164
+Number Slow UI thread: 329
+Number Slow bitmap uploads: 101
+Number Slow issue draw commands: 539
+
+Caches:
+Current memory usage / total memory usage (bytes):
+  TextureCache          1840028 / 25165824
+  LayerCache                  0 / 16777216 (numLayers = 0)
+  Layers total          0 (numLayers = 0)
+  RenderBufferCache           0 /  2097152
+  GradientCache               0 /   524288
+  PathCache              372896 /  4194304
+  TessellationCache         744 /  1048576
+  TextDropShadowCache    167840 /  2097152
+  PatchCache                 64 /   131072
+  FontRenderer 0 A8      524288 /   524288
+  FontRenderer 0 RGBA         0 /        0
+  FontRenderer 0 total   524288 /   524288
+Other:
+  FboCache                    0 /        0
+Total memory usage:
+  2905860 bytes, 2.77 MB
+
+Profile data in ms:
+
+	com.inipage.homelylauncher/com.inipage.homelylauncher.HomeActivity/android.view.ViewRootImpl@b6ef1c3 (visibility=0)
+Stats since: 48978871212ns
+Total frames rendered: 1019
+Janky frames: 638 (62.61%)
+90th percentile: 113ms
+95th percentile: 121ms
+99th percentile: 133ms
+Number Missed Vsync: 379
+Number High input latency: 164
+Number Slow UI thread: 329
+Number Slow bitmap uploads: 101
+Number Slow issue draw commands: 539
+
+View hierarchy:
+
+  com.inipage.homelylauncher/com.inipage.homelylauncher.HomeActivity/android.view.ViewRootImpl@b6ef1c3
+  81 views, 101.37 kB of display lists
+
+
+Total ViewRootImpl: 1
+Total Views:        81
+Total DisplayList:  101.37 kB
+

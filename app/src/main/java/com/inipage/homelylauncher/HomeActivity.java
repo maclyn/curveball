@@ -54,7 +54,6 @@ import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Pair;
 import android.view.DragEvent;
-import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
@@ -65,6 +64,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.EditText;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -83,6 +83,7 @@ import com.inipage.homelylauncher.drawer.ApplicationHiderIcon;
 import com.inipage.homelylauncher.drawer.ApplicationIcon;
 import com.inipage.homelylauncher.drawer.ApplicationIconAdapter;
 import com.inipage.homelylauncher.drawer.FastScroller;
+import com.inipage.homelylauncher.drawer.StickyImageView;
 import com.inipage.homelylauncher.icons.IconCache;
 import com.inipage.homelylauncher.icons.IconChooserActivity;
 import com.inipage.homelylauncher.swiper.AppEditAdapter;
@@ -266,8 +267,17 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     private HashMap<String, Boolean> hasWidgetMap = new HashMap<>();
 
     //Suggestions
+    @Bind(R.id.suggestionsBox)
+    View suggestionsRootView;
+
+    @Bind(R.id.loading_suggestions)
+    TextView loadingSuggestions;
+
     @Bind(R.id.no_suggestions_right_now)
     TextView noSuggestions;
+
+    @Bind(R.id.suggestionsScrollView)
+    HorizontalScrollView suggestionsSV;
 
     @Bind(R.id.suggestionsLayout)
     LinearLayout suggestionsLayout;
@@ -293,7 +303,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     Handler testHandler;
     //List<AppWidgetHostView> testRef = new ArrayList<>();
 
-    /** Some dialogs have onDismiss(...) listeners that open their 'parent' dialogs. This variable
+    /**
+     * Some dialogs have onDismiss(...) listeners that open their 'parent' dialogs. This variable
      * lets us know when we intentionally raise a child dialog of depth two, so as not to trigger
      * the onDismiss(...) showing of a depth 1 dialog from a child dialog of depth 2. Yes,
      * this is a gimmicky hack until we have better dialog management.
@@ -313,9 +324,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         ButterKnife.bind(this);
 
-        if(Utilities.isSmallTablet(this)){
+        if (Utilities.isSmallTablet(this)) {
             size = ScreenSize.SMALL_TABLET;
-        } else if (Utilities.isLargeTablet(this)){
+        } else if (Utilities.isLargeTablet(this)) {
             size = ScreenSize.LARGE_TABLET;
         } else {
             size = ScreenSize.PHONE;
@@ -366,7 +377,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         cachedHash = -1;
 
         //Allow tablet to rotate
-        if(Utilities.isSmallTablet(this) || Utilities.isLargeTablet(this)){
+        if (Utilities.isSmallTablet(this) || Utilities.isLargeTablet(this)) {
             this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
         }
 
@@ -388,7 +399,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 } else {
                     float threshold = sgv.getHeight() / 2;
 
-                    if(!hasHiddenClock && (Math.abs(distance) > threshold)){
+                    if (!hasHiddenClock && (Math.abs(distance) > threshold)) {
                         hideDateTime();
                         hasHiddenClock = true;
                     }
@@ -399,10 +410,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
             @Override
             public void onDragCompleted(boolean dragAccepted, float finalDistance, float finalVelocity) {
-                if(dragAccepted){
-                    if(!hasHiddenClock) hideDateTime();
+                if (dragAccepted) {
+                    if (!hasHiddenClock) hideDateTime();
                 } else {
-                    if(hasHiddenClock) showDateTime();
+                    if (hasHiddenClock) showDateTime();
                 }
                 toggleAppsContainer(dragAccepted, finalVelocity);
                 hasHiddenClock = false;
@@ -414,7 +425,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         setupDockbarTarget(db4, 4);
         setupDockbarTarget(db5, 5);
 
-        if(size == ScreenSize.PHONE) {
+        if (size == ScreenSize.PHONE) {
             Log.d(TAG, "Is phone");
 
             dockbarApps.findViewById(R.id.fiveToSix).setVisibility(View.GONE);
@@ -424,7 +435,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
             LinearLayout.LayoutParams layoutParams = (LinearLayout.LayoutParams) db5.getLayoutParams();
             layoutParams.setMargins(0, 0,
-                    ((LinearLayout.LayoutParams)db1.getLayoutParams()).leftMargin, 0);
+                    ((LinearLayout.LayoutParams) db1.getLayoutParams()).leftMargin, 0);
             db5.setLayoutParams(layoutParams);
 
             dockbarApps.requestLayout();
@@ -491,10 +502,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         clearSearch.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                searchBox.setText("");
-                clearSearch.setVisibility(View.GONE);
-                playStoreButton.setVisibility(View.GONE);
-                hideKeyboard();
+                quitSearch();
             }
         });
         playStoreButton.setOnClickListener(new View.OnClickListener() {
@@ -513,10 +521,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                             Toast.LENGTH_SHORT).show();
                 }
 
-                searchBox.setText("");
-                clearSearch.setVisibility(View.GONE);
-                playStoreButton.setVisibility(View.GONE);
-                hideKeyboard();
+                quitSearch();
             }
         });
         searchBox.addTextChangedListener(new TextWatcher() {
@@ -545,36 +550,48 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 return false;
             }
         });
+        searchBox.setOnFocusChangeListener(new View.OnFocusChangeListener() {
+            @Override
+            public void onFocusChange(View v, boolean hasFocus) {
+                if(hasFocus){
+                    collapseSuggestions();
+                } else {
+                    expandSuggestions();
+                }
+            }
+        });
 
         //Set drag type of dockbar
         appDropLayout.setOnDragListener(new View.OnDragListener() {
             @Override
             public boolean onDrag(View v, DragEvent event) {
-                switch(event.getAction()){
+                switch (event.getAction()) {
                     case DragEvent.ACTION_DRAG_ENTERED:
                         return true;
                     case DragEvent.ACTION_DRAG_EXITED:
                         return true;
                     case DragEvent.ACTION_DRAG_LOCATION:
-                        if(event.getLocalState() == null || !(event.getLocalState() instanceof ApplicationIcon)) return false;
+                        if (event.getLocalState() == null || !(event.getLocalState() instanceof ApplicationIcon))
+                            return false;
 
                         double sw = getResources().getDisplayMetrics().widthPixels;
                         double prog = event.getX() / sw;
 
-                        if(prog >= (2d/3d)){
+                        if (prog >= (2d / 3d) && allAppsContainer.getTranslationY() == getResources().getDisplayMetrics().heightPixels) {
                             showDockApps();
                             return true;
                         }
                         return false;
                     case DragEvent.ACTION_DROP:
-                        if(event.getLocalState() == null || !(event.getLocalState() instanceof ApplicationIcon)) return false;
+                        if (event.getLocalState() == null || !(event.getLocalState() instanceof ApplicationIcon))
+                            return false;
 
                         double screenWidth = getResources().getDisplayMetrics().widthPixels;
                         double progress = event.getX() / screenWidth;
 
-                        if(progress <= (1d/3d)){
+                        if (progress <= (1d / 3d)) {
 
-                            ApplicationIcon ai  = (ApplicationIcon) event.getLocalState();
+                            ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
                             try {
                                 Uri uri = Uri.parse("package:" + ai.getPackageName());
                                 Intent uninstallIntent = new Intent(Intent.ACTION_UNINSTALL_PACKAGE, uri);
@@ -585,7 +602,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                                         "The app is unable to be removed.", Toast.LENGTH_LONG).show();
                             }
                             return true;
-                        } else if (progress <= (2d/3d)) {
+                        } else if (progress <= (2d / 3d)) {
                             ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
                             try {
                                 Uri uri = Uri.parse("package:" + ai.getPackageName());
@@ -641,14 +658,14 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         } else {
             //Do version upgrades
             int lastUsedVersion = reader.getInt(Constants.VERSION_PREF, Constants.Versions.VERSION_0_2_3);
-            switch(lastUsedVersion){
+            switch (lastUsedVersion) {
                 case Constants.Versions.VERSION_0_2_3:
                     writer.putBoolean(Constants.HOME_WIDGET_PREFERENCE, false).commit();
                     writer.putInt(Constants.HOME_WIDGET_ID_PREFERENCE, -1).commit();
                     break;
             }
 
-            if(lastUsedVersion != Constants.Versions.CURRENT_VERSION){
+            if (lastUsedVersion != Constants.Versions.CURRENT_VERSION) {
                 writer.putInt(Constants.VERSION_PREF, Constants.Versions.CURRENT_VERSION).commit();
             }
 
@@ -661,7 +678,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         packageReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                if(searchBox != null) {
+                if (searchBox != null) {
                     searchBox.setText(""); //The TextWatcher resets the app list in this case
                 } else {
                     resetAppsList("", false);
@@ -675,8 +692,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         storageReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                if(intent.getAction() != null) {
-                    if (searchBox != null){
+                if (intent.getAction() != null) {
+                    if (searchBox != null) {
                         searchBox.setText(""); //The TextWatcher resets the app list in this case
                     } else {
                         resetAppsList("", false);
@@ -704,13 +721,13 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     }
 
     @Override
-    protected void onDestroy(){
+    protected void onDestroy() {
         super.onDestroy();
 
-        if(packageReceiver != null){
+        if (packageReceiver != null) {
             unregisterReceiver(packageReceiver);
         }
-        if(storageReceiver != null){
+        if (storageReceiver != null) {
             unregisterReceiver(storageReceiver);
         }
     }
@@ -728,12 +745,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     }
 
     @Override
-    public void onResume(){
+    public void onResume() {
         super.onResume();
         updateDisplay();
 
         //Update most parts on timer
-        TimerTask t = new TimerTask(){
+        TimerTask t = new TimerTask() {
             @Override
             public void run() {
                 updateDisplay();
@@ -754,7 +771,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     protected void onPause() {
         super.onPause();
 
-        if(timer != null){
+        if (timer != null) {
             timer.cancel();
         }
     }
@@ -774,7 +791,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         writer.putBoolean(Constants.HAS_REQUESTED_PERMISSIONS_PREF, true).commit();
         boolean allGranted = true;
-        for(int result : grantResults) allGranted &= result == PackageManager.PERMISSION_GRANTED;
+        for (int result : grantResults) allGranted &= result == PackageManager.PERMISSION_GRANTED;
 
         if (!allGranted) {
             Toast.makeText(HomeActivity.this, R.string.okay_we_wont_ask, Toast.LENGTH_SHORT).show();
@@ -785,8 +802,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     @Override
     public void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
-        if (intent.getAction().equals(Intent.ACTION_MAIN)) { //Home button press; reset state
-            resetState();
+        if (intent.getAction() != null) {
+            if (intent.getAction().equals(Intent.ACTION_MAIN)) { //Home button press; reset state
+                resetState();
+            }
         }
     }
 
@@ -797,10 +816,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if(requestCode == REQUEST_CHOOSE_ICON && resultCode == RESULT_OK){
+        if (requestCode == REQUEST_CHOOSE_ICON && resultCode == RESULT_OK) {
             String pkg = data.getStringExtra("r_pkg");
             String rName = data.getStringExtra("r_name");
-            if(packageName == null || rName == null){
+            if (packageName == null || rName == null) {
                 packageName = this.getClass().getPackage().getName();
                 resourceName = "ic_folder_black_48dp";
             } else {
@@ -812,16 +831,16 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             try {
                 int resId = getPackageManager().getResourcesForApplication(packageName)
                         .getIdentifier(rName, "drawable", packageName);
-                if(resId == 0) throw new Exception("");
+                if (resId == 0) throw new Exception("");
                 d = getPackageManager().getResourcesForApplication(packageName).getDrawable(resId);
             } catch (Exception e) {
                 d = getResources().getDrawable(android.R.drawable.sym_def_app_icon);
             }
 
-            if(dialogView != null) {
+            if (dialogView != null) {
                 ((ImageButton) dialogView.findViewById(R.id.chooseIcon)).setImageDrawable(d);
             }
-        } else if (requestCode == REQUEST_CHOOSE_APPLICATION && resultCode == RESULT_OK){
+        } else if (requestCode == REQUEST_CHOOSE_APPLICATION && resultCode == RESULT_OK) {
             ActivityInfo activityInfo = data.resolveActivityInfo(getPackageManager(), 0);
             ApplicationIcon ai = new ApplicationIcon(activityInfo.packageName,
                     (String) activityInfo.loadLabel(getPackageManager()), activityInfo.name);
@@ -830,7 +849,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             Gson gson = new Gson();
             writer.putString(cachedPref, gson.toJson(ai)).apply();
         } else if (requestCode == REQUEST_ALLOCATE_ID || requestCode == REQUEST_PICK_APP_WIDGET) {
-            if(resultCode == RESULT_OK) {
+            if (resultCode == RESULT_OK) {
                 handleWidgetConfig(data);
             } else if (data != null) {
                 Toast.makeText(this, "You must allow us to manage widgets to use widgets.", Toast.LENGTH_LONG).show();
@@ -840,7 +859,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 }
             }
         } else if (requestCode == REQUEST_CONFIG_WIDGET) {
-            if(resultCode == RESULT_OK) {
+            if (resultCode == RESULT_OK) {
                 addWidget(data);
                 persistWidgets(widgets);
             } else if (resultCode == RESULT_CANCELED && data != null) {
@@ -854,16 +873,17 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //endregion
 
     //region App drawer
-    public void resetAppsList(final String query, final boolean preCacheIcons){
+    public void resetAppsList(final String query, final boolean preCacheIcons) {
         IconCache.getInstance().cancelPendingIconTasks();
 
-        if(appsSearch != null && !appsSearch.isCancelled() && appsSearch.getStatus() == AsyncTask.Status.FINISHED){
+        if (appsSearch != null && !appsSearch.isCancelled() && appsSearch.getStatus() == AsyncTask.Status.FINISHED) {
             try {
                 appsSearch.cancel(true);
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
 
-        appsSearch = new AsyncTask<Object, Void, List<ApplicationIcon>>(){
+        appsSearch = new AsyncTask<Object, Void, List<ApplicationIcon>>() {
             @Override
             protected List<ApplicationIcon> doInBackground(Object... params) {
                 PackageManager pm = (PackageManager) params[0];
@@ -874,15 +894,16 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 allAppsIntent.addCategory(Intent.CATEGORY_LAUNCHER);
                 final List<ResolveInfo> packageList = pm.queryIntentActivities(allAppsIntent, 0);
                 String lowerQuery = query.toLowerCase(Locale.getDefault());
-                for(ResolveInfo ri : packageList){
+                for (ResolveInfo ri : packageList) {
                     try {
                         String name = (String) ri.loadLabel(pm);
-                        if(lowerQuery.equals("") || name.toLowerCase(Locale.getDefault())
+                        if (lowerQuery.equals("") || name.toLowerCase(Locale.getDefault())
                                 .contains(lowerQuery)) {
                             if (!hiddenApps.contains(new Pair<>(ri.activityInfo.packageName,
                                     ri.activityInfo.name))) {
                                 applicationIcons.add(new ApplicationIcon(ri.activityInfo.packageName,
                                         name, ri.activityInfo.name));
+                                ri.loadIcon(pm);
                             }
                         }
                     } catch (Exception e) {
@@ -899,17 +920,17 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             }
 
             @Override
-            protected void onPostExecute(List<ApplicationIcon> apps){
-                if(apps != null) {
+            protected void onPostExecute(List<ApplicationIcon> apps) {
+                if (apps != null) {
                     //Compare old "apps" with cached apps -- if the same, don't reset
                     int newHash = apps.hashCode();
-                    if(newHash != cachedHash) {
+                    if (newHash != cachedHash) {
                         ApplicationIconAdapter adapter = new ApplicationIconAdapter(apps, HomeActivity.this);
                         adapter.setHasStableIds(true);
                         allAppsScreen.setAdapter(adapter);
 
-                        if(preCacheIcons && reader.getBoolean(Constants.AGGRESIVE_CACHING_PREF, true)){
-                            for(ApplicationIcon ai : apps){
+                        if (preCacheIcons && reader.getBoolean(Constants.AGGRESIVE_CACHING_PREF, true)) {
+                            for (ApplicationIcon ai : apps) {
                                 IconCache.getInstance().setIcon(ai.getPackageName(), ai.getActivityName(), null);
                             }
                         }
@@ -917,7 +938,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         FastScroller scroller = new FastScroller(allAppsScreen, scrollerBar, startLetter,
                                 endLetter, popup);
 
-                        scroller.setupList((List)apps);
+                        scroller.setupList((List) apps);
                         scroller.setupScrollbar();
 
                         cachedHash = newHash;
@@ -938,24 +959,24 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         playStoreButton.setVisibility(visibility);
     }
 
-    public void toggleAppsContainer(boolean visible){
+    public void toggleAppsContainer(boolean visible) {
         toggleAppsContainer(visible, -1);
     }
 
-    public void toggleAppsContainer(boolean visible, float animationVelocity){
+    public void toggleAppsContainer(boolean visible, float animationVelocity) {
         //Do the popup for usage requests if needed
-        if(visible && !reader.getBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, false) &&
+        if (visible && !reader.getBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, false) &&
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             try {
                 @SuppressWarnings("ResourceType")
                 final UsageStatsManager usm = (UsageStatsManager) HomeActivity.this.getSystemService("usagestats");
 
-                long end = 0l;
-                long start = System.currentTimeMillis() ;
+                long end = 0L;
+                long start = System.currentTimeMillis();
 
                 UsageEvents use = usm.queryEvents(start, end);
                 UsageEvents.Event event = new UsageEvents.Event();
-                if(use.hasNextEvent() && use.getNextEvent(event)) {
+                if (use.hasNextEvent() && use.getNextEvent(event)) {
                     Log.d(TAG, "Found usage events...");
                 } else {
                     showUsageMessage(); //We assume this means a problem..?
@@ -969,12 +990,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         allAppsContainer.setVisibility(View.VISIBLE);
 
         DisplayMetrics dm = this.getResources().getDisplayMetrics();
-        if(visible){
+        if (visible) {
             long duration;
-            if(animationVelocity > 0){
+            if (animationVelocity > 0) {
                 float distanceToGo = allAppsContainer.getTranslationY();
                 duration = (long) (distanceToGo / animationVelocity);
-                if(duration > 600) duration = 600;
+                if (duration > 600) duration = 600;
             } else {
                 duration = 500;
             }
@@ -1002,15 +1023,15 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    public void updateRowCount(int orientation){
+    public void updateRowCount(int orientation) {
         int columnCount;
 
-        if(orientation == Configuration.ORIENTATION_LANDSCAPE){
-            if(Utilities.isSmallTablet(this)){
+        if (orientation == Configuration.ORIENTATION_LANDSCAPE) {
+            if (Utilities.isSmallTablet(this)) {
                 size = ScreenSize.SMALL_TABLET;
                 this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
                 columnCount = 7;
-            } else if (Utilities.isLargeTablet(this)){
+            } else if (Utilities.isLargeTablet(this)) {
                 size = ScreenSize.LARGE_TABLET;
                 this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
                 columnCount = 8;
@@ -1019,11 +1040,11 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 columnCount = 4;
             }
         } else {
-            if(Utilities.isSmallTablet(this)){
+            if (Utilities.isSmallTablet(this)) {
                 size = ScreenSize.SMALL_TABLET;
                 this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
                 columnCount = 5;
-            } else if (Utilities.isLargeTablet(this)){
+            } else if (Utilities.isLargeTablet(this)) {
                 size = ScreenSize.LARGE_TABLET;
                 this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
                 columnCount = 7;
@@ -1038,7 +1059,15 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         resetAppsList("", true);
     }
 
-    public void hideKeyboard(){
+    private void quitSearch() {
+        searchBox.setText("");
+        searchBox.clearFocus();
+        clearSearch.setVisibility(View.GONE);
+        playStoreButton.setVisibility(View.GONE);
+        hideKeyboard();
+    }
+
+    public void hideKeyboard() {
         //Hide keyboard
         InputMethodManager imm = (InputMethodManager)
                 HomeActivity.this.getSystemService(Context.INPUT_METHOD_SERVICE);
@@ -1047,22 +1076,22 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //endregion
 
     //region Suggested apps
-    private void startSuggestionsPopulation(){
-        if(!reader.getBoolean(Constants.HAS_RUN_PREFERENCE, false)) return;
+    private void startSuggestionsPopulation() {
+        if (!reader.getBoolean(Constants.HAS_RUN_PREFERENCE, false)) return;
 
         Log.d(TAG, "Starting suggestions population...");
 
         //We always show a prompt UI to explain if we need to ask for permissions.
-        String[] permissions = new String[] { Manifest.permission.READ_PHONE_STATE,
-                Manifest.permission.READ_CALENDAR };
+        String[] permissions = new String[]{Manifest.permission.READ_PHONE_STATE,
+                Manifest.permission.READ_CALENDAR};
         List<String> neededPermissions = new ArrayList<>();
 
-        for(String permission : permissions){
-            if(!Utilities.checkPermission(permission, this)) neededPermissions.add(permission);
+        for (String permission : permissions) {
+            if (!Utilities.checkPermission(permission, this)) neededPermissions.add(permission);
         }
 
-        if(neededPermissions.size() > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                && !reader.getBoolean(Constants.HAS_REQUESTED_PERMISSIONS_PREF, false)){
+        if (neededPermissions.size() > 0 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && !reader.getBoolean(Constants.HAS_REQUESTED_PERMISSIONS_PREF, false)) {
             Log.d(TAG, "Requesting permissions for the first time; showing message...");
             final String[] requested = neededPermissions.toArray(new String[0]);
 
@@ -1083,9 +1112,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    private ApplicationIcon addSmartbarAppFromPref(String prefName){
+    private ApplicationIcon addSmartbarAppFromPref(String prefName) {
         String existingData = reader.getString(prefName, "null");
-        if(!existingData.equals("null")){
+        if (!existingData.equals("null")) {
             Log.d(TAG, "Existing data: " + existingData);
             Gson gson = new Gson();
             try {
@@ -1099,11 +1128,11 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    private void addSuggestionsApp(String packageName){
+    private void addSuggestionsApp(String packageName) {
         View v = LayoutInflater.from(HomeActivity.this).inflate(R.layout.popular_app_icon, suggestionsLayout, false);
 
         final Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
-        if(launchIntent == null) return;
+        if (launchIntent == null) return;
 
         v.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1125,7 +1154,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     String label = pm.getActivityInfo(launchIntent.getComponent(), 0).loadLabel(pm).toString();
 
                     ClipData cd = ClipData.newPlainText("description", "Passing app customIcon");
-                    View.DragShadowBuilder dsb = new View.DragShadowBuilder(v.findViewById(R.id.appIconSmall));
+                    View.DragShadowBuilder dsb = new View.DragShadowBuilder(v.findViewById(R.id.popularAppIcon));
                     v.startDrag(cd, dsb, new ApplicationIcon(launchIntent.getPackage(), label,
                             launchIntent.getComponent().getClassName()), 0);
                 } catch (Exception e) {
@@ -1135,87 +1164,89 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             }
         });
 
-        IconCache.getInstance().setSuggestionsIcon(packageName, (ImageView) v);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        params.gravity |= Gravity.CENTER_VERTICAL;
+        IconCache.getInstance().setIcon(launchIntent.getPackage(), launchIntent.getComponent().getClassName(),
+                (StickyImageView) v.findViewById(R.id.popularAppIcon));
 
-        int eightDp = (int) Utilities.convertDpToPixel(8f, this);
-
-        params.setMargins(eightDp, eightDp, eightDp, eightDp);
+        int sixtyFourDp = (int) Utilities.convertDpToPixel(64f, this);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(sixtyFourDp, sixtyFourDp);
         suggestionsLayout.addView(v, params);
     }
 
-    private void addSuggestionsApp(String packageName, String className){
-        final Intent appLaunch = new Intent();
-        appLaunch.setClassName(packageName, className);
-        appLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+    private class SuggestionApp {
+        private String packageName;
+        private String className;
+        private int timesUsed;
+        private boolean hasClass;
 
-        View v = LayoutInflater.from(HomeActivity.this).inflate(R.layout.popular_app_icon, null);
-        v.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                try {
-                    v.getContext().startActivity(appLaunch);
-                } catch (Exception e) {
-                    Toast.makeText(v.getContext(), "Couldn't start this app!", Toast.LENGTH_SHORT)
-                            .show();
-                }
-            }
-        });
-        v.setOnLongClickListener(new View.OnLongClickListener() { //Setup drag
-            @Override
-            public boolean onLongClick(View v) {
-                //Start drag
-                try {
-                    PackageManager pm = getPackageManager();
-                    String label = pm.getActivityInfo(appLaunch.getComponent(), 0).loadLabel(pm).toString();
+        public SuggestionApp(String packageName, String className) {
+            this.packageName = packageName;
+            this.className = className;
+            this.hasClass = true;
+            this.timesUsed = Integer.MAX_VALUE;
+        }
 
-                    ClipData cd = ClipData.newPlainText("description", "Passing app customIcon");
-                    View.DragShadowBuilder dsb = new View.DragShadowBuilder(v.findViewById(R.id.appIconImage));
-                    v.startDrag(cd, dsb, new ApplicationIcon(appLaunch.getPackage(), label,
-                            appLaunch.getComponent().getClassName()), 0);
-                } catch (Exception e) {
-                    Toast.makeText(v.getContext(), R.string.error, Toast.LENGTH_SHORT).show();
-                }
-                return true;
-            }
-        });
+        public SuggestionApp(String packageName, String className, int timesUsed) {
+            this.packageName = packageName;
+            this.className = className;
+            this.hasClass = true;
+            this.timesUsed = timesUsed;
+        }
 
-        IconCache.getInstance().setDockIcon(packageName, className, ((ImageView) v));
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT);
-        params.gravity |= Gravity.CENTER_VERTICAL;
+        public SuggestionApp(String packageName){
+            this.packageName = packageName;
+            this.className = null;
+            this.hasClass = false;
+            this.timesUsed = Integer.MAX_VALUE;
+        }
 
-        int eightDp = (int) Utilities.convertDpToPixel(8f, this);
+        public SuggestionApp(String packageName, int timesUsed){
+            this.packageName = packageName;
+            this.className = null;
+            this.hasClass = false;
+            this.timesUsed = timesUsed;
+        }
 
-        params.setMargins(eightDp, eightDp, eightDp, eightDp);
-        suggestionsLayout.addView(v, params);
+        public String getPackageName() {
+            return packageName;
+        }
+
+        public String getClassName() {
+            return className;
+        }
+
+        public void setTimesUsed(int timesUsed){
+            this.timesUsed = timesUsed;
+        }
+
+        public int getTimesUsed() {
+            return timesUsed;
+        }
+
+        public boolean hasClass(){
+            return hasClass;
+        }
     }
 
+    List<SuggestionApp> suggestions = new ArrayList<>();
     @SuppressLint("NewApi")
     private void populateSuggestions() {
         //Clean up
         suggestionsLayout.removeAllViews();
-        noSuggestions.setVisibility(View.VISIBLE);
-
-        //(Prep)
-        //Figure out max number of smartBar apps
-        final int mostApps = reader.getInt(Constants.SMART_BAR_NUM_PREFERENCE, 10);
-        int appsAdded = 0;
+        suggestionsSV.setVisibility(View.GONE);
+        noSuggestions.setVisibility(View.GONE);
+        loadingSuggestions.setVisibility(View.VISIBLE);
+        suggestions.clear();
 
         //(1) Check if we're in a phone call
         boolean hasPhonePermission = Utilities.checkPermission(Manifest.permission.READ_PHONE_STATE, this);
 
-        if(hasPhonePermission) {
+        if (hasPhonePermission) {
             TelephonyManager tm = (TelephonyManager) getSystemService(Context.TELEPHONY_SERVICE);
             int state = tm.getCallState();
             if (state == TelephonyManager.CALL_STATE_OFFHOOK) { //In call
                 ApplicationIcon ai = addSmartbarAppFromPref(Constants.PHONE_APP_PREFERENCE);
                 if (ai != null) {
-                    addSuggestionsApp(ai.getPackageName(), ai.getActivityName());
-                    appsAdded++;
-                    noSuggestions.setVisibility(View.GONE);
+                    suggestions.add(new SuggestionApp(ai.getPackageName(), ai.getActivityName()));
                 }
             }
         }
@@ -1223,10 +1254,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         //(2) Check if we're in a calendar event
         boolean hasCalendarPermission = Utilities.checkPermission(Manifest.permission.READ_CALENDAR, this);
 
-        if(hasCalendarPermission) {
+        if (hasCalendarPermission) {
             ContentResolver cr = getContentResolver();
             String[] columns = new String[]{CalendarContract.Instances.DTSTART, CalendarContract.Instances.DTEND,
-                    CalendarContract.Instances.TITLE};
+                    CalendarContract.Instances.TITLE, CalendarContract.Instances.ALL_DAY};
             Uri.Builder builder = CalendarContract.Instances.CONTENT_URI.buildUpon();
             ContentUris.appendId(builder, System.currentTimeMillis());
             ContentUris.appendId(builder, System.currentTimeMillis() + (1000l * 60l * 60l * 24l));
@@ -1236,32 +1267,39 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 if (c != null && c.moveToFirst()) {
                     Log.d(TAG, "Calendar block move to first!");
 
+                    int allDayCol = c.getColumnIndex(CalendarContract.Instances.ALL_DAY);
                     int startCol = c.getColumnIndex(CalendarContract.Instances.DTSTART);
                     int endCol = c.getColumnIndex(CalendarContract.Instances.DTEND);
                     int titleCol = c.getColumnIndex(CalendarContract.Instances.TITLE);
 
-                    if (startCol == -1 || endCol == -1 || titleCol == -1 || c.getCount() == 0) {
+                    if (startCol == -1 || endCol == -1 || titleCol == -1 || allDayCol == -1 ||
+                            c.getCount() == 0) {
                         Log.d(TAG, "Count/columns 0!");
                         c.close();
                         break calendarBlock;
                     }
 
+                    while(!c.isAfterLast()) {
+                        String title = c.getString(titleCol);
+                        boolean allDay = c.getInt(allDayCol) == 1;
+                        long startTime = c.getLong(startCol);
+                        long endTime = c.getLong(endCol);
+                        long duration = c.getLong(endCol) - c.getLong(startCol);
 
-                    long startTime = c.getLong(startCol);
-                    long endTime = c.getLong(endCol);
-                    long duration = c.getLong(endCol) - c.getLong(startCol);
+                        Log.d(TAG, "Curr: " + System.currentTimeMillis() + ", start: " + startTime + ", end: " + endTime + ", duration: " + duration);
 
-                    Log.d(TAG, "Curr: " + System.currentTimeMillis() + ", start: " + startTime + ", end: " + endTime + ", duration: " + duration);
+                        if (System.currentTimeMillis() > startTime && System.currentTimeMillis() < endTime
+                                && !allDay) {
+                            Log.d(TAG, "In event!");
 
-                    if (System.currentTimeMillis() > startTime && System.currentTimeMillis() < endTime) {
-                        Log.d(TAG, "In event!");
-
-                        ApplicationIcon ai = addSmartbarAppFromPref(Constants.CALENDAR_APP_PREFERENCE);
-                        if (ai != null) {
-                            addSuggestionsApp(ai.getPackageName(), ai.getActivityName());
-                            appsAdded++;
-                            noSuggestions.setVisibility(View.GONE);
+                            ApplicationIcon ai = addSmartbarAppFromPref(Constants.CALENDAR_APP_PREFERENCE);
+                            if (ai != null) {
+                                suggestions.add(new SuggestionApp(ai.getPackageName(), ai.getActivityName()));
+                            }
+                            break;
                         }
+
+                        c.moveToNext();
                     }
 
                     c.close();
@@ -1270,7 +1308,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
 
         //(3) Check if we're almost out of power
-        if(hasPhonePermission) {
+        if (hasPhonePermission) {
             IntentFilter batteryReading = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
             Intent batteryStatus = registerReceiver(null, batteryReading);
 
@@ -1287,16 +1325,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 if (batteryPercent < 0.2 && !isCharging) {
                     ApplicationIcon ai = addSmartbarAppFromPref(Constants.LOW_POWER_APP_PREFERENCE);
                     if (ai != null) {
-                        addSuggestionsApp(ai.getPackageName(), ai.getActivityName());
-                        appsAdded++;
-                        noSuggestions.setVisibility(View.GONE);
+                        suggestions.add(new SuggestionApp(ai.getPackageName(), ai.getActivityName()));
                     }
                 } else if (isCharging) {
                     ApplicationIcon ai = addSmartbarAppFromPref(Constants.CHARGING_APP_PREFERENCE);
                     if (ai != null) {
-                        addSuggestionsApp(ai.getPackageName(), ai.getActivityName());
-                        appsAdded++;
-                        noSuggestions.setVisibility(View.GONE);
+                        suggestions.add(new SuggestionApp(ai.getPackageName(), ai.getActivityName()));
                     }
                 }
             }
@@ -1307,14 +1341,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         //(5) Use remaining space to show popular apps
         // Get data from system usage events and integrate into our own database
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            final int appsAddedCount = appsAdded;
-
-            //TODO: Make this more useful
-
-            new AsyncTask<Void, Void, List<String>>() {
-                @Override
-                protected List<String> doInBackground(Void... params) {
+        new AsyncTask<Void, Void, List<SuggestionApp>>() {
+            @Override
+            protected List<SuggestionApp> doInBackground(Void... params) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                     try {
                         //Before we begin, query and generate a list of (a) all events in the query period
                         // (b) all events in a 4 hour window of this weekday (c) all events in the past week
@@ -1323,25 +1353,24 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         final UsageStatsManager usm = (UsageStatsManager) HomeActivity.this.getSystemService("usagestats");
 
                         long end = System.currentTimeMillis();
-                        long start = end - (7 * 24 * 60 * 60 * 1000);
+                        long start = end - (7 * 24 * 60 * 60 * 1000); //Most used in past week
 
                         //Use results map to intelligently insert new data gotten from the system in
                         //the same timespan
+
+                        //Although we "de-dup" later, this is more efficient (maybe?) to do here
                         HashMap<String, Integer> count = new HashMap<>();
                         UsageEvents use = usm.queryEvents(start, end);
                         UsageEvents.Event e = new UsageEvents.Event();
 
-                        while(use.getNextEvent(e)) {
+                        while (use.getNextEvent(e)) {
                             int type = e.getEventType();
 
-                            //Log.d(TAG, "Found event with type: " + type + " and pkg " + e.getPackageName());
-
                             if (type == UsageEvents.Event.MOVE_TO_FOREGROUND) {
-                                long time = e.getTimeStamp();
                                 String packageName = e.getPackageName();
                                 String className = e.getClassName();
 
-                                if(isComponentLaunchable(packageName, className)) {
+                                if (isComponentLaunchable(packageName, className)) {
                                     if (count.containsKey(packageName)) {
                                         count.put(packageName, count.get(packageName) + 1);
                                     } else {
@@ -1351,69 +1380,69 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                             }
                         }
 
-                        List<Pair<String, Integer>> toSort = new ArrayList<>();
-                        for(Map.Entry<String, Integer> entry : count.entrySet()){
-                            toSort.add(new Pair<>(entry.getKey(), entry.getValue()));
-                        }
-
-                        Collections.sort(toSort, new Comparator<Pair<String, Integer>>() {
-                            @Override
-                            public int compare(Pair<String, Integer> lhs, Pair<String, Integer> rhs) {
-                                return rhs.second.compareTo(lhs.second);
-                            }
-                        });
-
-                        List<String> strippedList = new ArrayList<>();
-                        for(Pair<String, Integer> pair : toSort){
-                            strippedList.add(pair.first);
+                        List<SuggestionApp> strippedList = new ArrayList<>();
+                        for (Map.Entry<String, Integer> entry : count.entrySet()) {
+                            strippedList.add(new SuggestionApp(entry.getKey(), entry.getValue()));
                         }
 
                         return strippedList;
                     } catch (Exception e) {
-                        return null;
+                        return new ArrayList<>();
                     }
-                }
+                } else { //Get running tasks as a fallback for usage stats
+                    ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
+                    List<ActivityManager.RunningTaskInfo> runningApps = am.getRunningTasks(10);
+                    List<SuggestionApp> result = new ArrayList<>(10);
 
-                @Override
-                protected void onPostExecute(List<String> result) {
-                    if (result != null) { //Success; samples has been updated; we should reset the adapter
-                        Log.d(TAG, "Success!");
-
-                        int appsAddedInner = appsAddedCount;
-                        for(final String packageName : result){
-                            if(appsAddedInner > mostApps)
-                                return;
-                            addSuggestionsApp(packageName);
-                            appsAddedInner++;
-                            noSuggestions.setVisibility(View.GONE);
+                    for (ActivityManager.RunningTaskInfo rti : runningApps) {
+                        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(rti.baseActivity.getPackageName());
+                        if (launchIntent != null) {
+                            String packageName = launchIntent.getComponent().getPackageName();
+                            String className = launchIntent.getComponent().getClassName();
+                            result.add(new SuggestionApp(packageName, className, 0)); //Unsortable; all low-prio
                         }
-                    } else { //Failure; log it
-                        Log.d(TAG, "Failed to generate meaningful usage cards");
                     }
-                }
-            }.execute();
-        } else { //Get running tasks as a fallback for usage stats
-            ActivityManager am = (ActivityManager) getSystemService(Context.ACTIVITY_SERVICE);
-            List<ActivityManager.RunningTaskInfo> runningApps = am.getRunningTasks(10);
-            List<String> handledPackages = new ArrayList<>(10);
 
-            if(runningApps.isEmpty()) return;
-
-            for(ActivityManager.RunningTaskInfo rti : runningApps){
-                if(appsAdded > mostApps)
-                    break;
-                Intent launchIntent = getPackageManager().getLaunchIntentForPackage(rti.baseActivity.getPackageName());
-                if(launchIntent != null && !handledPackages.contains(launchIntent.getPackage())) {
-                    String packageName = launchIntent.getComponent().getPackageName();
-                    String className = launchIntent.getComponent().getClassName();
-
-                    handledPackages.add(launchIntent.getPackage());
-                    addSuggestionsApp(packageName, className);
-                    appsAdded++;
-                    noSuggestions.setVisibility(View.GONE);
+                    return result;
                 }
             }
-        }
+
+            @Override
+            protected void onPostExecute(List<SuggestionApp> result) {
+                loadingSuggestions.setVisibility(View.GONE);
+                suggestions.addAll(result);
+
+                Collections.sort(suggestions, new Comparator<SuggestionApp>() {
+                    @Override
+                    public int compare(SuggestionApp lhs, SuggestionApp rhs) {
+                        return (rhs.getTimesUsed() - lhs.getTimesUsed());
+                    }
+                });
+
+                //"De-dup" the result
+                //Yes, it looks like a nasty O(n^2) algorithm -- it is, actually, but the commonly accepted
+                //way of dedup-ing in Java (new List<>(new HashSet<>(yourItems)) does the same under the
+                //hood (with more overhead!)
+                List<String> packagesAdded = new ArrayList<>();
+                for(int i = 0; i < suggestions.size(); i++){
+                    SuggestionApp a1 = suggestions.get(i);
+
+                    if(!packagesAdded.contains(a1.getPackageName())){
+                        packagesAdded.add(a1.getPackageName());
+                        addSuggestionsApp(a1.getPackageName());
+                    }
+                }
+
+                //Needed check -- addSuggestionsApp might not always add if a package is un-launchable
+                if(suggestionsLayout.getChildCount() == 0){
+                    noSuggestions.setVisibility(View.VISIBLE);
+                    suggestionsSV.setVisibility(View.GONE);
+                } else {
+                    suggestionsSV.setVisibility(View.VISIBLE);
+                    suggestionsSV.scrollTo(0, 0);
+                }
+            }
+        }.execute();
     }
 
     public boolean isComponentLaunchable(String packageName, String className) {
@@ -1424,10 +1453,46 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         List<ResolveInfo> list = getPackageManager().queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
         return !list.isEmpty();
     }
+
+    private void expandSuggestions() {
+        /*
+        Animation anim = new ScaleAnimation(
+                1f, 1f, // Start and end values for the X axis scaling
+                0.0f, 1.0f, // Start and end values for the Y axis scaling
+                Animation.RELATIVE_TO_SELF, 0f, // Pivot point of X scaling
+                Animation.RELATIVE_TO_SELF, 1f); // Pivot point of Y scaling
+        anim.setFillAfter(true); // Needed to keep the result of the animation
+        suggestionsRootView.startAnimation(anim);
+        */
+
+        /*
+        ObjectAnimator oa = ObjectAnimator.ofFloat(suggestionsRootView, "scaleY", 1.0f);
+        oa.setDuration(400L);
+        oa.start();
+        */
+    }
+
+    private void collapseSuggestions() {
+        /*
+        Animation anim = new ScaleAnimation(
+                1f, 1f, // Start and end values for the X axis scaling
+                1.0f, 0.0f, // Start and end values for the Y axis scaling
+                Animation.RELATIVE_TO_SELF, 0f, // Pivot point of X scaling
+                Animation.RELATIVE_TO_SELF, 1f); // Pivot point of Y scaling
+        anim.setFillAfter(true); // Needed to keep the result of the animation
+        suggestionsRootView.startAnimation(anim);
+        */
+
+        /*
+        ObjectAnimator oa = ObjectAnimator.ofFloat(suggestionsRootView, "scaleY", 0);
+        oa.setDuration(400L);
+        oa.start();
+        */
+    }
     //endregion
 
     //region Dock
-    public void setupDockbarTarget(final ImageView dockbarTarget, final int place){
+    public void setupDockbarTarget(final ImageView dockbarTarget, final int place) {
         /*
         //Size the target properly
         LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) dockbarTarget.getLayoutParams();
@@ -1470,7 +1535,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         });
 
         String existingData = reader.getString("dockbarTarget_" + place, "null");
-        if(!existingData.equals("null")){
+        if (!existingData.equals("null")) {
             Gson gson = new Gson();
             try {
                 ApplicationIcon ai = gson.fromJson(existingData, ApplicationIcon.class);
@@ -1480,7 +1545,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    public void initDockbar(final ApplicationIcon ai, final ImageView dockbarTarget, final int location){
+    public void initDockbar(final ApplicationIcon ai, final ImageView dockbarTarget, final int location) {
         dockbarTarget.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -1531,10 +1596,11 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //endregion
 
     //region Manage ShortcutGestureView apps
-    private void loadList(List<TypeCard> samples){
+    private void loadList(List<TypeCard> samples) {
         Log.d(TAG, "Loading list...");
 
-        loadRows: {
+        loadRows:
+        {
             Cursor loadItems =
                     db.query(DatabaseHelper.TABLE_ROWS, null, null, null, null, null, null);
             if (loadItems.moveToFirst()) {
@@ -1558,7 +1624,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     Log.d(TAG, "Loading '" + data + "'...");
 
                     //Generate package/activity pairs by splitting data
-                    if(data.startsWith("<!--APPTYPE-->")){ //This is just one app, not a full row
+                    if (data.startsWith("<!--APPTYPE-->")) { //This is just one app, not a full row
                         String appName = data.replace("<!--APPTYPE-->", "");
                         String[] split = appName.split("\\|");
                         TypeCard tc = new TypeCard(new Pair<>(split[0], split[1]));
@@ -1587,12 +1653,13 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
     /**
      * Saves cards to the database.
+     *
      * @param cards Cards to save.
      */
-    public void persistList(List<TypeCard> cards){
+    public void persistList(List<TypeCard> cards) {
         Log.d(TAG, "Persisting at most " + cards.size() + " cards");
         db.delete(DatabaseHelper.TABLE_ROWS, null, null);
-        for(int i = 0; i < cards.size(); i++){
+        for (int i = 0; i < cards.size(); i++) {
             ContentValues cv = new ContentValues();
             cv.put(DatabaseHelper.COLUMN_GRAPHIC, cards.get(i).getDrawableName());
             cv.put(DatabaseHelper.COLUMN_GRAPHIC_PACKAGE, cards.get(i).getDrawablePackage());
@@ -1615,7 +1682,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    public void showCreateFolderDialog(final ApplicationIcon ai){
+    public void showCreateFolderDialog(final ApplicationIcon ai) {
         packageName = "null";
         resourceName = "null";
 
@@ -1642,10 +1709,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     @Override
                     public void onPositive(MaterialDialog dialog) {
                         String name = et.getText().toString();
-                        if(name == null || name.length() == 0){
+                        if (name == null || name.length() == 0) {
                             name = "Folder";
                         }
-                        if(packageName.equals("null")){
+                        if (packageName.equals("null")) {
                             packageName = this.getClass().getPackage().getName();
                             resourceName = "ic_folder_white_48dp";
                         }
@@ -1653,13 +1720,14 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         apps.add(new Pair<>(ai.getPackageName(), ai.getActivityName()));
                         samples.add(new TypeCard(name, packageName, resourceName, apps));
                         persistList(samples);
+                        sgv.invalidate();
                         dialog.dismiss();
                     }
                 }).show();
     }
 
-    public void showEditFolderDialog(final int row){
-        if(row >= 0 && row < samples.size()){
+    public void showEditFolderDialog(final int row) {
+        if (row >= 0 && row < samples.size()) {
             packageName = samples.get(row).getDrawablePackage();
             resourceName = samples.get(row).getDrawableName();
 
@@ -1676,7 +1744,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             try {
                 int resId = getPackageManager().getResourcesForApplication(packageName)
                         .getIdentifier(resourceName, "drawable", packageName);
-                if(resId == 0) throw new Exception("");
+                if (resId == 0) throw new Exception("");
                 d = getPackageManager().getResourcesForApplication(packageName).getDrawable(resId);
             } catch (Exception e) {
                 d = getResources().getDrawable(android.R.drawable.sym_def_app_icon);
@@ -1707,11 +1775,11 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         @Override
                         public void onPositive(MaterialDialog dialog) {
                             String name = et.getText().toString();
-                            if(name == null || name.length() == 0){
+                            if (name == null || name.length() == 0) {
                                 name = "Folder";
                             }
 
-                            if(packageName.equals("null")){
+                            if (packageName.equals("null")) {
                                 packageName = this.getClass().getPackage().getName();
                                 resourceName = "ic_folder_white_48dp";
                             }
@@ -1725,7 +1793,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    public void showReorderDialog(final int row){
+    public void showReorderDialog(final int row) {
         depthThreeDialogRaised = false;
 
         DragSortListView dsiv = (DragSortListView) LayoutInflater.from(this).inflate(R.layout.sort_list, null);
@@ -1740,7 +1808,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 .dismissListener(new DialogInterface.OnDismissListener() {
                     @Override
                     public void onDismiss(DialogInterface dialog) {
-                        if(!depthThreeDialogRaised) showEditFolderDialog(row);
+                        if (!depthThreeDialogRaised) showEditFolderDialog(row);
                     }
                 })
                 .callback(new MaterialDialog.ButtonCallback() {
@@ -1770,7 +1838,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     }
 
     public void batchOpen(int row) {
-        if(row >= 0 && row < samples.size()){
+        if (row >= 0 && row < samples.size()) {
             Intent sequentialLauncherService = new Intent(this, SequentialLauncherService.class);
             sequentialLauncherService.putExtra("row_position", row);
             this.startService(sequentialLauncherService);
@@ -1803,7 +1871,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         Log.d(TAG, "Loading hidden apps...");
         hiddenApps.clear();
 
-        loadRows: {
+        loadRows:
+        {
             Cursor loadItems =
                     db.query(DatabaseHelper.TABLE_HIDDEN_APPS, null, null, null, null, null, null);
             if (loadItems.moveToFirst()) {
@@ -1833,7 +1902,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     }
 
     private void showHideAppsMenu() {
-        new AsyncTask<Void, Void, List<ApplicationHiderIcon>>(){
+        new AsyncTask<Void, Void, List<ApplicationHiderIcon>>() {
             @Override
             protected List<ApplicationHiderIcon> doInBackground(Void... params) {
                 List<ApplicationHiderIcon> applicationIcons = new ArrayList<>();
@@ -1866,13 +1935,13 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         }
                     });
                     return applicationIcons;
-                } catch (RuntimeException packageManagerDiedException){
+                } catch (RuntimeException packageManagerDiedException) {
                     return new ArrayList<>();
                 }
             }
 
             @Override
-            protected void onPostExecute(List<ApplicationHiderIcon> apps){
+            protected void onPostExecute(List<ApplicationHiderIcon> apps) {
                 final ApplicationHideAdapter adapter = new ApplicationHideAdapter(HomeActivity.this,
                         R.layout.application_icon_hidden, apps);
 
@@ -1901,8 +1970,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     private void persistHidden(List<ApplicationHiderIcon> apps) {
         Log.d(TAG, "Persisting at most " + widgets.size() + " hidden apps");
         db.delete(DatabaseHelper.TABLE_HIDDEN_APPS, null, null);
-        for(int i = 0; i < apps.size(); i++){
-            if(!apps.get(i).getIsHidden()) continue;
+        for (int i = 0; i < apps.size(); i++) {
+            if (!apps.get(i).getIsHidden()) continue;
 
             ContentValues cv = new ContentValues();
             cv.put(DatabaseHelper.COLUMN_ACTIVITY_NAME, apps.get(i).getActivityName());
@@ -1945,7 +2014,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         Log.d(TAG, "Loading widgets...");
 
         int foundCount = 0;
-        loadRows: {
+        loadRows:
+        {
             Cursor loadItems =
                     db.query(DatabaseHelper.TABLE_WIDGETS, null, null, null, null, null,
                             DatabaseHelper.COLUMN_POSITION + " asc");
@@ -1976,7 +2046,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
 
         verifyWidgets();
-        if(foundCount != widgets.size()){
+        if (foundCount != widgets.size()) {
             persistWidgets(widgets); //Some were lost in update
         }
     }
@@ -1984,15 +2054,15 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     private void verifyWidgets() {
         Log.d(TAG, "Verifying widgets...");
         final List<WidgetContainer> toRemove = new ArrayList<>();
-        for(WidgetContainer wc : widgets){
-            if(widgetManager.getAppWidgetInfo(wc.getWidgetId()) == null){
+        for (WidgetContainer wc : widgets) {
+            if (widgetManager.getAppWidgetInfo(wc.getWidgetId()) == null) {
                 Log.d(TAG, wc.getWidgetId() + " @ height " + wc.getWidgetHeight() + " is null...");
                 toRemove.add(wc);
             }
 
             try {
                 getPackageManager().getResourcesForApplication(widgetManager.getAppWidgetInfo(wc.getWidgetId()).provider.getPackageName());
-            } catch (Exception e){
+            } catch (Exception e) {
                 Log.d(TAG, wc.getWidgetId() + " @ height " + wc.getWidgetHeight() + " isn't installed...");
                 toRemove.add(wc);
             }
@@ -2014,14 +2084,15 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         });
     }
 
-    /** Save widgets to the database.
+    /**
+     * Save widgets to the database.
      *
      * @param widgets Widgets to save.
      */
-    public void persistWidgets(List<WidgetContainer> widgets){
+    public void persistWidgets(List<WidgetContainer> widgets) {
         Log.d(TAG, "Persisting at most " + widgets.size() + " widgets");
         db.delete(DatabaseHelper.TABLE_WIDGETS, null, null);
-        for(int i = 0; i < widgets.size(); i++){
+        for (int i = 0; i < widgets.size(); i++) {
             ContentValues cv = new ContentValues();
             cv.put(DatabaseHelper.COLUMN_WIDGET_ID, widgets.get(i).getWidgetId());
             cv.put(DatabaseHelper.COLUMN_SIZE_DP, widgets.get(i).getWidgetHeight());
@@ -2194,7 +2265,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    private WidgetContainer findContainer(String packageName){
+    private WidgetContainer findContainer(String packageName) {
         for (int i = 0; i < widgets.size(); i++) {
             if (packageName.equalsIgnoreCase(widgets.get(i).getWidgetPackage())) {
                 return widgets.get(i);
@@ -2203,14 +2274,14 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         return null;
     }
 
-    public void handleWidgetConfig(Intent data){
+    public void handleWidgetConfig(Intent data) {
         Bundle extras = data.getExtras();
         int appWidgetId = extras.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, -1);
         AppWidgetProviderInfo appWidgetInfo = widgetManager.getAppWidgetInfo(appWidgetId);
         handleWidgetConfig(appWidgetId, appWidgetInfo);
     }
 
-    public void handleWidgetConfig(int appWidgetId, AppWidgetProviderInfo awpi){ //Only occurs on first add
+    public void handleWidgetConfig(int appWidgetId, AppWidgetProviderInfo awpi) { //Only occurs on first add
         AppWidgetProviderInfo appWidgetInfo = widgetManager.getAppWidgetInfo(appWidgetId);
         if (awpi.configure != null) { //Must configure the widget
             Intent intent = new Intent(AppWidgetManager.ACTION_APPWIDGET_CONFIGURE);
@@ -2223,17 +2294,17 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    public void addWidget(Intent data){
+    public void addWidget(Intent data) {
         Bundle extras = data.getExtras();
         int appWidgetId = extras.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, -1);
         AppWidgetProviderInfo appWidgetInfo = widgetManager.getAppWidgetInfo(appWidgetId);
         addWidget(appWidgetId, appWidgetInfo);
     }
 
-    public void addWidget(int appWidgetId, int height){
+    public void addWidget(int appWidgetId, int height) {
         try {
             AppWidgetProviderInfo awpi = widgetManager.getAppWidgetInfo(appWidgetId);
-            if(awpi == null) throw new Exception("AWPI null!");
+            if (awpi == null) throw new Exception("AWPI null!");
             addWidget(appWidgetId, awpi, height);
         } catch (Exception e) {
             Log.d(TAG, "Failed to add widget; removing from database...");
@@ -2243,7 +2314,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    public void addWidget(int appWidgetId, AppWidgetProviderInfo awpi){
+    public void addWidget(int appWidgetId, AppWidgetProviderInfo awpi) {
         addWidget(appWidgetId, awpi, -1);
     }
 
@@ -2251,11 +2322,11 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
      * Add a widget to the widget container. Also handles adding it to the list used to
      * keep track of widgets.
      *
-     * @param appWidgetId The ID for the widget allocated by the system.
-     * @param awpi The AppWidgetProviderInfo passed to us by the system.
+     * @param appWidgetId   The ID for the widget allocated by the system.
+     * @param awpi          The AppWidgetProviderInfo passed to us by the system.
      * @param defaultHeight The height we've stored for the widget. If -1, we're adding a widget for the first time.
      */
-    public void addWidget(final int appWidgetId, final AppWidgetProviderInfo awpi, int defaultHeight){
+    public void addWidget(final int appWidgetId, final AppWidgetProviderInfo awpi, int defaultHeight) {
         final AppWidgetHostView hostView = widgetHost.createView(this, appWidgetId, awpi);
         hostView.setAppWidget(appWidgetId, awpi);
 
@@ -2263,14 +2334,14 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         int resultDp;
         int width = (int) Utilities.convertPixelsToDp(widgetOverlayContainer.getWidth(), this);
 
-        if(defaultHeight == -1){
+        if (defaultHeight == -1) {
             resultDp = awpi.minHeight;
         } else { //Use
             resultDp = defaultHeight;
         }
         int resultPx = (int) Utilities.convertDpToPixel(resultDp, this);
 
-        if(Build.VERSION.SDK_INT > Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
+        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
             hostView.updateAppWidgetSize(null, width, resultDp, width, resultDp);
         }
 
@@ -2280,30 +2351,30 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         //Add it to the widget list
         widgets.add(new WidgetContainer(awpi.provider.getPackageName(), appWidgetId, resultDp));
-        if(defaultHeight == -1){ //Show if a "new" widget
+        if (defaultHeight == -1) { //Show if a "new" widget
             showWidget(awpi.provider.getPackageName());
         }
     }
 
-    private WidgetContainer findContainer(int widgetId){
-        for(WidgetContainer wc : widgets){
-            if(wc.getWidgetId() == widgetId) return wc;
+    private WidgetContainer findContainer(int widgetId) {
+        for (WidgetContainer wc : widgets) {
+            if (wc.getWidgetId() == widgetId) return wc;
         }
         return null;
     }
 
-    private void showResizeDialog(final int appWidgetId, final AppWidgetHostView awhv){
+    private void showResizeDialog(final int appWidgetId, final AppWidgetHostView awhv) {
         AppWidgetProviderInfo awpi = widgetManager.getAppWidgetInfo(appWidgetId);
 
         int widgetIndex = -1;
-        for(int i = 0; i < widgets.size(); i++){
-            if(widgets.get(i).getWidgetId() == appWidgetId) widgetIndex = i;
+        for (int i = 0; i < widgets.size(); i++) {
+            if (widgets.get(i).getWidgetId() == appWidgetId) widgetIndex = i;
         }
 
         try {
             int shouldNotFail = awpi.minResizeHeight;
         } catch (Exception e) { //Error condition; find widget and remove
-            if(widgetIndex != -1){
+            if (widgetIndex != -1) {
                 widgets.remove(widgetIndex);
                 widgetOverlayContainer.removeViewAt(widgetIndex);
                 persistWidgets(widgets);
@@ -2315,7 +2386,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         //We know we can resize vertically; get bounds
         int tempMinHeight = awpi.minHeight;
-        if(awpi.resizeMode == AppWidgetProviderInfo.RESIZE_VERTICAL){
+        if (awpi.resizeMode == AppWidgetProviderInfo.RESIZE_VERTICAL) {
             tempMinHeight = awpi.minResizeHeight < awpi.minHeight ? awpi.minResizeHeight : awpi.minHeight;
         }
         final int minHeightDp = tempMinHeight;
@@ -2333,7 +2404,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         float maxInPixels = Utilities.convertDpToPixel(maxHeightDp, this);
         float slideDistance = maxInPixels - minInPixels;
 
-        if(slideDistance == 0) slideDistance = 1; // /0 = bad; shouldn't happen, buuuut...
+        if (slideDistance == 0) slideDistance = 1; // /0 = bad; shouldn't happen, buuuut...
 
         float percent = ((currentSize - minInPixels) / slideDistance);
         sb.setProgress((int) (sb.getMax() * percent));
@@ -2406,10 +2477,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     }
 
     @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-    private void showUsageMessage(){
+    private void showUsageMessage() {
         writer.putBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, true).commit();
 
-        if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             //Show usage settings dialog
             new MaterialDialog.Builder(this)
                     .title(R.string.enable_usage_viewing)
@@ -2470,33 +2541,33 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         leavingAnim.start();
     }
 
-    public void brightenScreen(){
+    public void brightenScreen() {
         ObjectAnimator.ofFloat(bigTint, "alpha", 0)
                 .setDuration(DEFAULT_ANIMATION_DURATION)
                 .start();
     }
 
-    public void dimScreen(){
+    public void dimScreen() {
         ObjectAnimator.ofFloat(bigTint, "alpha", 1)
                 .setDuration(DEFAULT_ANIMATION_DURATION)
                 .start();
     }
 
-    public void showDock(){
+    public void showDock() {
         ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dockBar, "translationY",
                 dockBar.getHeight(), 0);
         leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
         leavingAnim.start();
     }
 
-    private void hideDock(){
+    private void hideDock() {
         ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dockBar, "translationY",
                 0, dockBar.getHeight());
         leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
         leavingAnim.start();
     }
 
-    private void showDropMenu(){
+    private void showDropMenu() {
         DisplayMetrics dm = getResources().getDisplayMetrics();
 
         ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(dockbarApps, "translationX",
@@ -2517,7 +2588,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         dropLayout.setTranslationX(0);
     }
 
-    private void showDockApps(){
+    private void showDockApps() {
         DisplayMetrics dm = getResources().getDisplayMetrics();
 
         ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(dockbarApps, "translationX",
@@ -2534,7 +2605,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     private void toggleDropMenu(boolean visible) {
         final DisplayMetrics dm = getResources().getDisplayMetrics();
 
-        if(visible){ //Show drop menu
+        if (visible) { //Show drop menu
             ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(dropLayout, "translationX", 0);
             enteringAnim.setDuration(400);
             enteringAnim.start();
@@ -2556,7 +2627,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //endregion
 
     //region Clock
-    void updateDisplay(){
+    void updateDisplay() {
         Runnable runnable = new Runnable() {
             @Override
             public void run() {
@@ -2614,17 +2685,17 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             }
         };
 
-        if(Thread.currentThread() == Looper.getMainLooper().getThread()) {
+        if (Thread.currentThread() == Looper.getMainLooper().getThread()) {
             runnable.run();
         } else {
             this.runOnUiThread(runnable);
         }
     }
 
-    public void handleDedicatedAppButton(String pref, boolean slideTransition){
+    public void handleDedicatedAppButton(String pref, boolean slideTransition) {
         cachedPref = pref;
         String existingData = reader.getString(pref, "null");
-        if(!existingData.equals("null")){
+        if (!existingData.equals("null")) {
             Log.d(TAG, "Existing data: " + existingData);
             Gson gson = new Gson();
             try {
@@ -2633,7 +2704,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     Intent appLaunch = new Intent();
                     appLaunch.setClassName(ai.getPackageName(), ai.getActivityName());
                     appLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    if(slideTransition && Build.VERSION.SDK_INT > Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1){
+                    if (slideTransition && Build.VERSION.SDK_INT > Build.VERSION_CODES.ICE_CREAM_SANDWICH_MR1) {
                         startActivity(appLaunch, ActivityOptions.makeCustomAnimation(this,
                                 R.anim.search_slide_anim, R.anim.slide_out_right_anim).toBundle());
                     } else {
@@ -2659,9 +2730,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             public void run() {
                 try {
                     //Clear search
-                    if (!searchBox.getText().toString().equals("")) searchBox.setText("");
-
-                    hideKeyboard();
+                    quitSearch();
                     brightenScreen();
                     showDateTime();
                     toggleAppsContainer(false);

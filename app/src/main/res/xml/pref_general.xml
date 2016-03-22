@@ -87,6 +87,10 @@
             android:title="@string/aggresive_icon_caching"
             android:summary="@string/aggresive_icon_caching_summary"
             android:key="aggresive_caching_pref" />
+        <Preference
+            android:title="@string/debug_options"
+            android:summary="@string/debug_options_summary"
+            android:key="debug"/>
     </PreferenceCategory>
 
     <PreferenceCategory

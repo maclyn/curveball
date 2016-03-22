@@ -59,74 +59,81 @@ public class SettingsActivity extends ActionBarActivity {
         }
     }
 
-        public static class MainFragment extends PreferenceFragment {
-            @Override
-            public void onCreate(Bundle savedInstanceState) {
-                super.onCreate(savedInstanceState);
-                addPreferencesFromResource(R.xml.pref_general);
+    public static class MainFragment extends PreferenceFragment {
+        @Override
+        public void onCreate(Bundle savedInstanceState) {
+            super.onCreate(savedInstanceState);
+            addPreferencesFromResource(R.xml.pref_general);
 
-                findPreference("clock_app").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-                    @Override
-                    public boolean onPreferenceClick(Preference preference) {
-                        changeApp(Constants.CLOCK_APP_PREFERENCE);
-                        return true;
-                    }
-                });
-                findPreference("calendar_app").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-                    @Override
-                    public boolean onPreferenceClick(Preference preference) {
-                        changeApp(Constants.CALENDAR_APP_PREFERENCE);
-                        return true;
-                    }
-                });
-                findPreference("charging_app").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-                    @Override
-                    public boolean onPreferenceClick(Preference preference) {
-                        changeApp(Constants.CHARGING_APP_PREFERENCE);
-                        return true;
-                    }
-                });
-                findPreference("low_power_app").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-                    @Override
-                    public boolean onPreferenceClick(Preference preference) {
-                        changeApp(Constants.LOW_POWER_APP_PREFERENCE);
-                        return true;
-                    }
-                });
-                findPreference("phone_app").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-                    @Override
-                    public boolean onPreferenceClick(Preference preference) {
-                        changeApp(Constants.PHONE_APP_PREFERENCE);
-                        return true;
-                    }
-                });
-                findPreference("attrs").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-                    @Override
-                    public boolean onPreferenceClick(Preference preference) {
-                        new MaterialDialog.Builder(preference.getContext())
-                                .title(R.string.attributions)
-                                .content(R.string.attributions_message)
-                                .negativeText(R.string.close)
-                                .show();
-                        return true;
-                    }
-                });
-                /*
-                findPreference("home_widget_pref").setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
-                    @Override
-                    public boolean onPreferenceChange(Preference preference, Object newValue) {
-                        if((Boolean) newValue)
-                            Toast.makeText(MainFragment.this.getActivity(), R.string.home_widget_change,
-                                Toast.LENGTH_SHORT).show();
-                        return true;
-                    }
-                });
-                */
-            }
-
-            public void changeApp(String pref){
-                ((SettingsActivity)getActivity()).cachedPref = pref;
-                Utilities.grabActivity(getActivity(), REQUEST_CHOOSE_APPLICATION);
-            }
+            findPreference("clock_app").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    changeApp(Constants.CLOCK_APP_PREFERENCE);
+                    return true;
+                }
+            });
+            findPreference("calendar_app").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    changeApp(Constants.CALENDAR_APP_PREFERENCE);
+                    return true;
+                }
+            });
+            findPreference("charging_app").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    changeApp(Constants.CHARGING_APP_PREFERENCE);
+                    return true;
+                }
+            });
+            findPreference("low_power_app").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    changeApp(Constants.LOW_POWER_APP_PREFERENCE);
+                    return true;
+                }
+            });
+            findPreference("phone_app").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    changeApp(Constants.PHONE_APP_PREFERENCE);
+                    return true;
+                }
+            });
+            findPreference("attrs").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    new MaterialDialog.Builder(preference.getContext())
+                            .title(R.string.attributions)
+                            .content(R.string.attributions_message)
+                            .negativeText(R.string.close)
+                            .show();
+                    return true;
+                }
+            });
+            findPreference("debug").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    startActivity(new Intent(getActivity(), DockTester.class));
+                    return true;
+                }
+            });
+            /*
+            findPreference("home_widget_pref").setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
+                @Override
+                public boolean onPreferenceChange(Preference preference, Object newValue) {
+                    if((Boolean) newValue)
+                        Toast.makeText(MainFragment.this.getActivity(), R.string.home_widget_change,
+                            Toast.LENGTH_SHORT).show();
+                    return true;
+                }
+            });
+            */
         }
+
+        public void changeApp(String pref){
+            ((SettingsActivity)getActivity()).cachedPref = pref;
+            Utilities.grabActivity(getActivity(), REQUEST_CHOOSE_APPLICATION);
+        }
+    }
 }

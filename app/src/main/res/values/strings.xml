@@ -159,4 +159,8 @@
     <string name="error">Error!</string>
     <string name="store_not_installed">Store app not installed on this phone.</string>
     <string name="loading_suggestions">Loading suggestions...</string>
+    <string name="debug_options">Debugging Options</string>
+    <string name="debug_options_summary">If you\'re not developing Curveball, don\'t worry about this.</string>
+    <string name="activity_not_found">Activity not found. Cannot launch.</string>
+    <string name="drag_start">Drag start; should delete and start drag</string>
 </resources>

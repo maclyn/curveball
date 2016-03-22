@@ -11,4 +11,5 @@
     <color name="triangle_color">#80ffffff</color>
     <color name="transparent">#00000000</color>
     <color name="suggestions_box_background">#2fa3d7</color>
+    <color name="green">#009900</color>
 </resources>

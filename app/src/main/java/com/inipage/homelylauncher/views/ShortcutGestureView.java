@@ -518,6 +518,9 @@ public class ShortcutGestureView extends View {
                             log("Valid bounds; selecting from defaults", false);
                             selectedY = (int) (percent * (float) icons);
                         }
+                        if(selectedY >= data.get(selectedFolder).getPackages().size()){
+                            selectedY = data.get(selectedFolder).getPackages().size() - 1;
+                        }
                         log("Selected Y: " + selectedY, false);
 
                         if(selectedY != oldSelectedY || oldSelectedY == -1){
@@ -672,6 +675,8 @@ public class ShortcutGestureView extends View {
 
     @Override
     protected synchronized void onDraw(Canvas canvas) {
+        if(isInEditMode()) return;
+
         switch(cm) {
             case ADDING_ICON:
                 drawAddIcon(canvas);
@@ -746,7 +751,7 @@ public class ShortcutGestureView extends View {
         scratchRect2.set(0, 0, left.getWidth(), left.getHeight());
         scratchRect.set( (int) (x - arrowPadding - helpArrowSize), (int) (centerYLine - (outRect.height() / 4) - (helpArrowSize / 2)),
                 (int) (x - arrowPadding), (int) (centerYLine - (outRect.height() / 4) + (helpArrowSize / 2)));
-        transparencyPaint.setAlpha((int) (alphaMultiplier * (showLeftArrow ? 240f : 120f)));
+        transparencyPaint.setAlpha((int) (alphaMultiplier * (showLeftArrow ? 240f : 0f)));
         c.drawBitmap(left, scratchRect2, scratchRect, transparencyPaint);
 
         Bitmap right = IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_keyboard_arrow_right_white_18dp,
@@ -755,7 +760,7 @@ public class ShortcutGestureView extends View {
         scratchRect.set( (int) (x + outRect.width() + arrowPadding), (int) (centerYLine - (outRect.height() / 4) - (helpArrowSize / 2)),
                 (int) (x + outRect.width() + arrowPadding + helpArrowSize),
                 (int) (centerYLine - (outRect.height() / 4) + (helpArrowSize / 2)));
-        transparencyPaint.setAlpha((int) (alphaMultiplier * (showRightArrow ? 240f : 120f)));
+        transparencyPaint.setAlpha((int) (alphaMultiplier * (showRightArrow ? 240f : 0f)));
         c.drawBitmap(right, scratchRect2, scratchRect, transparencyPaint);
     }
 
@@ -1220,7 +1225,7 @@ public class ShortcutGestureView extends View {
             String label = grabLabel(cm);
 
             //Right-justify the icons
-            if(selectedY != i || timerStart == -1l) {
+            if(selectedY != i || timerStart == -1L) {
                 drawLineToSide(canvas, b, label, selectedY == i, ScreenSide.RIGHT_SIDE, getWidth() - edgeSlop,
                         iconsStartY, sizes.first, sizes.second, iconPadding);
             } else { //SelectedY is a slightly modified version of drawLineToSide(...) but with text offset for widget data
@@ -1236,11 +1241,20 @@ public class ShortcutGestureView extends View {
                 int color = getIconColorForBitmap(b);
                 int paddingOverTwo = (int) (iconPadding / 2);
 
-                int shadingXStart = getWidth() / 2;
+                //xStart/xEnd extremes are moderated by how much we've actually drawn
+                int extendOfShading = getWidth() / 2;
+                extendOfShading += (getWidth() / 4) * ((1 - (bigTextSize - textSize) / textSizeDifference));
+
+                int shadingXStart = getWidth() - extendOfShading;
                 int shadingXEnd = getWidth();
 
-                Shader linear = new LinearGradient(shadingXStart, y - paddingOverTwo, shadingXEnd,
-                        y + iconSize + paddingOverTwo, transparentColor, color, Shader.TileMode.CLAMP);
+                Shader linear = new LinearGradient(shadingXStart,
+                        y - paddingOverTwo,
+                        shadingXEnd,
+                        y + iconSize + paddingOverTwo,
+                        transparentColor,
+                        color,
+                        Shader.TileMode.CLAMP);
                 glowPaint.setShader(linear);
                 canvas.drawRect(shadingXStart, y - paddingOverTwo, shadingXEnd, y + iconSize + paddingOverTwo,
                         glowPaint);
@@ -1258,6 +1272,9 @@ public class ShortcutGestureView extends View {
                 String text = label;
                 String widgetText = "Hold for widget";
 
+                //Calculations for text drawing place
+                int spaceRemainingAfterText = (int) (iconSize + iconPadding);
+
                 float adjustedTextSize = (float) (textSize * 0.8);
                 float adjustedHelpTextSize = (float) (adjustedTextSize * 0.6);
 
@@ -1265,35 +1282,31 @@ public class ShortcutGestureView extends View {
                 labelPaint.setTextSize(adjustedTextSize);
                 labelPaint.getTextBounds(text, 0, text.length(), outRect);
 
-                float textHeight = outRect.height();
+                float mainTextHeight = outRect.height();
+                float mainTextWidth = outRect.width();
+                spaceRemainingAfterText -= mainTextHeight;
 
                 labelPaint.setTextSize(adjustedHelpTextSize);
                 labelPaint.getTextBounds(widgetText, 0, widgetText.length(), outRect);
 
-                textHeight += outRect.height(); //Text height is height of the text we're to print
-                float marginOnEitherSideOfText  = ((iconSize + margin) - textHeight) / 2;
+                float subTextHeight = outRect.height();
+                float subTextWidth = outRect.width();
+                spaceRemainingAfterText -= subTextHeight;
 
                 labelPaint.setTextSize(adjustedTextSize);
                 labelPaint.getTextBounds(text, 0, text.length(), outRect);
 
-                float heightOfMainText = outRect.height();
-
-                float centerYLine = y - paddingOverTwo + marginOnEitherSideOfText; //Now we're at the center of the space for the top text
-                centerYLine += (outRect.height() / 2); //Center it
-
+                //Adjust x for text
                 x -= iconSize;
                 x -= margin;
 
                 //Draw the text
-                canvas.drawText(text, x - outRect.width(), centerYLine, labelPaint);
+                canvas.drawText(text, x - mainTextWidth, y - paddingOverTwo + (spaceRemainingAfterText / 2)
+                        + (mainTextHeight / 2), labelPaint);
 
                 //Work on the subtext
                 labelPaint.setTextSize(adjustedHelpTextSize);
                 labelPaint.getTextBounds(widgetText, 0, widgetText.length(), outRect);
-
-                //Center text vertically
-                centerYLine = y - paddingOverTwo + marginOnEitherSideOfText + heightOfMainText;
-                centerYLine += outRect.height() / 2;
 
                 int white = getResources().getColor(R.color.white);
                 int lighterWhite = Color.argb(120, 255, 255, 255);
@@ -1303,13 +1316,16 @@ public class ShortcutGestureView extends View {
 
                 log(startTransparency + " to " + endTransparency, true);
 
-                LinearGradient scratchGradient = new LinearGradient(x - outRect.width(), centerYLine, x,
-                        centerYLine,
+                LinearGradient scratchGradient = new LinearGradient(x - outRect.width(),
+                        y - paddingOverTwo + (spaceRemainingAfterText / 2) + mainTextHeight + (mainTextHeight / 2),
+                        x,
+                        y - paddingOverTwo + (spaceRemainingAfterText / 2) + mainTextHeight + (mainTextHeight / 2),
                         new int[] { white, white, lighterWhite, lighterWhite },
                         new float[] { 0, startTransparency, endTransparency, 1 },
                         Shader.TileMode.CLAMP);
                 labelPaint.setShader(scratchGradient);
-                canvas.drawText(widgetText, x - outRect.width(), centerYLine, labelPaint);
+                canvas.drawText(widgetText, x - outRect.width(), y - paddingOverTwo +
+                        (spaceRemainingAfterText / 2) + mainTextHeight + (mainTextHeight / 2), labelPaint);
                 labelPaint.setShader(null);
             }
 
@@ -1506,22 +1522,21 @@ public class ShortcutGestureView extends View {
     /**
      * Draw a line. The line isn't centered by x, but the text is centered relative to the
      * icon.
-     *
-     * @param c Canvas to draw on.
+     *  @param c Canvas to draw on.
      * @param b The Bitmap to draw. Must not be null.
      * @param text The text to draw with the bitmap.
      * @param selected Whether the element is selected (affects transparency).
      * @param side The side (left or right). to draw the line on.
      * @param xStart The start X position of the whole thing (drawing to left pushes things right,
-     *               and drawing to right pushes things left).
+*               and drawing to right pushes things left).
      * @param yStart The start Y position of the whole line.
-     * @param iconSize The size of the icon in pixels.
-     * @param textSize The size of the text in pixels.
+     * @param lineIconSize The size of the icon in pixels.
+     * @param lineTextSize The size of the text in pixels.
      * @param margin The margin between different lines.
-     * */
-    private void drawLineToSide(Canvas c,
-                                Bitmap b, String text, boolean selected,
-                                ScreenSide side, float xStart, float yStart, float iconSize, float textSize, float margin){
+     */
+    private void drawLineToSide(Canvas c, Bitmap b, String text, boolean selected, ScreenSide side,
+                                float xStart, float yStart, float lineIconSize, float lineTextSize,
+                                float margin){
         float x = xStart;
         float y = yStart;
 
@@ -1531,21 +1546,29 @@ public class ShortcutGestureView extends View {
             int color = getIconColorForBitmap(b);
             int paddingOverTwo = (int) (iconPadding / 2);
 
-            int shadingXStart = side == ScreenSide.LEFT_SIDE ? 0 : getWidth() / 2;
-            int shadingXEnd = side == ScreenSide.LEFT_SIDE ? getWidth() / 2 : getWidth();
+            //xStart/xEnd extremes are moderated by how much we've actually drawn
+            int extendOfShading = getWidth() / 2;
+            extendOfShading += (getWidth() / 4) * ((1 - (bigTextSize - lineTextSize) / textSizeDifference));
 
-            Shader linear = new LinearGradient(shadingXStart, y - paddingOverTwo, shadingXEnd,
-                    y + iconSize + paddingOverTwo, side == ScreenSide.LEFT_SIDE ? color : transparentColor,
-                    side == ScreenSide.LEFT_SIDE ? transparentColor : color, Shader.TileMode.CLAMP);
+            int shadingXStart = side == ScreenSide.LEFT_SIDE ? 0 : getWidth() - extendOfShading;
+            int shadingXEnd = side == ScreenSide.LEFT_SIDE ? extendOfShading : getWidth();
+
+            Shader linear = new LinearGradient(shadingXStart,
+                    y - paddingOverTwo,
+                    shadingXEnd,
+                    y + lineIconSize + paddingOverTwo,
+                    side == ScreenSide.LEFT_SIDE ? color : transparentColor,
+                    side == ScreenSide.LEFT_SIDE ? transparentColor : color,
+                    Shader.TileMode.CLAMP);
             glowPaint.setShader(linear);
-            c.drawRect(shadingXStart, y - paddingOverTwo, shadingXEnd, y + iconSize + paddingOverTwo,
+            c.drawRect(shadingXStart, y - paddingOverTwo, shadingXEnd, y + lineIconSize + paddingOverTwo,
                     glowPaint);
         }
 
         //Draw the icon
-        int bitmapXStart = (int) (side == ScreenSide.LEFT_SIDE ? x : x - iconSize);
-        int bitmapXEnd = (int) (side == ScreenSide.LEFT_SIDE ? x + iconSize : x);
-        scratchRect.set(bitmapXStart, (int) y, bitmapXEnd, (int) (y + iconSize));
+        int bitmapXStart = (int) (side == ScreenSide.LEFT_SIDE ? x : x - lineIconSize);
+        int bitmapXEnd = (int) (side == ScreenSide.LEFT_SIDE ? x + lineIconSize : x);
+        scratchRect.set(bitmapXStart, (int) y, bitmapXEnd, (int) (y + lineIconSize));
         scratchRect2.set(0, 0, b.getWidth(), b.getHeight());
 
         transparencyPaint.setAlpha(255);
@@ -1553,21 +1576,21 @@ public class ShortcutGestureView extends View {
 
         //Draw the text
         labelPaint.setAlpha(selected ? 255 : 180);
-        labelPaint.setTextSize(textSize);
+        labelPaint.setTextSize(lineTextSize);
         labelPaint.getTextBounds(text, 0, text.length(), outRect);
 
         //Center text horizontally
         if(side == ScreenSide.LEFT_SIDE) {
-            x += iconSize;
+            x += lineIconSize;
             x += margin;
         } else {
-            x -= iconSize;
+            x -= lineIconSize;
             x -= margin;
             x -= outRect.width(); //Draw text more to left of the icon
         }
 
         //Center text vertically
-        float centerYLine = y + (iconSize / 2); //Now we're at the center of the drawable
+        float centerYLine = y + (lineIconSize / 2); //Now we're at the center of the drawable
         centerYLine -= (outRect.height() / 2); //Center it
         centerYLine += outRect.height();
 

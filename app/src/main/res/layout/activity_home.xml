@@ -338,15 +338,17 @@
                     android:layout_toRightOf="@+id/backToHome"
                     android:layout_toLeftOf="@+id/playStore"
                     android:hint="@string/search_hint"
+                    android:ellipsize="start"
                     android:textSize="18sp"
                     android:textColor="#111111"
+                    android:background="@color/transparent"
                     android:id="@+id/searchBox"
                     android:singleLine="true"
                     android:visibility="visible"
                     android:textColorHint="#666666"
                     android:layout_centerVertical="true"
                     android:imeOptions="actionGo"
-                    android:gravity="center_vertical" />
+                    android:gravity="center_horizontal|center_vertical" />
 
                 <ImageView
                     android:id="@+id/moreOptions"

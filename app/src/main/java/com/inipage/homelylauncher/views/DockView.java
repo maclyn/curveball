@@ -272,6 +272,8 @@ public class DockView extends View {
                 }
 
                 startTouchEventTime = System.currentTimeMillis();
+
+                //Start dragging after 500ms
                 mHandler.postDelayed(new Runnable() {
                     @Override
                     public void run() {
@@ -291,7 +293,6 @@ public class DockView extends View {
                     Palette.from(elements.get(touchIndex).getIcon()).generate(new Palette.PaletteAsyncListener() {
                         @Override
                         public void onGenerated(Palette palette) {
-
                             if (palette.getVibrantSwatch() != null) {
                                 Log.d(TAG, "Generated vibrant palette; " + palette.getVibrantSwatch().getRgb());
                                 flashColor = palette.getVibrantSwatch().getRgb();

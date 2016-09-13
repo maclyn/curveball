@@ -19,6 +19,10 @@ public interface ShortcutGestureViewHost {
     void showCreateFolderDialog(ApplicationIcon ai);
     void persistList(List<TypeCard> samples);
 
+    /* Tell us we need to change */
+
+    void invalidateGestureView();
+
     /* Folder options */
 
     void showEditFolderDialog(int folderIndex);

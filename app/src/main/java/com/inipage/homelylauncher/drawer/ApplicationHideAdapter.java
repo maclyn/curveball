@@ -2,6 +2,7 @@ package com.inipage.homelylauncher.drawer;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;
+import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -15,29 +16,39 @@ import com.inipage.homelylauncher.R;
 import java.util.List;
 import java.util.Map;
 
-public class ApplicationHideAdapter extends ArrayAdapter<ApplicationHiderIcon> {
+public class ApplicationHideAdapter extends RecyclerView.Adapter<ApplicationHideAdapter.ApplicationVH> {
     List<ApplicationHiderIcon> apps;
     Context ctx;
 
     private float iconSize;
 
-    public ApplicationHideAdapter(Context context, int resource, List<ApplicationHiderIcon> objects) {
-        super(context, resource, objects);
+    public class ApplicationVH extends RecyclerView.ViewHolder {
+        TextView title;
+        ImageView hiddenIcon;
+
+        public ApplicationVH(View itemView) {
+            super(itemView);
+            title = (TextView) itemView.findViewById(R.id.appIconName);
+            hiddenIcon = (ImageView) itemView.findViewById(R.id.appIconHidden);
+        }
+    }
+
+    public ApplicationHideAdapter(Context context, List<ApplicationHiderIcon> objects) {
         this.ctx = context;
         this.apps = objects;
     }
 
     @Override
-    public View getView(int position, View convertView, ViewGroup parent) {
+    public ApplicationVH onCreateViewHolder(ViewGroup parent, int viewType) {
+        return new ApplicationVH(LayoutInflater.from(parent.getContext()).inflate(R.layout.application_icon_hidden, parent, false));
+    }
+
+    @Override
+    public void onBindViewHolder(ApplicationVH holder, int position) {
         final ApplicationHiderIcon ai = apps.get(position);
 
-        RelativeLayout mainView = (RelativeLayout) convertView;
-        if(mainView == null)
-            mainView = (RelativeLayout) LayoutInflater.from(parent.getContext())
-                    .inflate(R.layout.application_icon_hidden, parent, false);
-
-        TextView title = (TextView) mainView.findViewById(R.id.appIconName);
-        final ImageView hiddenIcon = (ImageView) mainView.findViewById(R.id.appIconHidden);
+        TextView title = holder.title;
+        final ImageView hiddenIcon = holder.hiddenIcon;
 
         //Set title
         title.setText(ai.getName());
@@ -48,7 +59,7 @@ public class ApplicationHideAdapter extends ArrayAdapter<ApplicationHiderIcon> {
                 : R.drawable.ic_visibility_white_48dp);
 
         //Set launch
-        mainView.setOnClickListener(new View.OnClickListener() {
+        holder.itemView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 ai.setIsHidden(!ai.getIsHidden());
@@ -57,8 +68,11 @@ public class ApplicationHideAdapter extends ArrayAdapter<ApplicationHiderIcon> {
                         : R.drawable.ic_visibility_white_48dp);
             }
         });
+    }
 
-        return mainView;
+    @Override
+    public int getItemCount() {
+        return apps.size();
     }
 
     public List<ApplicationHiderIcon> getApps() {

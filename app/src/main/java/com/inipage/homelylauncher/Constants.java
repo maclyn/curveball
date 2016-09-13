@@ -32,6 +32,8 @@ public class Constants {
     public static final String WAKEUP_INTENT = "smartercardhome.inipage.com.usagehome.WAKEUP";
     public static final String FOUND_DATA_INTENT = "smartercardhome.inipage.com.usagehome.FOUND_DATA";
 
+    public static final String ALLOW_ROTATION_PREF = "allow_rotation_pref";
+
     @Deprecated
     public static final String HOME_WIDGET_PREFERENCE = "home_widget_pref";
     @Deprecated

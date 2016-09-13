@@ -88,8 +88,8 @@
     <string name="calendar_desc">A suggested app because you\'re in a calendar event.</string>
     <string name="call_desc">A suggested app because you\'re in a call.</string>
     <string name="battery_desc">A suggested app because of your battery\'s status.</string>
-    <string name="next_alarm_at">Next alarm at</string>
-    <string name="aggresive_icon_caching">Aggresive icon caching</string>
+    <string name="next_alarm_at">Next alarm at %s</string>
+    <string name="aggresive_icon_caching">Aggressive icon caching</string>
     <string name="aggresive_icon_caching_summary">Fetch launcher icons when we start. Provides a better experience, but may harm startup performance on low-end devices.</string>
     <string name="element_size">Max amount needed to move between each element of swipe view.</string>
     <string name="element_size_descriptions">Affects the main gesture view.</string>
@@ -103,13 +103,13 @@
     <string name="close">Close</string>
     <string name="attributions_message">
         We are grateful to be able to use the following libraries in this product:\n\n
-        Android Support Library, Palette, and RecyclerView, (c) 2015 Android Open Source Project under the Apache license.\n
-        Gson (c) 2015 Google Inc. under the Apache license.\n
-        DragSortListView (c) 2012 Carl Bauer under the Apache license.\n
-        NumberPickerPreference (C) 2014-2015 Vanniktech - Niklas Baudy under the Apache License.\n
-        MaterialDialogs (c) Aidan Michael Follestad under the MIT license.\n
-        ButterKnife (c) 2013 Jake Wharton.\n
-        Otto (c) 2013 Square, Inc.\n\n
+        Android Support Library, Palette, and RecyclerView, © 2015 Android Open Source Project under the Apache license.\n
+        Gson © 2015 Google Inc. under the Apache license.\n
+        DragSortListView © 2012 Carl Bauer under the Apache license.\n
+        NumberPickerPreference © 2014-2015 Vanniktech - Niklas Baudy under the Apache License.\n
+        MaterialDialogs © Aidan Michael Follestad under the MIT license.\n
+        ButterKnife © 2013 Jake Wharton.\n
+        Otto © 2013 Square, Inc.\n\n
         Apache License:\n
         Licensed under the Apache License, Version 2.0 (the "License");
         you may not use this file except in compliance with the License.
@@ -158,9 +158,12 @@
     <string name="swap_widget">Swap Widget</string>
     <string name="error">Error!</string>
     <string name="store_not_installed">Store app not installed on this phone.</string>
-    <string name="loading_suggestions">Loading suggestions...</string>
+    <string name="loading_suggestions">Loading suggestions…</string>
     <string name="debug_options">Debugging Options</string>
     <string name="debug_options_summary">If you\'re not developing Curveball, don\'t worry about this.</string>
     <string name="activity_not_found">Activity not found. Cannot launch.</string>
     <string name="drag_start">Drag start; should delete and start drag</string>
+    <string name="allow_rotation">Allow rotation</string>
+    <string name="allow_rotation_desc">Allow the homescreen to rotate. May cause issues.</string>
+    <string name="charging_format">Charging %1$d%%\n%2$s, %3$s %4$s</string>
 </resources>

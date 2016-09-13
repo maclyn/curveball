@@ -83,6 +83,11 @@
             android:summary="@string/phone_pref_summary"
             android:key="is_phone_pref" />
         <CheckBoxPreference
+            android:defaultValue="false"
+            android:title="@string/allow_rotation"
+            android:summary="@string/allow_rotation_desc"
+            android:key="allow_rotation_pref" />
+        <CheckBoxPreference
             android:defaultValue="true"
             android:title="@string/aggresive_icon_caching"
             android:summary="@string/aggresive_icon_caching_summary"

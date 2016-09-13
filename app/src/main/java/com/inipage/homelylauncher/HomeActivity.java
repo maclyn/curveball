@@ -46,6 +46,7 @@ import android.provider.CalendarContract;
 import android.provider.Settings;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.support.v7.widget.GridLayoutManager;
+import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.telephony.TelephonyManager;
 import android.text.Editable;
@@ -291,6 +292,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     SharedPreferences reader;
     SharedPreferences.Editor writer;
 
+    Configuration previousConfiguration;
+
     List<TypeCard> samples;
     List<WidgetContainer> widgets;
     List<Pair<String, String>> hiddenApps;
@@ -347,6 +350,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         reader = PreferenceManager.getDefaultSharedPreferences(this);
         writer = reader.edit();
 
+        previousConfiguration = getResources().getConfiguration();
+
         minutes = new SimpleDateFormat("mm", Locale.US);
         hours = new SimpleDateFormat("h", Locale.US);
         light = Typeface.createFromAsset(this.getAssets(), "Roboto-Thin.ttf");
@@ -376,8 +381,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         //Set up all apps button
         cachedHash = -1;
 
-        //Allow tablet to rotate
-        if (Utilities.isSmallTablet(this) || Utilities.isLargeTablet(this)) {
+        //Allow rotation if requested or a tablet
+        if ((Utilities.isSmallTablet(this) || Utilities.isLargeTablet(this)) || reader.getBoolean(Constants.ALLOW_ROTATION_PREF, false)) {
             this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
         }
 
@@ -747,6 +752,11 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     @Override
     public void onResume() {
         super.onResume();
+
+        if(reader.getBoolean(Constants.ALLOW_ROTATION_PREF, false)) {
+            this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
+        }
+
         updateDisplay();
 
         //Update most parts on timer
@@ -811,7 +821,13 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
+        super.onConfigurationChanged(newConfig);
+
+        if(previousConfiguration.densityDpi != newConfig.densityDpi)
+            IconCache.getInstance().invalidateCaches();
+
         updateRowCount(newConfig.orientation);
+        previousConfiguration = newConfig;
     }
 
     @Override
@@ -1863,7 +1879,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 .show();
     }
 
-
+    public void invalidateGestureView(){
+        sgv.invalidate();
+    }
     //endregion
 
     //region Manage hidden apps
@@ -1942,16 +1960,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
             @Override
             protected void onPostExecute(List<ApplicationHiderIcon> apps) {
-                final ApplicationHideAdapter adapter = new ApplicationHideAdapter(HomeActivity.this,
-                        R.layout.application_icon_hidden, apps);
-
+                final ApplicationHideAdapter adapter = new ApplicationHideAdapter(HomeActivity.this, apps);
                 new MaterialDialog.Builder(HomeActivity.this)
-                        .adapter(adapter, new MaterialDialog.ListCallback() {
-                            @Override
-                            public void onSelection(MaterialDialog materialDialog, View view, int i, CharSequence charSequence) {
-                                //Do nothing
-                            }
-                        })
+                        .adapter(adapter, new LinearLayoutManager(HomeActivity.this))
                         .title(R.string.hideApps)
                         .positiveText(R.string.done)
                         .negativeText(R.string.cancel)
@@ -2216,39 +2227,29 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     }
                 }
 
-                final WidgetAddAdapter adapter = new WidgetAddAdapter(HomeActivity.this, R.layout.widget_preview, matchingProviders);
-
+                final WidgetAddAdapter adapter = new WidgetAddAdapter(matchingProviders, HomeActivity.this);
                 final MaterialDialog md = new MaterialDialog.Builder(HomeActivity.this)
-                        .adapter(adapter, new MaterialDialog.ListCallback() {
-                            @Override
-                            public void onSelection(MaterialDialog materialDialog, View view, int i, CharSequence charSequence) {
-                            }
-                        })
+                        .adapter(adapter, new LinearLayoutManager(HomeActivity.this))
                         .title("Select a " + matchingProviders.get(0).label + " Widget")
                         .negativeText(R.string.cancel)
                         .build();
-
-                ListView lv = md.getListView();
-                if (lv != null)
-                    lv.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-                        @Override
-                        public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                            AppWidgetProviderInfo awpi = adapter.getItem(position);
-                            int appWidgetId = widgetHost.allocateAppWidgetId();
-                            if (widgetManager.bindAppWidgetIdIfAllowed(appWidgetId, awpi.provider)) {
-                                //Carry on with configuring
-                                handleWidgetConfig(appWidgetId, awpi);
-                            } else {
-                                //Ask for permission
-                                Intent intent = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
-                                intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
-                                intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, awpi.provider);
-                                startActivityForResult(intent, REQUEST_ALLOCATE_ID);
-                            }
-                            md.hide();
+                adapter.setOnClickListener(new WidgetAddAdapter.OnWidgetClickListener() {
+                    @Override
+                    public void onClick(AppWidgetProviderInfo awpi) {
+                        int appWidgetId = widgetHost.allocateAppWidgetId();
+                        if (widgetManager.bindAppWidgetIdIfAllowed(appWidgetId, awpi.provider)) {
+                            //Carry on with configuring
+                            handleWidgetConfig(appWidgetId, awpi);
+                        } else {
+                            //Ask for permission
+                            Intent intent = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
+                            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
+                            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, awpi.provider);
+                            startActivityForResult(intent, REQUEST_ALLOCATE_ID);
                         }
-                    });
-
+                        md.hide();
+                    }
+                });
                 md.show();
             }
         });
@@ -2649,9 +2650,11 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     if (status != null) {
                         if (status.getIntExtra(BatteryManager.EXTRA_STATUS,
                                 BatteryManager.BATTERY_STATUS_CHARGING) == BatteryManager.BATTERY_STATUS_CHARGING) {
-                            date.setText("Charging " + status.getIntExtra(BatteryManager.EXTRA_LEVEL, 50) + "%\n"
-                                    + sdfDay.format(cal.getTime()) + ", " + sdfMonth.format(cal.getTime())
-                                    + " " + sdfDayOfMonth.format(cal.getTime()));
+                            date.setText(getString(R.string.charging_format,
+                                    status.getIntExtra(BatteryManager.EXTRA_LEVEL, 50),
+                                    sdfDay.format(cal.getTime()),
+                                    sdfMonth.format(cal.getTime()),
+                                    sdfDayOfMonth.format(cal.getTime())));
                         } else {
                             date.setText(sdfDay.format(cal.getTime())
                                     + ", " + sdfMonth.format(cal.getTime())
@@ -2666,7 +2669,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
                         if (aci != null && (aci.getTriggerTime() - System.currentTimeMillis() < ONE_DAY_MILLIS)) {
                             alarm.setVisibility(View.VISIBLE);
-                            alarm.setText(getString(R.string.next_alarm_at) + " " + alarmTime.format(new Date(aci.getTriggerTime())));
+                            alarm.setText(getString(R.string.next_alarm_at, alarmTime.format(new Date(aci.getTriggerTime()))));
                             alarm.setOnClickListener(new View.OnClickListener() {
                                 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
                                 @Override

@@ -15,6 +15,8 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.inipage.homelylauncher.R;
+import com.inipage.homelylauncher.views.ShortcutGestureView;
+import com.inipage.homelylauncher.views.ShortcutGestureViewHost;
 import com.mobeta.android.dslv.DragSortListView;
 
 import java.util.List;
@@ -72,6 +74,7 @@ public class AppEditAdapter extends ArrayAdapter<Pair<String, String>> implement
             Toast.makeText(getContext(), R.string.cant_remove_last, Toast.LENGTH_SHORT).show();
             notifyDataSetChanged();
         }
+        redrawGestureView();
     }
 
     synchronized private void setEntry(final String packageName, final String activity, final ImageView iv){
@@ -105,5 +108,12 @@ public class AppEditAdapter extends ArrayAdapter<Pair<String, String>> implement
         objects.remove(element);
         objects.add(to, element);
         notifyDataSetChanged();
+        redrawGestureView();
+    }
+
+    private void redrawGestureView(){
+        if(getContext() instanceof ShortcutGestureViewHost){
+            ((ShortcutGestureViewHost) getContext()).invalidateGestureView();
+        }
     }
 }

@@ -166,4 +166,5 @@
     <string name="allow_rotation">Allow rotation</string>
     <string name="allow_rotation_desc">Allow the homescreen to rotate. May cause issues.</string>
     <string name="charging_format">Charging %1$d%%\n%2$s, %3$s %4$s</string>
+    <string name="widget_no_longer_valid">That widget is no longer valid.</string>
 </resources>

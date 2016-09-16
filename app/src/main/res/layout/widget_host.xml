@@ -9,15 +9,7 @@
         android:id="@+id/editView"
         android:layout_width="match_parent"
         android:layout_height="wrap_content">
-        <ImageView
-            android:id="@+id/resizeWidget"
-            android:layout_width="50dp"
-            android:layout_height="50dp"
-            android:layout_weight="1"
-            android:padding="8dp"
-            android:src="@drawable/ic_unfold_more_white_48dp"
-            android:background="?android:attr/selectableItemBackground"
-            android:scaleType="fitCenter" />
+
         <ImageView
             android:id="@+id/deleteWidget"
             android:layout_width="50dp"
@@ -28,6 +20,7 @@
             android:background="?android:attr/selectableItemBackground"
             android:scaleType="fitCenter"/>
     </LinearLayout>
+
     <LinearLayout
         android:orientation="vertical"
         android:id="@+id/widgetHostContainer"

@@ -12,7 +12,7 @@ public interface ShortcutGestureViewHost {
 
     boolean hasWidget(String packageName);
     void showWidget(String packageName);
-    void hideWidgetOverlay();
+    void collapseWidgetDrawer();
 
     /* Folder data management */
 

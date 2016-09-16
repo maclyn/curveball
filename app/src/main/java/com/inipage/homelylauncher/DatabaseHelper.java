@@ -10,7 +10,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     //Database basics
     public static final String DATABASE_NAME = "database.db";
-    public static final int DATABASE_VERSION = 4;
+    public static final int DATABASE_VERSION = 5;
 
     //Base columns
     public static final String COLUMN_ID = "_id";
@@ -31,8 +31,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     //Widget table
     public static final String TABLE_WIDGETS = "widgets_table";
     public static final String COLUMN_WIDGET_ID = "widget_id";
-    public static final String COLUMN_POSITION = "widget_position";
-    public static final String COLUMN_SIZE_DP = "widget_size_dp";
 
     //Smartapps table
     public static final String TABLE_SMARTAPPS = "smartapps_table";
@@ -56,16 +54,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     private static final String WIDGET_TABLE_CREATE = "create table "
             + TABLE_WIDGETS +
             "(" + COLUMN_ID + " integer primary key autoincrement, "
-            + COLUMN_WIDGET_ID + " integer not null, "
-            + COLUMN_POSITION + " integer not null, "
-            + COLUMN_SIZE_DP + " integer not null" + ");";
+            + COLUMN_WIDGET_ID + " integer not null);";
     private static final String SMARTAPPS_TABLE_CREATE = "create table "
             + TABLE_SMARTAPPS +
             "(" + COLUMN_ID + " integer primary key autoincrement, "
             + COLUMN_PACKAGE + " text not null, "
             + COLUMN_ACTIVITY_NAME + " text not null, "
             + COLUMN_WHEN_TO_SHOW + " integer not null" + ");";
-
     public DatabaseHelper(Context context){
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
@@ -91,33 +86,9 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             db.execSQL(SMARTAPPS_TABLE_CREATE);
         } else if (oldVersion < 2){ //v2 didn't have a smartapps table
             db.execSQL(SMARTAPPS_TABLE_CREATE);
-        } else if (oldVersion < 3) { //v3's widget table is corrupt!
+        } else if (oldVersion < 5) { //v3-v4's widget table is corrupt!
             db.delete(TABLE_WIDGETS, null, null);
             db.execSQL(WIDGET_TABLE_CREATE);
-        }
-    }
-
-    @Override
-    public void onOpen(SQLiteDatabase db) {
-        try {
-            super.onOpen(db);
-        } catch (Exception e){
-            try {
-                db.delete(TABLE_WIDGETS, null, null);
-            } catch (Exception ignored) {}
-
-            try {
-                db.delete(TABLE_HIDDEN_APPS, null, null);
-            } catch (Exception ignored) {}
-
-            try {
-                db.delete(TABLE_ROWS, null, null);
-            } catch (Exception ignored) {}
-
-            try {
-                db.delete(TABLE_SMARTAPPS, null, null);
-            } catch (Exception ignored) {}
-            super.onOpen(db);
         }
     }
 }

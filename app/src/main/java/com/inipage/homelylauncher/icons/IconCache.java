@@ -32,6 +32,7 @@ import java.util.concurrent.RejectedExecutionException;
  */
 public class IconCache {
     private static final String TAG = "IconCache";
+    private static final boolean QUIET = true; //IconCache can make our logs noisy
 
     /**
      * Maximum tries to get an icon if a failure is only partial (e.g. OOM).
@@ -233,13 +234,13 @@ public class IconCache {
                             if (retrievalInterface != null)
                                 retrievalInterface.onRetrievalComplete(bmpResult);
                         } else {
-                            Log.e(TAG, "Swipe cache unexpected missing element; high memory situation found");
+                            if(!QUIET) Log.e(TAG, "Swipe cache unexpected missing element; high memory situation found");
                             if (retrievalInterface != null)
                                 retrievalInterface.onRetrievalComplete(dummyBitmap);
                         }
                     }
                 } catch (Error memoryError) {
-                    Log.e(TAG, "Ran out of memory to set bitmap!");
+                    if(!QUIET) Log.e(TAG, "Ran out of memory to set bitmap!");
                 }
             }
         }
@@ -271,14 +272,14 @@ public class IconCache {
 
     //Only evicts from app cache.
     private void evictUntilFree(int byteCount) {
-        Log.i(TAG, "Checking if space present for " + byteCount + " bytes");
+        log("Checking if space present for " + byteCount + " bytes");
 
         long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
         if (usedMemory < memoryPressureLimit) { //Used > pressure value
-            Log.i(TAG, "Only " + usedMemory + " bytes used; pressure fine for now");
+            log("Only " + usedMemory + " bytes used; pressure fine for now");
             return;
         } else {
-            Log.i(TAG, "Memory pressure tight; trying to evict");
+            log("Memory pressure tight; trying to evict");
         }
 
         synchronized (cacheLock) {
@@ -293,7 +294,7 @@ public class IconCache {
                     maximumUsageNumber = entry.getValue().first;
             }
 
-            Log.i(TAG, "Most used element has been used " + maximumUsageNumber + " times");
+            log("Most used element has been used " + maximumUsageNumber + " times");
 
             usageLoop:
             {
@@ -307,7 +308,7 @@ public class IconCache {
                         }
 
                         if (bytesFreed >= byteCount){
-                            Log.i(TAG, "Freed enough bytes; process complete");
+                            log("Freed enough bytes; process complete");
                             break usageLoop;
                         }
                     }
@@ -316,10 +317,10 @@ public class IconCache {
                 }
             }
 
-            Log.i(TAG, toEvict.size() + " elements removed to free " + bytesFreed + " bytes");
+            log(toEvict.size() + " elements removed to free " + bytesFreed + " bytes");
 
             for (String s : toEvict) {
-                Log.i(TAG, "Evicting: " + s);
+                log("Evicting: " + s);
                 iconCache.remove(s);
             }
         }
@@ -393,7 +394,7 @@ public class IconCache {
                 }
                 return;
             } catch (Exception ignored) { //This means the bitmap has been recycled/otherwise trashed
-                Log.i(TAG, "Icon recycled!");
+                log("Icon recycled!");
             }
         }
 
@@ -570,15 +571,19 @@ public class IconCache {
         }
     }
 
+    private void log(String content){
+        if(!QUIET) Log.i(TAG, "[Task ?] " + content);
+    }
+
     private void logi(BitmapRetrievalTask task, String content){
-        Log.i(TAG, "[" + task.toString() + "] " + content);
+        if(!QUIET) Log.i(TAG, "[" + task.toString() + "] " + content);
     }
 
     private void logd(BitmapRetrievalTask task, String content){
-        Log.d(TAG, "[" + task.toString() + "] " + content);
+        if(!QUIET) Log.d(TAG, "[" + task.toString() + "] " + content);
     }
 
     private void loge(BitmapRetrievalTask task, String content){
-        Log.e(TAG, "[" + task.toString() + "] " + content);
+        if(!QUIET) Log.e(TAG, "[" + task.toString() + "] " + content);
     }
 }

@@ -12,4 +12,6 @@
     <color name="transparent">#00000000</color>
     <color name="suggestions_box_background">#2fa3d7</color>
     <color name="green">#009900</color>
+    <color name="primary">#000000</color>
+    <color name="warning_red">#FF9B9B</color>
 </resources>

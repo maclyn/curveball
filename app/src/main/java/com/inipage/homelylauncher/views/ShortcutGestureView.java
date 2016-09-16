@@ -65,7 +65,9 @@ public class ShortcutGestureView extends View {
         /** Choosing an app to open. **/
         CHOOSING_APP,
         /** Choosing an option when in a folder. **/
-        CHOOSING_OPTION
+        CHOOSING_OPTION,
+        /** Showing nothing -- widget drawer in front */
+        SHOWING_NOTHING
     }
 
     private enum ScreenSide {
@@ -381,14 +383,14 @@ public class ShortcutGestureView extends View {
         int numRows = data.size() + 1; //At least one/two
 
         float percent = location / (float) (getHeight() - host.getBottomMargin());
-        log("Percent is: " + percent, true);
+        log("Percent is: " + percent, false);
         float selection = percent * numRows;
-        log("Raw selection is: " + selection, true);
+        log("Raw selection is: " + selection, false);
         selectedY = (int) floor(selection);
         if (selectedY < 0) selectedY = 0;
         if (selectedY > data.size()) selectedY = data.size();
 
-        log("Selected element is : " + selectedY, true);
+        log("Selected element is : " + selectedY, false);
         invalidate();
     }
 
@@ -536,14 +538,8 @@ public class ShortcutGestureView extends View {
                                     @Override
                                     public void run() {
                                         resetState();
-                                        getHandler().post(new Runnable() {
-                                            @Override
-                                            public void run() {
-                                                host.brightenScreen();
-                                                host.showTopElements();
-                                                host.showBottomElements();
-                                            }
-                                        });
+                                        cm = ViewMode.SHOWING_NOTHING;
+                                        postInvalidate();
 
                                         rejectNextEvent = true;
                                         timerCompleted = true;
@@ -560,10 +556,10 @@ public class ShortcutGestureView extends View {
                                             }
                                         });
                                     }
-                                }, 0l, 1000 / 60);
+                                }, 0L, 1000 / 60);
                                 timerStart = System.currentTimeMillis();
                             } else {
-                                timerStart = -1l;
+                                timerStart = -1L;
                             }
                         }
                         break;
@@ -642,8 +638,6 @@ public class ShortcutGestureView extends View {
                             Toast.makeText(getContext(), "Unable to start. Application may be uninstalled/upgrading.", Toast.LENGTH_SHORT).show();
                         }
 
-                        //TODO: An animation of sorts, perhaps?
-
                         resetState();
                         host.brightenScreen();
                         host.showTopElements();
@@ -694,6 +688,8 @@ public class ShortcutGestureView extends View {
                 drawFolderOptions(canvas);
                 drawHelp(canvas, "Release to select option", "", false, false);
                 break;
+            case SHOWING_NOTHING:
+                break; //Nothing!
             case NONE:
                 drawFolderHints(canvas);
                 break;
@@ -1173,7 +1169,7 @@ public class ShortcutGestureView extends View {
             float maxFor = idealPosition + halfPerElementSize;
             for(int i = 0; i < numIcons; i++){
                 log("At position __, touchY/ideal/min/max/selectedY: " + i + " " + touchY + " " + idealPosition + " " +
-                        minFor + " " + maxFor + " " + selectedY, true);
+                        minFor + " " + maxFor + " " + selectedY, false);
                 if(i == selectedY){
                     log("Calculating from selectedY", false);
                     float drawPercent = 1f - ((maxFor - touchY) / perElementSize); //By calculation, this will be between 0 and 1
@@ -1314,7 +1310,7 @@ public class ShortcutGestureView extends View {
                 float startTransparency = ((float) (System.currentTimeMillis() - timerStart)) / ((float) WIDGET_HOLD_DURATION);
                 float endTransparency = startTransparency + 0.1f > 1f ? 1f : startTransparency + 0.1f;
 
-                log(startTransparency + " to " + endTransparency, true);
+                log(startTransparency + " to " + endTransparency, false);
 
                 LinearGradient scratchGradient = new LinearGradient(x - outRect.width(),
                         y - paddingOverTwo + (spaceRemainingAfterText / 2) + mainTextHeight + (mainTextHeight / 2),
@@ -1611,6 +1607,16 @@ public class ShortcutGestureView extends View {
                 if(rejectNextEvent) return false;
 
                 log("Motion event action down", false);
+
+                if(cm == ViewMode.SHOWING_NOTHING){ //If a drawer or some such thing is open
+                    host.collapseWidgetDrawer();
+                    host.showTopElements();
+                    host.showBottomElements();
+                    host.brightenScreen();
+                    resetState();
+                    return false;
+                }
+
                 cleanTouchEvents();
                 initTouchOp(event);
 

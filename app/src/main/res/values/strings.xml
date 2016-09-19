@@ -167,4 +167,6 @@
     <string name="allow_rotation_desc">Allow the homescreen to rotate. May cause issues.</string>
     <string name="charging_format">Charging %1$d%%\n%2$s, %3$s %4$s</string>
     <string name="widget_no_longer_valid">That widget is no longer valid.</string>
+    <string name="suppress_suggestion_title">Remove suggestion</string>
+    <string name="suppress_suggestion_message">Would you like to remove this suggestion, and prevent it from showing up again?</string>
 </resources>

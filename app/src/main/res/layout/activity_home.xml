@@ -15,7 +15,6 @@
 
     <RelativeLayout
         android:id="@+id/rootLayout"
-        android:layout_alignParentLeft="true"
         android:layout_alignParentTop="true"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -25,7 +24,9 @@
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="@android:color/transparent"
-            android:id="@+id/sgv" />
+            android:id="@+id/sgv"
+            android:layout_alignParentTop="true"
+            android:layout_toEndOf="@+id/strayTouchShield" />
 
         <!-- Snacklets "hint" -->
         <LinearLayout
@@ -165,81 +166,10 @@
                 android:layout_above="@+id/searchActionBar"
                 android:background="@drawable/all_apps_bg">
 
-                <!-- Layout for the suggestions box -->
-                <LinearLayout
-                    android:orientation="vertical"
-                    android:layout_alignParentTop="true"
-                    android:id="@+id/suggestionsBox"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content">
-
-                    <!-- Icon and no, loading, or actual suggestions -->
-                    <LinearLayout
-                        android:orientation="horizontal"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:background="@drawable/suggestions_box_background">
-
-                        <ImageView
-                            android:id="@+id/suggestionsLabel"
-                            android:src="@drawable/ic_lightbulb_outline_white_48dp"
-                            android:layout_width="48dp"
-                            android:layout_height="48dp"
-                            android:textSize="16sp"
-                            android:fontFamily="sans-serif-condensed"
-                            android:textColor="#111111"
-                            android:layout_marginTop="8dp"
-                            android:layout_marginLeft="8dp" />
-
-                        <FrameLayout
-                            android:id="@+id/suggestionsFillContainer"
-                            android:layout_width="match_parent"
-                            android:layout_height="64dp">
-
-                            <TextView
-                                android:id="@+id/loading_suggestions"
-                                android:text="@string/loading_suggestions"
-                                android:layout_gravity="center"
-                                android:textColor="@color/white"
-                                android:textSize="16sp"
-                                android:padding="8dp"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content"
-                                android:visibility="gone"/>
-
-                            <TextView
-                                android:id="@+id/no_suggestions_right_now"
-                                android:text="@string/no_suggestions_right_now"
-                                android:layout_gravity="center"
-                                android:textColor="@color/white"
-                                android:textSize="16sp"
-                                android:padding="8dp"
-                                android:layout_width="wrap_content"
-                                android:layout_height="wrap_content" />
-
-                            <HorizontalScrollView
-                                android:id="@+id/suggestionsScrollView"
-                                android:layout_width="match_parent"
-                                android:layout_height="64dp"
-                                android:visibility="gone"
-                                android:scrollbars="none" >
-
-                                <LinearLayout
-                                    android:id="@+id/suggestionsLayout"
-                                    android:orientation="horizontal"
-                                    android:layout_width="wrap_content"
-                                    android:layout_height="match_parent"
-                                    android:gravity="center" />
-                            </HorizontalScrollView>
-                        </FrameLayout>
-                    </LinearLayout>
-
-                </LinearLayout>
-
                 <!-- Layout for the apps grid (vertically scrolling list) -->
                 <RelativeLayout
                     android:id="@+id/allAppsLayoutContainer"
-                    android:layout_below="@+id/suggestionsBox"
+                    android:layout_alignParentTop="true"
                     android:layout_above="@+id/appsDivider"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent">
@@ -386,15 +316,16 @@
         <com.inipage.homelylauncher.views.DragToOpenView
             android:id="@+id/dockBar"
             android:layout_width="match_parent"
-            android:layout_height="64dp"
+            android:layout_height="112dp"
             android:layout_alignParentBottom="true"
             android:background="@android:color/transparent">
 
-            <!-- Home screen mode -->
+            <!-- Dock and suggestions -->
             <RelativeLayout
                 android:id="@+id/dockApps"
                 android:layout_width="match_parent"
-                android:layout_height="64dp"
+                android:layout_height="112dp"
+                android:clipChildren="false"
                 android:layout_centerHorizontal="true"
                 android:layout_alignParentBottom="true"
                 android:visibility="visible">
@@ -404,128 +335,81 @@
                     android:layout_width="match_parent"
                     android:layout_height="match_parent" />
 
-                <LinearLayout
+                <com.inipage.homelylauncher.views.DockView
+                    android:id="@+id/dockView"
                     android:layout_width="match_parent"
-                    android:layout_height="match_parent">
+                    android:layout_height="64dp" />
 
-                    <ImageView
-                        android:id="@+id/dockApp1"
-                        android:layout_width="56dp"
-                        android:layout_height="56dp"
-                        android:padding="4dp"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:visibility="visible"
-                        android:layout_gravity="center_vertical"
-                        android:layout_marginLeft="16dp" />
+                <!-- Layout for the suggestions box -->
+                <LinearLayout
+                    android:orientation="vertical"
+                    android:layout_below="@+id/dockView"
+                    android:id="@+id/suggestionsBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="48dp">
 
-                    <View
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1" >
-                    </View>
+                    <!-- Icon and no, loading, or actual suggestions -->
+                    <LinearLayout
+                        android:orientation="horizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp">
 
-                    <ImageView
-                        android:id="@+id/dockApp2"
-                        android:layout_width="56dp"
-                        android:layout_height="56dp"
-                        android:padding="4dp"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:layout_gravity="center_vertical"
-                        android:visibility="visible" />
+                        <FrameLayout
+                            android:id="@+id/suggestionsFillContainer"
+                            android:layout_width="match_parent"
+                            android:layout_height="48dp">
 
-                    <View
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1" >
-                    </View>
+                            <TextView
+                                android:id="@+id/loading_suggestions"
+                                android:text="@string/loading_suggestions"
+                                android:layout_gravity="center"
+                                android:gravity="center"
+                                android:textColor="@color/white"
+                                android:textSize="16sp"
+                                android:layout_width="wrap_content"
+                                android:layout_height="48dp"
+                                android:visibility="gone"/>
 
-                    <ImageView
-                        android:id="@+id/dockApp3"
-                        android:layout_width="56dp"
-                        android:layout_height="56dp"
-                        android:padding="4dp"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:visibility="visible"
-                        android:layout_gravity="center_vertical" />
+                            <TextView
+                                android:id="@+id/no_suggestions_right_now"
+                                android:text="@string/no_suggestions_right_now"
+                                android:layout_gravity="center"
+                                android:gravity="center"
+                                android:textColor="@color/white"
+                                android:textSize="16sp"
+                                android:layout_width="wrap_content"
+                                android:layout_height="48dp" />
 
-                    <View
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1" >
-                    </View>
+                            <HorizontalScrollView
+                                android:id="@+id/suggestionsScrollView"
+                                android:layout_width="match_parent"
+                                android:layout_height="48dp"
+                                android:layout_gravity="center"
+                                android:visibility="gone"
+                                android:scrollbars="none" >
 
-                    <ImageView
-                        android:id="@+id/dockApp4"
-                        android:layout_width="56dp"
-                        android:layout_height="56dp"
-                        android:padding="4dp"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:visibility="visible"
-                        android:layout_gravity="center_vertical" />
-
-                    <View
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1" >
-                    </View>
-
-                    <ImageView
-                        android:id="@+id/dockApp5"
-                        android:layout_width="56dp"
-                        android:layout_height="56dp"
-                        android:padding="4dp"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:visibility="visible"
-                        android:layout_gravity="center_vertical"/>
-
-                    <View
-                        android:id="@+id/fiveToSix"
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1" >
-                    </View>
-
-                    <ImageView
-                        android:id="@+id/dockApp6"
-                        android:layout_width="56dp"
-                        android:layout_height="56dp"
-                        android:padding="4dp"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:visibility="visible"
-                        android:layout_gravity="center_vertical" />
-
-                    <View
-                        android:id="@+id/sixToSeven"
-                        android:layout_width="0dp"
-                        android:layout_height="1dp"
-                        android:layout_weight="1" >
-                    </View>
-
-                    <ImageView
-                        android:id="@+id/dockApp7"
-                        android:layout_width="56dp"
-                        android:layout_height="56dp"
-                        android:padding="4dp"
-                        android:background="?android:attr/selectableItemBackground"
-                        android:visibility="visible"
-                        android:layout_gravity="center_vertical"
-                        android:layout_marginRight="16dp" />
+                                <LinearLayout
+                                    android:id="@+id/suggestionsLayout"
+                                    android:orientation="horizontal"
+                                    android:layout_width="wrap_content"
+                                    android:layout_height="48dp"
+                                    android:layout_gravity="center" />
+                            </HorizontalScrollView>
+                        </FrameLayout>
+                    </LinearLayout>
                 </LinearLayout>
             </RelativeLayout>
 
             <!-- Icon drop mode -->
-            <LinearLayout
+            <FrameLayout
                 android:id="@+id/dropLayout"
                 android:layout_width="match_parent"
-                android:layout_height="64dp"
-                android:layout_gravity="center_vertical"
-                android:padding="8dp"
+                android:layout_height="112dp"
                 android:layout_centerHorizontal="true"
                 android:layout_alignParentBottom="true"
-                android:orientation="vertical"
                 android:visibility="visible" >
 
-                <RelativeLayout
+                <LinearLayout
                     android:id="@+id/appDropIcons"
                     android:layout_width="match_parent"
                     android:layout_height="match_parent"
@@ -534,77 +418,85 @@
 
                     <LinearLayout
                         android:id="@+id/uninstallApp"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_alignParentLeft="true"
-                        android:layout_centerVertical="true"
-                        android:orientation="horizontal">
+                        android:layout_weight="1"
+                        android:layout_gravity="center_vertical"
+                        android:orientation="vertical">
+
                         <ImageView
                             android:layout_width="30dp"
                             android:layout_height="30dp"
+                            android:layout_gravity="center_horizontal"
                             android:src="@drawable/ic_delete_white_48dp" />
+
                         <TextView
-                            android:layout_marginLeft="3dp"
                             android:text="@string/uninstall"
                             android:layout_width="wrap_content"
-                            android:layout_height="30dp"
-                            android:gravity="center_vertical"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_horizontal"
                             android:textSize="14sp"
                             android:textColor="@android:color/white"
                             android:shadowColor="#000"
                             android:shadowRadius="4"
-                            android:shadowDy="2"/>
+                            android:shadowDy="2"
+                            tools:layout_marginTop="4dp" />
                     </LinearLayout>
 
                     <LinearLayout
                         android:id="@+id/appInfo"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_centerHorizontal="true"
-                        android:layout_centerVertical="true"
-                        android:orientation="horizontal">
+                        android:layout_weight="1"
+                        android:layout_gravity="center_vertical"
+                        android:orientation="vertical">
+
                         <ImageView
+                            android:layout_gravity="center_horizontal"
                             android:layout_width="30dp"
                             android:layout_height="30dp"
                             android:src="@drawable/ic_info_white_48dp" />
+
                         <TextView
-                            android:layout_marginLeft="3dp"
                             android:text="@string/app_info"
                             android:layout_width="wrap_content"
-                            android:layout_height="30dp"
-                            android:gravity="center_vertical"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_horizontal"
                             android:textSize="14sp"
                             android:textColor="@android:color/white"
                             android:shadowColor="#000"
                             android:shadowRadius="4"
-                            android:shadowDy="2"/>
+                            android:shadowDy="2"
+                            android:layout_marginTop="4dp" />
                     </LinearLayout>
 
                     <LinearLayout
                         android:id="@+id/addToDock"
-                        android:layout_width="wrap_content"
+                        android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_centerVertical="true"
-                        android:layout_alignParentRight="true"
-                        android:orientation="horizontal">
+                        android:layout_weight="1"
+                        android:layout_gravity="center_vertical"
+                        android:orientation="vertical">
+
                         <ImageView
                             android:src="@drawable/ic_add_circle_outline_white_48dp"
+                            android:layout_gravity="center_horizontal"
                             android:layout_width="30dp"
                             android:layout_height="30dp" />
                         <TextView
-                            android:layout_marginLeft="3dp"
                             android:text="@string/add_to_dock"
                             android:layout_width="wrap_content"
-                            android:layout_height="30dp"
-                            android:gravity="center_vertical"
+                            android:layout_height="wrap_content"
+                            android:layout_gravity="center_horizontal"
                             android:textSize="14sp"
+                            android:textColor="@android:color/white"
                             android:shadowColor="#000"
                             android:shadowRadius="4"
                             android:shadowDy="2"
-                            android:textColor="@android:color/white"/>
+                            android:layout_marginTop="4dp" />
                     </LinearLayout>
-                </RelativeLayout>
-            </LinearLayout>
+                </LinearLayout>
+            </FrameLayout>
         </com.inipage.homelylauncher.views.DragToOpenView>
 
         <RelativeLayout

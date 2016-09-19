@@ -3,12 +3,12 @@ package com.inipage.homelylauncher;
 import android.Manifest;
 import android.animation.Animator;
 import android.animation.ObjectAnimator;
-import android.annotation.SuppressLint;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.ActivityOptions;
 import android.app.AlarmManager;
 import android.app.usage.UsageEvents;
+import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
 import android.appwidget.AppWidgetHost;
 import android.appwidget.AppWidgetHostView;
@@ -16,7 +16,6 @@ import android.appwidget.AppWidgetManager;
 import android.appwidget.AppWidgetProviderInfo;
 import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
-import android.content.ClipData;
 import android.content.ComponentName;
 import android.content.ContentResolver;
 import android.content.ContentUris;
@@ -86,11 +85,13 @@ import com.inipage.homelylauncher.icons.IconChooserActivity;
 import com.inipage.homelylauncher.swiper.AppEditAdapter;
 import com.inipage.homelylauncher.swiper.RowEditAdapter;
 import com.inipage.homelylauncher.utils.Utilities;
+import com.inipage.homelylauncher.views.DockElement;
+import com.inipage.homelylauncher.views.DockView;
+import com.inipage.homelylauncher.views.DockViewHost;
 import com.inipage.homelylauncher.views.DragToOpenView;
 import com.inipage.homelylauncher.views.ShortcutGestureView;
 import com.inipage.homelylauncher.views.ShortcutGestureViewHost;
 import com.inipage.homelylauncher.widgets.WidgetAddAdapter;
-import com.inipage.homelylauncher.widgets.WidgetContainer;
 import com.mobeta.android.dslv.DragSortListView;
 
 import java.text.SimpleDateFormat;
@@ -104,6 +105,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
 import java.util.concurrent.RejectedExecutionException;
@@ -138,6 +140,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //region Fields
     //Dock states
     ScreenSize size;
+
+    //To make sure we don't repopulate suggestions when just hitting the home button
+    long lastPauseTime = -1;
 
     //Apps stuff
     @Bind(R.id.allAppsContainer)
@@ -187,20 +192,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //Home dockbar
     @Bind(R.id.dockApps)
     RelativeLayout dockbarApps;
-    @Bind(R.id.dockApp1)
-    ImageView db1;
-    @Bind(R.id.dockApp2)
-    ImageView db2;
-    @Bind(R.id.dockApp3)
-    ImageView db3;
-    @Bind(R.id.dockApp4)
-    ImageView db4;
-    @Bind(R.id.dockApp5)
-    ImageView db5;
-    @Bind(R.id.dockApp6)
-    ImageView db6;
-    @Bind(R.id.dockApp7)
-    ImageView db7;
+    @Bind(R.id.dockView)
+    DockView dockView;
 
     //Search/menu
     @Bind(R.id.searchActionBar)
@@ -218,11 +211,11 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
     //Drop layout
     @Bind(R.id.dropLayout)
-    LinearLayout dropLayout;
+    FrameLayout dropLayout;
 
     //App drop layout
     @Bind(R.id.appDropIcons)
-    RelativeLayout appDropLayout;
+    View appDropLayout;
     @Bind(R.id.addToDock)
     View addToDock;
     @Bind(R.id.uninstallApp)
@@ -316,6 +309,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
+        Log.d(TAG, "onCreate");
+
         setContentView(R.layout.activity_home);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
 
@@ -418,34 +414,43 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 hasHiddenClock = false;
             }
         });
-        setupDockbarTarget(db1, 1);
-        setupDockbarTarget(db2, 2);
-        setupDockbarTarget(db3, 3);
-        setupDockbarTarget(db4, 4);
-        setupDockbarTarget(db5, 5);
 
+        List<DockElement> de = new ArrayList<>();
+        int elementCount;
         if (size == ScreenSize.PHONE) {
             Log.d(TAG, "Is phone");
-
-            dockbarApps.findViewById(R.id.fiveToSix).setVisibility(View.GONE);
-            dockbarApps.findViewById(R.id.sixToSeven).setVisibility(View.GONE);
-            db6.setVisibility(View.GONE);
-            db7.setVisibility(View.GONE);
-
-            LinearLayout.LayoutParams layoutParams = (LinearLayout.LayoutParams) db5.getLayoutParams();
-            layoutParams.setMargins(0, 0,
-                    ((LinearLayout.LayoutParams) db1.getLayoutParams()).leftMargin, 0);
-            db5.setLayoutParams(layoutParams);
-
-            dockbarApps.requestLayout();
+            elementCount = 5;
         } else { //Two extra spots for tablets
             Log.d(TAG, "Is tablet");
-
-            setupDockbarTarget(db6, 6);
-            setupDockbarTarget(db7, 7);
-
-            dockbarApps.requestLayout();
+            elementCount = 7;
         }
+
+        for(int i = 1; i < elementCount; i++){
+            String existingData = reader.getString("dockbarTarget_" + i, "null");
+            Gson gson = new Gson();
+            try {
+                ApplicationIcon ai = gson.fromJson(existingData, ApplicationIcon.class);
+                ComponentName cn = new ComponentName(ai.getPackageName(), ai.getActivityName());
+                String label = getPackageManager().getActivityInfo(cn, 0).loadLabel(getPackageManager()).toString();
+
+                de.add(new DockElement(cn, label, i - 1));
+            } catch (Exception fallback) {
+                de.add(new DockElement(null, null, i - 1));
+            }
+        }
+        dockView.init(elementCount, de, new DockViewHost() {
+            @Override
+            public void onElementRemoved(int index) {
+                writer.putString("dockbarTarget_" + index, "null").apply();
+            }
+
+            @Override
+            public void onElementReplaced(DockElement oldElement, DockElement newElement, int index) {
+                final ApplicationIcon ai = new ApplicationIcon(newElement.getActivity().getPackageName(), newElement.getTitle(), newElement.getActivity().getClassName());
+                Gson gson = new Gson();
+                writer.putString("dockbarTarget_" + index, gson.toJson(ai)).apply();
+            }
+        });
 
         sgv.setActivity(this);
 
@@ -743,6 +748,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     public void onResume() {
         super.onResume();
 
+        Log.d(TAG, "onResume");
+
         if(reader.getBoolean(Constants.ALLOW_ROTATION_PREF, false)) {
             this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
         }
@@ -759,21 +766,26 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         timer = new Timer();
         timer.scheduleAtFixedRate(t, 0, 1000);
 
-        //Reset widgets
-        collapseWidgetDrawer();
-        updateWidgetAvailabilityInfo();
+        resetState();
 
-        sgv.onActivityResumed();
-        startSuggestionsPopulation();
+        if(System.currentTimeMillis() - lastPauseTime > 1000L){
+            updateWidgetAvailabilityInfo();
+            sgv.onActivityResumed();
+            startSuggestionsPopulation();
+        }
     }
 
     @Override
     protected void onPause() {
         super.onPause();
 
+        Log.d(TAG, "onPause");
+
         if (timer != null) {
             timer.cancel();
         }
+
+        lastPauseTime = System.currentTimeMillis();
     }
 
     @Override
@@ -797,16 +809,6 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             Toast.makeText(HomeActivity.this, R.string.okay_we_wont_ask, Toast.LENGTH_SHORT).show();
         }
         populateSuggestions();
-    }
-
-    @Override
-    public void onNewIntent(Intent intent) {
-        super.onNewIntent(intent);
-        if (intent.getAction() != null) {
-            if (intent.getAction().equals(Intent.ACTION_MAIN)) { //Home button press; reset state
-                resetState();
-            }
-        }
     }
 
     @Override
@@ -1158,18 +1160,17 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         v.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
-                //Start drag
-                try {
-                    PackageManager pm = getPackageManager();
-                    String label = pm.getActivityInfo(launchIntent.getComponent(), 0).loadLabel(pm).toString();
-
-                    ClipData cd = ClipData.newPlainText("description", "Passing app customIcon");
-                    View.DragShadowBuilder dsb = new View.DragShadowBuilder(v.findViewById(R.id.popularAppIcon));
-                    v.startDrag(cd, dsb, new ApplicationIcon(launchIntent.getPackage(), label,
-                            launchIntent.getComponent().getClassName()), 0);
-                } catch (Exception e) {
-                    Toast.makeText(v.getContext(), R.string.error, Toast.LENGTH_SHORT).show();
-                }
+                new MaterialDialog.Builder(v.getContext())
+                        .title(R.string.suppress_suggestion_title)
+                        .content(R.string.suppress_suggestion_message)
+                        .positiveText(R.string.yes)
+                        .negativeText(R.string.cancel)
+                        .callback(new MaterialDialog.ButtonCallback() {
+                            @Override
+                            public void onPositive(MaterialDialog dialog) {
+                                //TODO: Do the thing
+                            }
+                        }).show();
                 return true;
             }
         });
@@ -1177,43 +1178,26 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         IconCache.getInstance().setIcon(launchIntent.getPackage(), launchIntent.getComponent().getClassName(),
                 (StickyImageView) v.findViewById(R.id.popularAppIcon));
 
-        int sixtyFourDp = (int) Utilities.convertDpToPixel(64f, this);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(sixtyFourDp, sixtyFourDp);
+        int fourtyFourDp = (int) Utilities.convertDpToPixel(48f, this);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(fourtyFourDp, fourtyFourDp);
         suggestionsLayout.addView(v, params);
     }
 
     private class SuggestionApp {
         private String packageName;
         private String className;
-        private int timesUsed;
-        private boolean hasClass;
+        private long timeUsed;
 
         public SuggestionApp(String packageName, String className) {
             this.packageName = packageName;
             this.className = className;
-            this.hasClass = true;
-            this.timesUsed = Integer.MAX_VALUE;
+            this.timeUsed = Long.MAX_VALUE;
         }
 
-        public SuggestionApp(String packageName, String className, int timesUsed) {
+        public SuggestionApp(String packageName, String className, long timeUsed) {
             this.packageName = packageName;
             this.className = className;
-            this.hasClass = true;
-            this.timesUsed = timesUsed;
-        }
-
-        public SuggestionApp(String packageName){
-            this.packageName = packageName;
-            this.className = null;
-            this.hasClass = false;
-            this.timesUsed = Integer.MAX_VALUE;
-        }
-
-        public SuggestionApp(String packageName, int timesUsed){
-            this.packageName = packageName;
-            this.className = null;
-            this.hasClass = false;
-            this.timesUsed = timesUsed;
+            this.timeUsed = timeUsed;
         }
 
         public String getPackageName() {
@@ -1224,21 +1208,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             return className;
         }
 
-        public void setTimesUsed(int timesUsed){
-            this.timesUsed = timesUsed;
-        }
-
-        public int getTimesUsed() {
-            return timesUsed;
-        }
-
-        public boolean hasClass(){
-            return hasClass;
+        public long getTimeUsed() {
+            return timeUsed;
         }
     }
 
     List<SuggestionApp> suggestions = new ArrayList<>();
-    @SuppressLint("NewApi")
     private void populateSuggestions() {
         //Clean up
         suggestionsLayout.removeAllViews();
@@ -1355,43 +1330,86 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             @Override
             protected List<SuggestionApp> doInBackground(Void... params) {
                 try {
-                    //Before we begin, query and generate a list of (a) all events in the query period
-                    // (b) all events in a 4 hour window of this weekday (c) all events in the past week
-                    // (d) calendar-specific events
                     @SuppressWarnings("ResourceType")
                     final UsageStatsManager usm = (UsageStatsManager) HomeActivity.this.getSystemService("usagestats");
-
-                    long end = System.currentTimeMillis();
-                    long start = end - (7 * 24 * 60 * 60 * 1000); //Most used in past week
-
-                    //Use results map to intelligently insert new data gotten from the system in
-                    //the same timespan
-
-                    //Although we "de-dup" later, this is more efficient (maybe?) to do here
-                    HashMap<String, Integer> count = new HashMap<>();
-                    UsageEvents use = usm.queryEvents(start, end);
                     UsageEvents.Event e = new UsageEvents.Event();
 
+                    //(1) Look at the past 4 hours
+                    Calendar cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+                    cal.roll(Calendar.HOUR_OF_DAY, -4);
+                    long end = System.currentTimeMillis();
+                    long start = cal.getTimeInMillis();
+                    UsageEvents use = usm.queryEvents(start, end);
+                    Map<String, Long> startUseMap = new HashMap<>();
+                    Map<String, Long> useTimeMap = new HashMap<>();
                     while (use.getNextEvent(e)) {
-                        int type = e.getEventType();
+                        if(!isComponentValidSuggestion(e.getPackageName())) continue;
 
-                        if (type == UsageEvents.Event.MOVE_TO_FOREGROUND) {
-                            String packageName = e.getPackageName();
-                            String className = e.getClassName();
-
-                            if (isComponentLaunchable(packageName, className)) {
-                                if (count.containsKey(packageName)) {
-                                    count.put(packageName, count.get(packageName) + 1);
+                        String packageName = e.getPackageName();
+                        if (e.getEventType() == UsageEvents.Event.MOVE_TO_FOREGROUND) {
+                            startUseMap.put(packageName, e.getTimeStamp());
+                        } else if (e.getEventType() == UsageEvents.Event.MOVE_TO_BACKGROUND){
+                            if (startUseMap.containsKey(packageName)) {
+                                long startTime = startUseMap.get(packageName);
+                                //16-hours of phone use a day (about) -- 4 * 4 = 16;
+                                //generally we want the expected daily use amount, but since this
+                                //is recent we weight it twice as heavily
+                                long timeUsed = (e.getTimeStamp() - startTime) * 8;
+                                if(useTimeMap.containsKey(packageName)){
+                                    useTimeMap.put(packageName, useTimeMap.get(packageName) + timeUsed);
                                 } else {
-                                    count.put(packageName, 1);
+                                    useTimeMap.put(packageName, timeUsed);
                                 }
                             }
                         }
                     }
 
+                    //(2) Look at past day
+                    cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+                    cal.roll(Calendar.DAY_OF_WEEK, -1);
+                    start = cal.getTimeInMillis();
+                    end = System.currentTimeMillis();
+                    List<UsageStats> granularOptions = usm.queryUsageStats(UsageStatsManager.INTERVAL_DAILY, start, end);
+                    for(UsageStats entry : granularOptions) {
+                        if (!isComponentValidSuggestion(entry.getPackageName())) continue;
+
+                        long timeUsed = (long) (entry.getTotalTimeInForeground() * 1.5); //Weighed a little more heavily than week
+                        if(useTimeMap.containsKey(entry.getPackageName())){
+                            useTimeMap.put(entry.getPackageName(), useTimeMap.get(entry.getPackageName()) + timeUsed);
+                        } else {
+                            useTimeMap.put(entry.getPackageName(), timeUsed);
+                        }
+                    }
+
+                    //(3) If needed, look at past week
+                    if(useTimeMap.size() < 10){
+                        cal = new GregorianCalendar(TimeZone.getTimeZone("UTC"));
+                        cal.roll(Calendar.WEEK_OF_YEAR, -1);
+                        start = cal.getTimeInMillis();
+                        end = System.currentTimeMillis();
+                        List<UsageStats> leastGranularOptions = usm.queryUsageStats(UsageStatsManager.INTERVAL_WEEKLY, start, end);
+                        for(UsageStats entry : granularOptions) {
+                            if (!isComponentValidSuggestion(entry.getPackageName())) continue;
+
+                            long timeUsed = (long) (entry.getTotalTimeInForeground() / 7); //Weighed at base value
+                            if(useTimeMap.containsKey(entry.getPackageName())){
+                                useTimeMap.put(entry.getPackageName(), useTimeMap.get(entry.getPackageName()) + timeUsed);
+                            } else {
+                                useTimeMap.put(entry.getPackageName(), timeUsed);
+                            }
+                        }
+                    }
+
+                    List<String> packagesAdded = new ArrayList<>();
+                    for(SuggestionApp s : suggestions){
+                        packagesAdded.add(s.getPackageName());
+                    }
                     List<SuggestionApp> strippedList = new ArrayList<>();
-                    for (Map.Entry<String, Integer> entry : count.entrySet()) {
-                        strippedList.add(new SuggestionApp(entry.getKey(), entry.getValue()));
+                    for (Map.Entry<String, Long> entry : useTimeMap.entrySet()) {
+                        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(entry.getKey());
+                        if(launchIntent != null && !packagesAdded.contains(entry.getKey())) {
+                            strippedList.add(new SuggestionApp(launchIntent.getPackage(), launchIntent.getComponent().getClassName(), entry.getValue()));
+                        }
                     }
 
                     return strippedList;
@@ -1408,22 +1426,22 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 Collections.sort(suggestions, new Comparator<SuggestionApp>() {
                     @Override
                     public int compare(SuggestionApp lhs, SuggestionApp rhs) {
-                        return (rhs.getTimesUsed() - lhs.getTimesUsed());
+                        return (int) (rhs.getTimeUsed() - lhs.getTimeUsed());
                     }
                 });
+
+                //Strip out excessive apps
+                if(suggestions.size() > 10){
+                    suggestions = suggestions.subList(0, 10);
+                }
 
                 //"De-dup" the result
                 //Yes, it looks like a nasty O(n^2) algorithm -- it is, actually, but the commonly accepted
                 //way of dedup-ing in Java (new List<>(new HashSet<>(yourItems)) does the same under the
                 //hood (with more overhead!)
-                List<String> packagesAdded = new ArrayList<>();
                 for(int i = 0; i < suggestions.size(); i++){
                     SuggestionApp a1 = suggestions.get(i);
-
-                    if(!packagesAdded.contains(a1.getPackageName())){
-                        packagesAdded.add(a1.getPackageName());
-                        addSuggestionsApp(a1.getPackageName());
-                    }
+                    addSuggestionsApp(a1.getPackageName());
                 }
 
                 //Needed check -- addSuggestionsApp might not always add if a package is un-launchable
@@ -1438,13 +1456,21 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }.execute();
     }
 
-    public boolean isComponentLaunchable(String packageName, String className) {
-        Intent intent = new Intent();
-        intent.setClassName(packageName, className);
-        intent.addCategory(Intent.CATEGORY_LAUNCHER);
+    private Map<String, Boolean> launchableCachedMap = new HashMap<>();
 
-        List<ResolveInfo> list = getPackageManager().queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
-        return !list.isEmpty();
+    public boolean isComponentValidSuggestion(String packageName) {
+        if(packageName == null) return false;
+        if(!launchableCachedMap.containsKey(packageName)) {
+            boolean isValid = getPackageManager().getLaunchIntentForPackage(packageName) != null;
+            for(Map.Entry<Integer, ApplicationIcon> entry : dockbarTargets.entrySet()){
+                if(entry.getValue().getPackageName().equals(packageName)){
+                    isValid = false;
+                    break;
+                }
+            }
+            launchableCachedMap.put(packageName, isValid);
+        }
+        return launchableCachedMap.get(packageName);
     }
 
     private void expandSuggestions() {
@@ -1485,59 +1511,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //endregion
 
     //region Dock
-    public void setupDockbarTarget(final ImageView dockbarTarget, final int place) {
-        /*
-        //Size the target properly
-        LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) dockbarTarget.getLayoutParams();
-        int properSize = (int) Utilities.convertDpToPixel(56, this);
-        if(size == ScreenSize.SMALL_TABLET){
-            properSize = (int) Utilities.convertDpToPixel(64, this);
-        } else if (size == ScreenSize.LARGE_TABLET){
-            properSize = (int) Utilities.convertDpToPixel(72, this);
-        }
-        params.width = properSize;
-        params.height = properSize;
-        dockbarTarget.setLayoutParams(params);
-        */
 
-        dockbarTarget.setOnDragListener(new View.OnDragListener() {
-            @Override
-            public boolean onDrag(View v, DragEvent event) {
-                if (event.getAction() == DragEvent.ACTION_DROP) {
-                    Log.d(TAG, "Drop occured!");
 
-                    final ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
-                    initDockbar(ai, dockbarTarget, place);
-                    //Store data in SharedPreferences
-                    Gson gson = new Gson();
-                    writer.putString("dockbarTarget_" + place, gson.toJson(ai)).apply();
-                } else if (event.getAction() == DragEvent.ACTION_DRAG_STARTED) {
-                    String existingData = reader.getString("dockbarTarget_" + place, "null");
-                    if (existingData.equals("null")) { //Show (+) icon on target
-                        dockbarTarget.setImageResource(R.drawable.ic_add_circle_outline_white_48dp);
-                    }
-                } else if (event.getAction() == DragEvent.ACTION_DRAG_ENDED) {
-                    //If we still have no data, set null
-                    String existingData = reader.getString("dockbarTarget_" + place, "null");
-                    if (existingData.equals("null")) { //Show (+) icon on target
-                        dockbarTarget.setImageDrawable(null);
-                    }
-                }
-                return true;
-            }
-        });
-
-        String existingData = reader.getString("dockbarTarget_" + place, "null");
-        if (!existingData.equals("null")) {
-            Gson gson = new Gson();
-            try {
-                ApplicationIcon ai = gson.fromJson(existingData, ApplicationIcon.class);
-                initDockbar(ai, dockbarTarget, place);
-            } catch (Exception e) {
-            }
-        }
-    }
-
+    Map<Integer, ApplicationIcon> dockbarTargets = new HashMap<>(7);
     public void initDockbar(final ApplicationIcon ai, final ImageView dockbarTarget, final int location) {
         dockbarTarget.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -1570,6 +1546,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                                 dockbarTarget.setOnLongClickListener(null);
                                 dockbarTarget.setImageDrawable(null);
 
+                                dockbarTargets.remove(location);
+                                launchableCachedMap.clear();
+
                                 //Remove stored data
                                 writer.putString("dockbarTarget_" + location, "null").apply();
                             }
@@ -1585,6 +1564,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         } catch (Exception e) {
             dockbarTarget.setImageDrawable(getResources().getDrawable(android.R.drawable.sym_def_app_icon));
         }
+
+        dockbarTargets.put(location, ai);
+        launchableCachedMap.clear();
     }
     //endregion
 
@@ -2120,6 +2102,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         Toast.makeText(HomeActivity.this, R.string.widget_no_longer_valid, Toast.LENGTH_SHORT).show();
                     }
                 } else { //(2) No -- show add menu
+                    brightenScreen();
+                    showTopElements();
+                    showBottomElements();
+
                     showAddWidgetMenu(packageName);
                 }
             }
@@ -2191,30 +2177,45 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     }
                 }
 
-                final WidgetAddAdapter adapter = new WidgetAddAdapter(matchingProviders, HomeActivity.this);
-                final MaterialDialog md = new MaterialDialog.Builder(HomeActivity.this)
-                        .adapter(adapter, new LinearLayoutManager(HomeActivity.this))
-                        .title("Select a " + matchingProviders.get(0).label + " Widget")
-                        .negativeText(R.string.cancel)
-                        .build();
-                adapter.setOnClickListener(new WidgetAddAdapter.OnWidgetClickListener() {
-                    @Override
-                    public void onClick(AppWidgetProviderInfo awpi) {
-                        int appWidgetId = widgetHost.allocateAppWidgetId();
-                        if (widgetManager.bindAppWidgetIdIfAllowed(appWidgetId, awpi.provider)) {
-                            //Carry on with configuring
-                            handleWidgetConfig(appWidgetId, awpi);
-                        } else {
-                            //Ask for permission
-                            Intent intent = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
-                            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
-                            intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, awpi.provider);
-                            startActivityForResult(intent, REQUEST_ALLOCATE_ID);
-                        }
-                        md.hide();
+                if(matchingProviders.size() == 1){
+                    AppWidgetProviderInfo awpi = matchingProviders.get(0);
+                    int appWidgetId = widgetHost.allocateAppWidgetId();
+                    if (widgetManager.bindAppWidgetIdIfAllowed(appWidgetId, awpi.provider)) {
+                        //Carry on with configuring
+                        handleWidgetConfig(appWidgetId, awpi);
+                    } else {
+                        //Ask for permission
+                        Intent intent = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
+                        intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
+                        intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, awpi.provider);
+                        startActivityForResult(intent, REQUEST_ALLOCATE_ID);
                     }
-                });
-                md.show();
+                } else {
+                    final WidgetAddAdapter adapter = new WidgetAddAdapter(matchingProviders, HomeActivity.this);
+                    final MaterialDialog md = new MaterialDialog.Builder(HomeActivity.this)
+                            .adapter(adapter, new LinearLayoutManager(HomeActivity.this))
+                            .title("Select a " + matchingProviders.get(0).label + " Widget")
+                            .negativeText(R.string.cancel)
+                            .build();
+                    adapter.setOnClickListener(new WidgetAddAdapter.OnWidgetClickListener() {
+                        @Override
+                        public void onClick(AppWidgetProviderInfo awpi) {
+                            int appWidgetId = widgetHost.allocateAppWidgetId();
+                            if (widgetManager.bindAppWidgetIdIfAllowed(appWidgetId, awpi.provider)) {
+                                //Carry on with configuring
+                                handleWidgetConfig(appWidgetId, awpi);
+                            } else {
+                                //Ask for permission
+                                Intent intent = new Intent(AppWidgetManager.ACTION_APPWIDGET_BIND);
+                                intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId);
+                                intent.putExtra(AppWidgetManager.EXTRA_APPWIDGET_PROVIDER, awpi.provider);
+                                startActivityForResult(intent, REQUEST_ALLOCATE_ID);
+                            }
+                            md.hide();
+                        }
+                    });
+                    md.show();
+                }
             }
         });
     }
@@ -2253,6 +2254,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         } else {
             saveWidget(appWidgetId, awpi);
             replaceDrawerWidget(appWidgetId, awpi);
+            expandWidgetDrawer();
+            dimScreen();
+            hideTopElements();
+            hideBottomElements();
         }
     }
 
@@ -2397,19 +2402,14 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     }
 
     private void showDateTime() {
-        try{
-            throw new Exception("");
-        }catch(Exception e){
-            Log.e(TAG, "Show date time from ", e);
-        }
-
         ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(timeDateContainer, "translationY", 0);
         leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
         leavingAnim.start();
     }
 
     private void hideDateTime() {
-        ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(timeDateContainer, "translationY", -timeDateContainer.getHeight());
+        //TODO: The +100 is a little sloppy
+        ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(timeDateContainer, "translationY", -(timeDateContainer.getHeight() + 100));
         leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
         leavingAnim.start();
     }
@@ -2440,21 +2440,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         leavingAnim.start();
     }
 
-    private void showDropMenu() {
-        DisplayMetrics dm = getResources().getDisplayMetrics();
-
-        ObjectAnimator enteringAnim = ObjectAnimator.ofFloat(dockbarApps, "translationX",
-                -dm.widthPixels);
-        enteringAnim.setDuration(DEFAULT_ANIMATION_DURATION);
-        enteringAnim.start();
-
-        ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dropLayout, "translationX",
-                0);
-        leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
-        leavingAnim.start();
-    }
-
     private void showDropMenuFast() {
+        Log.d(TAG, "Showing drop menu!");
+
         DisplayMetrics dm = getResources().getDisplayMetrics();
 
         dockbarApps.setTranslationX(-dm.widthPixels);
@@ -2476,8 +2464,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     }
 
     /**
-     * The bottom of the interactable UI.
-     * @return
+     * @return The bottom of the interactable UI.
      */
     private int getNaturalBottom(){
         return sgv.getTop() + sgv.getHeight();
@@ -2621,6 +2608,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //endregion
 
     public void resetState() {
+        Log.d(TAG, "resetState");
+
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
@@ -2632,7 +2621,6 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     showDockApps();
                     brightenScreen();
                     showDateTime();
-                    sgv.resetState();
                 } catch (Exception e) { //May fail at boot due to uncreated UI
                     Log.d(TAG, "Exception: " + e);
                     Log.d(TAG, "Message: " + e.getMessage());

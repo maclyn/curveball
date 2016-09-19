@@ -203,15 +203,15 @@ public class ShortcutGestureView extends View {
     //been cached yet)
     private IconCache.ItemRetrievalInterface retrievalInterface = new IconCache.ItemRetrievalInterface() {
         @Override
-        public void onRetrievalStarted() {
-            //Nothing happens.
-        }
-
-        @Override
         public void onRetrievalComplete(Bitmap result) {
             if(!bitmapColorMap.containsKey(result.hashCode()))
                 getIconColorForBitmap(result);
             invalidate();
+        }
+
+        @Override
+        public void onRetrievalFailed(String reason){
+            Log.e(TAG, "Failed to get icon " + reason);
         }
     };
 

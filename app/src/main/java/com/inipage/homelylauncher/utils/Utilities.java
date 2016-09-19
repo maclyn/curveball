@@ -6,6 +6,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
+import android.graphics.Color;
 import android.os.*;
 import android.preference.PreferenceManager;
 import android.support.v4.content.ContextCompat;
@@ -68,6 +69,10 @@ public class Utilities {
      */
     public static float convertPixelsToDp(float px, Context context){
         return (int) (px / context.getResources().getDisplayMetrics().density);
+    }
+
+    public static int colorWithMutedAlpha(int color, float alpha){
+        return Color.argb((int) (alpha * 160), Color.red(color), Color.green(color), Color.blue(color));
     }
 
     public static double getScreenSize(Context context){

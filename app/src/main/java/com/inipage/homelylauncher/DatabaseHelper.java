@@ -87,7 +87,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         } else if (oldVersion < 2){ //v2 didn't have a smartapps table
             db.execSQL(SMARTAPPS_TABLE_CREATE);
         } else if (oldVersion < 5) { //v3-v4's widget table is corrupt!
-            db.delete(TABLE_WIDGETS, null, null);
+            db.execSQL("DROP TABLE " + TABLE_WIDGETS);
             db.execSQL(WIDGET_TABLE_CREATE);
         }
     }

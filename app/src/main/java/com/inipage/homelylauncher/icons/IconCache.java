@@ -32,7 +32,7 @@ import java.util.concurrent.RejectedExecutionException;
  */
 public class IconCache {
     private static final String TAG = "IconCache";
-    private static final boolean QUIET = true; //IconCache can make our logs noisy
+    private static final boolean QUIET = false; //IconCache can make our logs noisy
 
     /**
      * Maximum tries to get an icon if a failure is only partial (e.g. OOM).
@@ -42,36 +42,36 @@ public class IconCache {
     /**
      * A task that represents an element in the app drawer.
      **/
-    public static final int APP_DRAWER_TASK = 1;
+    private static final int APP_DRAWER_TASK = 1;
 
     /**
      * A task that represents setting an element on the dock.
      **/
-    public static final int DOCK_TASK = 2;
+    private static final int DOCK_TASK = 2;
 
     /**
      * A task that represents grabbing a R.id.{} for the swipe layout.
      **/
-    public static final int SWIPE_ICON_LOCAL_RESOURCE_TASK = 3;
+    private static final int SWIPE_ICON_LOCAL_RESOURCE_TASK = 3;
 
     /**
      * A task that represents grabbing a resource from an icon pack. for the swipe layout.
      **/
-    public static final int SWIPE_ICON_ICON_PACK_TASK = 4;
+    private static final int SWIPE_ICON_ICON_PACK_TASK = 4;
 
     /**
      * A task that represents grabbing a local icon for the swipe layout.
      **/
-    public static final int SWIPE_ICON_APP_ICON_TASK = 5;
+    private static final int SWIPE_ICON_APP_ICON_TASK = 5;
 
     private int DEFAULT_ICON_SIZE = 48;
 
     //For memory management
-    long memoryPressureLimit;
+    private long memoryPressureLimit;
 
     //Needed tools
-    Resources baseResources;
-    PackageManager pm;
+    private Resources baseResources;
+    private PackageManager pm;
 
     //Lock for cache access
     private static final Object cacheLock = new Object();
@@ -197,8 +197,6 @@ public class IconCache {
 
         @Override
         protected void onPostExecute(RetrievalTaskResponse result) {
-            logi(this, "Result");
-
             //Remove task from list & map
             synchronized (taskLock) {
                 taskMap.remove(tag);
@@ -234,13 +232,13 @@ public class IconCache {
                             if (retrievalInterface != null)
                                 retrievalInterface.onRetrievalComplete(bmpResult);
                         } else {
-                            if(!QUIET) Log.e(TAG, "Swipe cache unexpected missing element; high memory situation found");
+                            Log.e(TAG, "Swipe cache unexpected missing element; high memory situation found");
                             if (retrievalInterface != null)
                                 retrievalInterface.onRetrievalComplete(dummyBitmap);
                         }
                     }
                 } catch (Error memoryError) {
-                    if(!QUIET) Log.e(TAG, "Ran out of memory to set bitmap!");
+                    Log.e(TAG, "Ran out of memory to set bitmap!");
                 }
             }
         }
@@ -327,9 +325,8 @@ public class IconCache {
     }
 
     public interface ItemRetrievalInterface {
-        void onRetrievalStarted();
-
         void onRetrievalComplete(Bitmap result);
+        void onRetrievalFailed(String reason);
     }
 
     private IconCache() {
@@ -579,11 +576,12 @@ public class IconCache {
         if(!QUIET) Log.i(TAG, "[" + task.toString() + "] " + content);
     }
 
-    private void logd(BitmapRetrievalTask task, String content){
-        if(!QUIET) Log.d(TAG, "[" + task.toString() + "] " + content);
+    private void log(String context, Exception e){
+        Log.e(TAG, context, e);
     }
 
     private void loge(BitmapRetrievalTask task, String content){
-        if(!QUIET) Log.e(TAG, "[" + task.toString() + "] " + content);
+        //if(!QUIET)
+        Log.e(TAG, "[" + task.toString() + "] " + content);
     }
 }

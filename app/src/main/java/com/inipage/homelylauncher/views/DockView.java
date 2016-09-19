@@ -1,8 +1,15 @@
 package com.inipage.homelylauncher.views;
 
+import android.content.ComponentName;
 import android.content.Context;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffColorFilter;
+import android.graphics.Rect;
+import android.graphics.drawable.Drawable;
 import android.os.Handler;
 import android.support.v7.graphics.Palette;
 import android.util.AttributeSet;
@@ -13,74 +20,44 @@ import android.view.DragEvent;
 import android.view.MotionEvent;
 import android.view.View;
 
+import com.afollestad.materialdialogs.MaterialDialog;
 import com.inipage.homelylauncher.R;
-import com.inipage.homelylauncher.Utilities;
+import com.inipage.homelylauncher.drawer.ApplicationIcon;
+import com.inipage.homelylauncher.icons.IconCache;
+import com.inipage.homelylauncher.utils.Utilities;
 
 import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 
 public class DockView extends View {
     public static final String TAG = "DockView";
 
-    public static final long DOCK_MOVEMENT_ANIMATION_DURATION_MS = 500;
     public static final long DOCK_FLASH_ANIMATION_DURATION_MS = 500;
 
     private static final long FRAME_TIME_MS = 1000 / 60;
 
-    private enum DockAction {
-        ACTION_NONE, ACTION_REPLACE, ACTION_PUSH_LEFT, ACTION_PUSH_RIGHT
-    }
+    public float HORIZONTAL_MARGIN;
+    public float ICON_INTERNAL_MARGIN;
 
-    private class DragChange {
-        private DockAction action;
-        private int index;
-
-        public DragChange(DockAction action, int index) {
-            this.action = action;
-            this.index = index;
-        }
-
-        public DockAction getAction() {
-            return action;
-        }
-
-        public int getIndex() {
-            return index;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            return o instanceof DragChange && ((DragChange) o).getAction().equals(this.getAction())
-                    && ((DragChange) o).getIndex() == this.getIndex();
-        }
-    }
+    private Drawable iconDrawable;
+    private PorterDuffColorFilter greenFilter;
 
     /** Bookkeeping. */
 
+    private DockViewHost host;
+
     private Handler mHandler;
-
-    /**
-     * A calculated value that represents the most recently calculated decision for the action
-     * to performed when a drag is completed.
-     */
-    private DragChange mDragChange;
-
     /**
      * Has the view been inited with data?
      */
     private boolean inited = false;
 
     /**
-     * Is their currently an ongoing drag event?
-     */
-    boolean dragging = false;
-
-    /**
      * Has the view been laid out yet (i.e. are size calculations valid)?
      */
     private boolean laidOut = false;
+
+    private boolean iconsFetched = false;
 
     /** Drawing data. */
     private Paint iconPaint;
@@ -91,11 +68,16 @@ public class DockView extends View {
     private int flashColor;
     private int whiteColor;
 
+    private boolean isDragging = false;
+    private int dragIndex = -1;
+
     private enum AnimationReasons {
-        /** An animation to move the elements of the dock a given amount. **/
-        MOVE_ELEMENTS,
         /** An animation to flash the dock a given color. **/
-        FLASH_COLOR
+        FLASH_COLOR,
+        /** A remove circle. **/
+        TAP_REMOVE,
+        /** A circle appearing behind a tapped icon. **/
+        TAP_CIRCLE
     }
 
     private List<Pair<AnimationReasons, Long>> reasons = new ArrayList<>();
@@ -134,12 +116,16 @@ public class DockView extends View {
         super(context, attrs, defStyleAttr);
     }
 
-    public synchronized void init(int elementCount, List<DockElement> elements){
+    public synchronized void init(int elementCount, List<DockElement> elements, DockViewHost host){
         if(inited) return;
 
         this.elements = elements;
         this.elementCount = elementCount;
         inited = true;
+        this.host = host;
+        this.iconDrawable = getResources().getDrawable(R.drawable.ic_add_circle_outline_white_48dp);
+        greenFilter = new PorterDuffColorFilter(getResources().getColor(R.color.green),
+                PorterDuff.Mode.SRC_IN);
         this.mHandler = new Handler();
 
         if(laidOut){
@@ -153,33 +139,28 @@ public class DockView extends View {
     protected void onDraw(Canvas canvas) {
         if(!inited || !laidOut) return;
 
-        //Draw 'animations'
+        //Draw 'animations' -- this seems like re-inventing the wheel; maybe there's a better (less heavy data structure reliant)
+        //way to do this...
         List<Pair<AnimationReasons, Long>> toRemove = new ArrayList<>();
         for(Pair<AnimationReasons, Long> reason : reasons){
             //Log.d(TAG, "For reason " + reason.first.name() + " w/ " + reason.second + " at " + System.currentTimeMillis() + "...");
 
             switch(reason.first){
-                case MOVE_ELEMENTS:
-                    if(reason.second > System.currentTimeMillis() - DOCK_MOVEMENT_ANIMATION_DURATION_MS){
-                        //Our standard element draw procedure will capture this... weirdness.
-                        //Log.d(TAG, "Drawing dock movement animation...");
-                    } else {
-                        Log.d(TAG, "Removing an expired dock movement animation; committing all current positions");
+                case TAP_CIRCLE:
+                    if(touchIndex == -1 || startTouchEventTime == -1) continue; //Invalid state
 
-                        for(DockElement de : elements){
-                            if(de.getIndex() != touchIndex) de.commitMovement();
-                        }
-                        elements.get(touchIndex).commitMovement();
+                    Rect circleCenter = getIconBoundsForIndex(touchIndex);
+                    float circlePercent = ((System.currentTimeMillis() - startTouchEventTime) / 500F);
+                    Log.d(TAG, "Circle percent: " + circlePercent);
+                    tempPaint.setColor(Color.WHITE);
+                    canvas.drawCircle(circleCenter.centerX(), circleCenter.centerY(), circlePercent * circleCenter.width() / 2, tempPaint);
+                    break;
+                case TAP_REMOVE:
+                    if(touchIndex == -1 || !longPressing) continue; //Invalid state
 
-                        if(mDragChange.getAction() == DockAction.ACTION_REPLACE){ //We actually have to hollow out the replaced element, and move it to the position of what we moved
-                            elements.get(mDragChange.getIndex()).hollowOut(touchIndex);
-                        }
-
-                        //Reorder the list to match the new positions of the elements
-                        Collections.sort(elements, DockElement.comparator);
-
-                        toRemove.add(reason);
-                    }
+                    Rect removeCenter = getIconBoundsForIndex(touchIndex);
+                    tempPaint.setColor(Color.RED);
+                    canvas.drawCircle(removeCenter.centerX(), removeCenter.centerY(), removeCenter.width() / 2, tempPaint);
                     break;
                 case FLASH_COLOR:
                     if(reason.second > System.currentTimeMillis() - DOCK_FLASH_ANIMATION_DURATION_MS){
@@ -210,16 +191,93 @@ public class DockView extends View {
                     break;
             }
         }
-        reasons.removeAll(toRemove);
+        stopAnimations(toRemove);
 
         //Draw icons
-        for(DockElement de : elements){
-            if(!dragging || (dragging && de.getIndex() != touchIndex)) de.draw(canvas);
+        if(isDragging) {
+            for(int i = 0; i < elementCount; i++){
+                DockElement match = null;
+                for(DockElement el : elements){
+                    if(el.getIndex() == i){
+                        match = el;
+                        break;
+                    }
+                }
+
+                if(match != null && match.isValid()){
+                    if(i == dragIndex){
+                        iconPaint.setColorFilter(greenFilter);
+                    }
+                    canvas.drawBitmap(match.getIcon(),
+                            new Rect(0, 0, match.getIcon().getWidth(), match.getIcon().getHeight()),
+                            getIconBoundsForIndex(i),
+                            iconPaint);
+                    iconPaint.setColorFilter(null);
+                } else {
+                    iconDrawable.setBounds(getBoundsForIndex(i));
+                    iconDrawable.draw(canvas);
+                }
+            }
+        } else {
+            if(touchIndex != -1) {
+                if (startTouchEventTime != -1) { //<500ms after first touch; draw circle around touch
+
+                } else if (longPressing) { //Draw red around touch touch
+
+                }
+            }
+
+            for (DockElement de : elements) {
+                if (!de.isValid() || de.getIcon() == null) continue;
+
+                canvas.drawBitmap(de.getIcon(),
+                        new Rect(0, 0, de.getIcon().getWidth(), de.getIcon().getHeight()),
+                        getIconBoundsForIndex(de.getIndex()),
+                        iconPaint);
+            }
+        }
+    }
+
+
+
+    private Rect getBoundsForIndex(int index){
+        int xStart = (int) (HORIZONTAL_MARGIN + (index * perElementWidth));;
+        int yStart = 0;
+        int xEnd = (int) (HORIZONTAL_MARGIN + ((index + 1) * perElementWidth));
+        int yEnd = getHeight();
+
+        return new Rect(xStart, yStart, xEnd, yEnd);
+    }
+
+    private int calculateIndexForTouch(int xLocation, boolean verifyValid){
+        for(int i = 0; i < elementCount; i++){
+            Rect indexBound = getBoundsForIndex(i);
+            Log.d(TAG, "xLocation= " + xLocation + "; bounds=" + indexBound.toString());
+            if(indexBound.left <= xLocation && indexBound.right >= xLocation){
+                if(verifyValid){
+                    for(DockElement de : elements){
+                        if(de.getIndex() == i) return i;
+                    }
+                    return -1;
+                } else {
+                    return i;
+                }
+            }
         }
 
-        if(dragging){
-            elements.get(touchIndex).draw(canvas);
-        }
+        return -1;
+    }
+
+    private Rect getIconBoundsForIndex(int index){
+        int startLocation = (int) (HORIZONTAL_MARGIN + (index * perElementWidth));
+        int endLocation = (int) (HORIZONTAL_MARGIN + ((index + 1) * perElementWidth));
+
+        int xStart = endLocation - (perElementWidth / 2) - (iconSize / 2);
+        int xEnd = xStart + iconSize;
+        int yStart = getHeight() - (getHeight() / 2) - (iconSize / 2);
+        int yEnd = yStart + iconSize;
+
+        return new Rect(xStart, yStart, xEnd, yEnd);
     }
 
     /**
@@ -234,45 +292,76 @@ public class DockView extends View {
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
         if(!inited) return;
 
+        Log.d(TAG, "onLayout");
+
         //Calculated needed data
         this.iconPaint = new Paint();
         this.iconPaint.setAntiAlias(true);
         this.tempPaint = new Paint();
         this.tempPaint.setAntiAlias(true);
+        this.HORIZONTAL_MARGIN = com.inipage.homelylauncher.utils.Utilities.convertDpToPixel(16F, getContext());
+        this.ICON_INTERNAL_MARGIN = com.inipage.homelylauncher.utils.Utilities.convertDpToPixel(8F, getContext());
         this.whiteColor = getResources().getColor(R.color.white);
 
         this.cachedMetrics = getContext().getResources().getDisplayMetrics();
         int width = cachedMetrics.widthPixels;
-        this.perElementWidth = width / elementCount;
-        this.iconSize = perElementWidth > getHeight() ? getHeight() : perElementWidth;
+        this.perElementWidth = (int) (width - (HORIZONTAL_MARGIN * 2)) / elementCount;
+        this.iconSize = perElementWidth > getHeight() ? (int) (getHeight() - (2 * ICON_INTERNAL_MARGIN)) : (int) (perElementWidth - (2 * ICON_INTERNAL_MARGIN));
+
+        Log.d(TAG, "horizontal margin=" + HORIZONTAL_MARGIN + "; icon internal margin=" + ICON_INTERNAL_MARGIN + "; perElementWidth=" + perElementWidth + "; iconSize=" + iconSize);
 
         laidOut = true;
 
-        for(DockElement de : elements){
-            de.attachDockView(this);
+        if(!iconsFetched){
+            for(DockElement el : elements){
+                if(!el.isValid()) continue;
+
+                final DockElement element = el;
+                Log.d(TAG, "Trying to fetch icon for " + element.getActivity());
+                Bitmap cachedCopy = IconCache.getInstance().getSwipeCacheAppIcon(
+                        element.getActivity().getPackageName(),
+                        element.getActivity().getClassName(),
+                        getHeight(),
+                        new IconCache.ItemRetrievalInterface() {
+                            @Override
+                            public void onRetrievalComplete(Bitmap result) {
+                                Log.d(TAG, "Setting icon for element with package " + element.getActivity().getPackageName());
+                                element.setIcon(result);
+                                invalidate();
+                            }
+
+                            @Override
+                            public void onRetrievalFailed(String reason) {
+                                Log.e(TAG, "Error getting " + reason);
+                            }
+                        });
+
+                element.setIcon(cachedCopy);
+                invalidate();
+            }
+            iconsFetched = true;
         }
+
         invalidate();
     }
 
     long startTouchEventTime = -1L;
     int touchIndex = -1;
+    boolean longPressing = false;
 
     @Override
     public boolean onTouchEvent(MotionEvent event) {
         switch(event.getAction()){
             case MotionEvent.ACTION_DOWN:
-                //Figure out which index we're touching
-                for(int i = 0; i < elementCount; i++){
-                    int startLocation = i * perElementWidth;
-                    int endLocation = (i + 1) * perElementWidth;
-                    if(event.getRawX() >= startLocation && event.getRawX() <= endLocation){
-                        touchIndex = i;
-                        break;
-                    }
+                touchIndex = calculateIndexForTouch((int) event.getX(), true);
+                Log.d(TAG, "Got touch at " + touchIndex);
+                if(touchIndex == -1){
+                    return false;
                 }
 
                 startTouchEventTime = System.currentTimeMillis();
 
+                playAnimation(AnimationReasons.TAP_CIRCLE);
                 //Start dragging after 500ms
                 mHandler.postDelayed(new Runnable() {
                     @Override
@@ -280,17 +369,30 @@ public class DockView extends View {
                         if(startTouchEventTime == -1L) return;
 
                         startTouchEventTime = -1L;
+                        longPressing = true;
 
-                        dragging = true;
-                        invalidate();
+                        clearTouchAnimations();
+                        playAnimation(AnimationReasons.TAP_REMOVE);
                     }
                 }, 500);
                 return true;
             case MotionEvent.ACTION_UP:
                 if(startTouchEventTime != -1L) {
-                    elements.get(touchIndex).launch(this);
+                    DockElement touchedApp = null;
+                    for(DockElement de : elements){
+                        if(de.getIndex() == touchIndex){
+                            touchedApp = de;
+                            break;
+                        }
+                    }
+
+                    if(touchedApp == null){
+                        return true;
+                    }
+
+                    touchedApp.launch(this);
                     startTouchEventTime = -1L;
-                    Palette.from(elements.get(touchIndex).getIcon()).generate(new Palette.PaletteAsyncListener() {
+                    Palette.from(touchedApp.getIcon()).generate(new Palette.PaletteAsyncListener() {
                         @Override
                         public void onGenerated(Palette palette) {
                             if (palette.getVibrantSwatch() != null) {
@@ -306,33 +408,55 @@ public class DockView extends View {
                             playAnimation(AnimationReasons.FLASH_COLOR);
                         }
                     });
+                    clearTouchAnimations();
                     return true;
                 } else {
-                    if(dragging) {
-                        //Tell the dragged element that it isn't being dragged anymore
-                        elements.get(touchIndex).indicateDragEnd();
+                    clearTouchAnimations();
+                    if(longPressing) {
+                        new MaterialDialog.Builder(getContext())
+                                .title(R.string.remove_dock_item)
+                                .content(R.string.remove_dock_item_message)
+                                .positiveText(R.string.yes)
+                                .negativeText(R.string.cancel)
+                                .callback(new MaterialDialog.ButtonCallback() {
+                                    @Override
+                                    public void onPositive(MaterialDialog dialog) {
+                                        DockElement toRemove = null;
+                                        for(DockElement de : elements) {
+                                            if(de.getIndex() == touchIndex){
+                                                toRemove = de;
+                                                break;
+                                            }
+                                        }
 
-                        //Make sure nothing is colored anymore
-                        for(DockElement de : elements) de.indicateNotHoveredOver();
-
-                        //Note: Committing drag events occurs in the animation handlers
-
-                        invalidate();
+                                        if(toRemove != null) {
+                                            elements.remove(toRemove);
+                                            host.onElementRemoved(touchIndex);
+                                            invalidate();
+                                        }
+                                    }
+                                }).show();
                         return true;
                     } else {
                         return false;
                     }
                 }
             case MotionEvent.ACTION_CANCEL: //Our touch event has been stolen! Eep!
+                clearTouchAnimations();
                 return false;
-            case MotionEvent.ACTION_MOVE:
-                if(dragging){
-                    handleInternalDrag((int) event.getRawX());
-                }
+            case MotionEvent.ACTION_MOVE: //HA! We don't care anymore.
                 return true;
             default:
                 return false;
         }
+    }
+
+    private void clearTouchAnimations(){
+        List<Pair<AnimationReasons, Long>> toRemove = new ArrayList<>();
+        for(Pair<AnimationReasons, Long> reason : reasons){
+            if(reason.first == AnimationReasons.TAP_CIRCLE || reason.first == AnimationReasons.TAP_REMOVE) toRemove.add(reason);
+        }
+        stopAnimations(toRemove);
     }
 
     private void playAnimation(AnimationReasons reason){
@@ -361,157 +485,57 @@ public class DockView extends View {
         mHandler.postDelayed(animationHandler, FRAME_TIME_MS);
     }
 
-    public void handleInternalDrag(int xPosition){
-        elements.get(touchIndex).indicateDragMotion(xPosition);
-
-        //Try and figure this nonsense out
-        boolean isReplacement = false;
-        boolean isPushLeft = false;
-        boolean isPushRight = false;
-
-        int location = -1;
-        int spaceLocation = -1;
-        for(int i = 0; i < elementCount; i++){
-            int startLocation = i * perElementWidth;
-            int endLocation = (i + 1) * perElementWidth;
-            if(xPosition >= startLocation && xPosition <= endLocation){
-                //Okay, this is where we're calculating
-                location = i;
-
-                float percent = ((float) (xPosition - startLocation)) / perElementWidth;
-                Log.d(TAG, "Percent is " + percent);
-                if(percent < 0.2) {
-                    if(location != touchIndex) {
-                        //If the spot we're over is empty, it's always a replacement, never a push
-                        if (!elements.get(location).isValid()) {
-                            isReplacement = true;
-                        } else {
-                            for (int j = location + 1; j < elementCount; j++) {
-                                if (!elements.get(j).isValid()) {
-                                    spaceLocation = j;
-                                    break;
-                                }
-                            }
-
-                            if (spaceLocation != -1) {
-                                isPushRight = true;
-                            }
-                        }
-                    }
-                } else if (percent < 0.8) {
-                    if(location != touchIndex){
-                        isReplacement = true;
-                    }
-                } else {
-                    if(location != touchIndex) {
-                        //If the spot we're over is empty, it's always a replacement, never a push
-                        if (!elements.get(location).isValid()) {
-                            isReplacement = true;
-                        } else {
-                            for (int j = location - 1; j >= 0; j--) {
-                                if (!elements.get(j).isValid()) {
-                                    spaceLocation = j;
-                                    break;
-                                }
-                            }
-
-                            if (spaceLocation != -1) {
-                                isPushLeft = true;
-                            }
-                        }
-                    }
-                }
-                break;
-            }
+    private void stopAnimations(List<Pair<AnimationReasons, Long>> toRemove) {
+        reasons.removeAll(toRemove);
+        if(reasons.isEmpty()){
+            mHandler.removeCallbacks(animationHandler);
         }
-
-        DragChange previousDrag = mDragChange;
-        DragChange newDrag;
-
-        if(isReplacement) {
-            newDrag = new DragChange(DockAction.ACTION_REPLACE, location);
-        } else if (isPushLeft) {
-            newDrag = new DragChange(DockAction.ACTION_PUSH_LEFT, location);
-        } else if (isPushRight) {
-            newDrag = new DragChange(DockAction.ACTION_PUSH_RIGHT, location);
-        } else { //Is invalid
-            newDrag = new DragChange(DockAction.ACTION_NONE, -1);
-        }
-
-        if(previousDrag == null || !newDrag.equals(previousDrag)) {
-            Log.d(TAG, "New drag state for movement at " + xPosition);
-
-            //Changes have happened; queue new movements
-            mDragChange = newDrag;
-
-            switch(mDragChange.getAction()){
-                case ACTION_PUSH_LEFT: //Queue motion
-                    Log.d(TAG, "Element at " + touchIndex + " is pushing left from " + location + " to " + spaceLocation);
-
-                    for(int j = location; j > spaceLocation; j--){
-                        elements.get(j).queueMovementTo(j - 1);
-                    }
-                    elements.get(touchIndex).queueMovementTo(location);
-                    elements.get(spaceLocation).queueMovementTo(touchIndex);
-                    playAnimation(AnimationReasons.MOVE_ELEMENTS);
-                    break;
-                case ACTION_PUSH_RIGHT: //Queue motion
-                    Log.d(TAG, "Element at " + touchIndex + " is pushing right from " + location + " to " + spaceLocation);
-
-                    for(int j = location; j < spaceLocation; j++){
-                        elements.get(j).queueMovementTo(j + 1);
-                    }
-                    elements.get(touchIndex).queueMovementTo(location);
-                    elements.get(spaceLocation).queueMovementTo(touchIndex);
-                    playAnimation(AnimationReasons.MOVE_ELEMENTS);
-                    break;
-                case ACTION_REPLACE: //Greenify
-                    Log.d(TAG, "Element at " + touchIndex + " is replacing the element at " + location);
-
-                    for(int i = 0; i < elementCount; i++){
-                        elements.get(i).queueMovementTo(elements.get(i).getIndex()); //Move to original place
-                        elements.get(i).indicateNotHoveredOver();
-                    }
-                    elements.get(mDragChange.getIndex()).indicateHoveredOver();
-                    playAnimation(AnimationReasons.MOVE_ELEMENTS);
-                    break;
-                case ACTION_NONE:
-                    Log.d(TAG, "Element at " + touchIndex + " is back to doing nothing");
-
-                    for(int i = 0; i < elementCount; i++){
-                        elements.get(i).queueMovementTo(elements.get(i).getIndex()); //Move to original place
-                        elements.get(i).indicateNotHoveredOver();
-                    }
-                    break;
-            }
-        } else {
-            Log.d(TAG, "No special case for movement at " + xPosition);
-        } //Existing animations should be fine to continue as they were
-
         invalidate();
-    }
-
-    public void handleExternalDrag(int dragPosition){
-
     }
 
     @Override
     public boolean onDragEvent(DragEvent event) {
-        //TODO: Wire up to handle external drag, which will have similar (but different) logic to handle internal drag
-        //Or... maybe not? We could save a lot of time by just drawing "(+)" in the empty spots and letting tapping on those
-        //suggest replacements -- maybe releasing where you started draws a " x " in the dock element's location, which you can
-        //tap to remove (e.g. "nope no(X)pe nope nope", "no(x)pe nope nope nope" -- weird and fun?)
-
         switch(event.getAction()){
             case DragEvent.ACTION_DRAG_STARTED:
+                isDragging = true;
+                invalidate();
                 return true; //Nothing to do
-            case DragEvent.ACTION_DRAG_ENTERED:
             case DragEvent.ACTION_DRAG_LOCATION:
+                dragIndex = calculateIndexForTouch((int) event.getX(), false);
+                invalidate();
+                return true;
             case DragEvent.ACTION_DRAG_EXITED:
+                dragIndex = -1;
+                invalidate();
                 return true;
             case DragEvent.ACTION_DROP:
-                return true;
+                try {
+                    ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
+                    ComponentName cn = new ComponentName(ai.getPackageName(), ai.getActivityName());
+                    String label = getContext().getPackageManager().getActivityInfo(cn, 0).loadLabel(getContext().getPackageManager()).toString();
+                    DockElement newElement = new DockElement(cn, label, dragIndex);
+                    DockElement toRemove = null;
+                    for(DockElement de : elements){
+                        if(de.getIndex() == dragIndex){
+                            toRemove = de;
+                            break;
+                        }
+                    }
+                    if(toRemove != null) elements.remove(toRemove);
+                    elements.add(newElement);
+                    host.onElementReplaced(toRemove, newElement, dragIndex);
 
+                    //Gotta fetch new icon
+                    iconsFetched = false;
+                    requestLayout();
+                    return true;
+                } catch (Exception e){
+                    return false;
+                }
+            case DragEvent.ACTION_DRAG_ENDED:
+                isDragging = false;
+                invalidate();
+                return true;
         }
 
         return true;

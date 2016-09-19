@@ -111,13 +111,6 @@ public class SettingsActivity extends ActionBarActivity {
                     return true;
                 }
             });
-            findPreference("debug").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
-                @Override
-                public boolean onPreferenceClick(Preference preference) {
-                    startActivity(new Intent(getActivity(), DockTester.class));
-                    return true;
-                }
-            });
             /*
             findPreference("home_widget_pref").setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
                 @Override

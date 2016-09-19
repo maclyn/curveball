@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="48dp"
     android:layout_height="48dp"
-    android:orientation="horizontal">
+    android:background="?android:attr/selectableItemBackground" >
 
     <com.inipage.homelylauncher.drawer.StickyImageView
-        android:layout_margin="8dp"
         android:id="@+id/popularAppIcon"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="?android:attr/selectableItemBackground" />
-</LinearLayout>
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_gravity="center"/>
+</FrameLayout>

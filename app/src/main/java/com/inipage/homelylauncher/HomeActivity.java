@@ -425,7 +425,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             elementCount = 7;
         }
 
-        for(int i = 1; i < elementCount; i++){
+        for(int i = 0; i < elementCount; i++){
             String existingData = reader.getString("dockbarTarget_" + i, "null");
             Gson gson = new Gson();
             try {
@@ -433,22 +433,32 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 ComponentName cn = new ComponentName(ai.getPackageName(), ai.getActivityName());
                 String label = getPackageManager().getActivityInfo(cn, 0).loadLabel(getPackageManager()).toString();
 
-                de.add(new DockElement(cn, label, i - 1));
-            } catch (Exception fallback) {
-                de.add(new DockElement(null, null, i - 1));
+                dockbarTargetsMap.put(i, ai);
+                de.add(new DockElement(cn, label, i));
+            } catch (Exception fail) {
             }
         }
+
         dockView.init(elementCount, de, new DockViewHost() {
             @Override
-            public void onElementRemoved(int index) {
-                writer.putString("dockbarTarget_" + index, "null").apply();
+            public void onElementRemoved(DockElement oldElement, int index) {
+                Log.d(TAG, "Clearing dock element at " + index);
+                dockbarTargetsMap.remove(index);
+                writer.putString(" dockbarTarget_" + index, "null").apply();
+
+                populateSuggestions();
             }
 
             @Override
             public void onElementReplaced(DockElement oldElement, DockElement newElement, int index) {
                 final ApplicationIcon ai = new ApplicationIcon(newElement.getActivity().getPackageName(), newElement.getTitle(), newElement.getActivity().getClassName());
                 Gson gson = new Gson();
-                writer.putString("dockbarTarget_" + index, gson.toJson(ai)).apply();
+                String repl = gson.toJson(ai);
+                Log.d(TAG, "Replacing dock element at " + index + " with " + repl);
+                writer.putString("dockbarTarget_" + index, repl).apply();
+                dockbarTargetsMap.put(index, ai);
+
+                populateSuggestions();
             }
         });
 
@@ -1180,6 +1190,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         int fourtyFourDp = (int) Utilities.convertDpToPixel(48f, this);
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(fourtyFourDp, fourtyFourDp);
+
         suggestionsLayout.addView(v, params);
     }
 
@@ -1217,6 +1228,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     private void populateSuggestions() {
         //Clean up
         suggestionsLayout.removeAllViews();
+
         suggestionsSV.setVisibility(View.GONE);
         noSuggestions.setVisibility(View.GONE);
         loadingSuggestions.setVisibility(View.VISIBLE);
@@ -1456,13 +1468,14 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }.execute();
     }
 
+    Map<Integer, ApplicationIcon> dockbarTargetsMap = new HashMap<>();
     private Map<String, Boolean> launchableCachedMap = new HashMap<>();
 
     public boolean isComponentValidSuggestion(String packageName) {
         if(packageName == null) return false;
         if(!launchableCachedMap.containsKey(packageName)) {
             boolean isValid = getPackageManager().getLaunchIntentForPackage(packageName) != null;
-            for(Map.Entry<Integer, ApplicationIcon> entry : dockbarTargets.entrySet()){
+            for(Map.Entry<Integer, ApplicationIcon> entry : dockbarTargetsMap.entrySet()){
                 if(entry.getValue().getPackageName().equals(packageName)){
                     isValid = false;
                     break;
@@ -1507,66 +1520,6 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         oa.setDuration(400L);
         oa.start();
         */
-    }
-    //endregion
-
-    //region Dock
-
-
-    Map<Integer, ApplicationIcon> dockbarTargets = new HashMap<>(7);
-    public void initDockbar(final ApplicationIcon ai, final ImageView dockbarTarget, final int location) {
-        dockbarTarget.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                try {
-                    Intent appLaunch = new Intent();
-                    appLaunch.setClassName(ai.getPackageName(), ai.getActivityName());
-                    appLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    v.getContext().startActivity(appLaunch);
-                } catch (Exception e) {
-                    Toast.makeText(v.getContext(), "Couldn't start this app!", Toast.LENGTH_SHORT)
-                            .show();
-                }
-            }
-        });
-
-        //Long-click to clear
-        dockbarTarget.setOnLongClickListener(new View.OnLongClickListener() {
-            @Override
-            public boolean onLongClick(View v) {
-                new MaterialDialog.Builder(v.getContext())
-                        .title(R.string.remove_dock_item)
-                        .content(R.string.remove_dock_item_message)
-                        .positiveText(R.string.yes)
-                        .negativeText(R.string.cancel)
-                        .callback(new MaterialDialog.ButtonCallback() {
-                            @Override
-                            public void onPositive(MaterialDialog dialog) {
-                                dockbarTarget.setOnClickListener(null);
-                                dockbarTarget.setOnLongClickListener(null);
-                                dockbarTarget.setImageDrawable(null);
-
-                                dockbarTargets.remove(location);
-                                launchableCachedMap.clear();
-
-                                //Remove stored data
-                                writer.putString("dockbarTarget_" + location, "null").apply();
-                            }
-                        }).show();
-                return true;
-            }
-        });
-
-        try {
-            Drawable icon = getPackageManager()
-                    .getActivityIcon(new ComponentName(ai.getPackageName(), ai.getActivityName()));
-            dockbarTarget.setImageDrawable(icon);
-        } catch (Exception e) {
-            dockbarTarget.setImageDrawable(getResources().getDrawable(android.R.drawable.sym_def_app_icon));
-        }
-
-        dockbarTargets.put(location, ai);
-        launchableCachedMap.clear();
     }
     //endregion
 

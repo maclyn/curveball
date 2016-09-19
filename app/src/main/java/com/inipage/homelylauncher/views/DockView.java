@@ -214,7 +214,7 @@ public class DockView extends View {
                             iconPaint);
                     iconPaint.setColorFilter(null);
                 } else {
-                    iconDrawable.setBounds(getBoundsForIndex(i));
+                    iconDrawable.setBounds(getIconBoundsForIndex(i));
                     iconDrawable.draw(canvas);
                 }
             }
@@ -431,7 +431,7 @@ public class DockView extends View {
 
                                         if(toRemove != null) {
                                             elements.remove(toRemove);
-                                            host.onElementRemoved(touchIndex);
+                                            host.onElementRemoved(toRemove, touchIndex);
                                             invalidate();
                                         }
                                     }

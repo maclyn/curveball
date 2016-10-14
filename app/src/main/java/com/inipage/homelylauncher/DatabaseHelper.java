@@ -10,7 +10,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     //Database basics
     public static final String DATABASE_NAME = "database.db";
-    public static final int DATABASE_VERSION = 5;
+    public static final int DATABASE_VERSION = 6;
 
     //Base columns
     public static final String COLUMN_ID = "_id";
@@ -34,8 +34,10 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     //Smartapps table
     public static final String TABLE_SMARTAPPS = "smartapps_table";
-    //Re-uses: COLUMN_PACKAGE and COLUMN_ACTIVITY_NAME
+    //Re-uses: COLUMN_PACKAGE
     public static final String COLUMN_WHEN_TO_SHOW = "when_to_show";
+    public static final int SMARTAPP_SHOW_ALWAYS = 1;
+    public static final int SMARTAPP_SHOW_NEVER = 2;
 
     //Functions for creating it
     private static final String ROWS_TABLE_CREATE = "create table "
@@ -59,7 +61,6 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             + TABLE_SMARTAPPS +
             "(" + COLUMN_ID + " integer primary key autoincrement, "
             + COLUMN_PACKAGE + " text not null, "
-            + COLUMN_ACTIVITY_NAME + " text not null, "
             + COLUMN_WHEN_TO_SHOW + " integer not null" + ");";
     public DatabaseHelper(Context context){
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
@@ -84,11 +85,20 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         if (oldVersion < 1) { //v1 didn't have a widget table
             db.execSQL(WIDGET_TABLE_CREATE);
             db.execSQL(SMARTAPPS_TABLE_CREATE);
-        } else if (oldVersion < 2){ //v2 didn't have a smartapps table
+        }
+
+        if (oldVersion < 2){ //v2 didn't have a smartapps table
             db.execSQL(SMARTAPPS_TABLE_CREATE);
-        } else if (oldVersion < 5) { //v3-v4's widget table is corrupt!
+        }
+
+        if (oldVersion < 5) { //v3-v4's widget table is corrupt!
             db.execSQL("DROP TABLE " + TABLE_WIDGETS);
             db.execSQL(WIDGET_TABLE_CREATE);
+        }
+
+        if (oldVersion < 6){
+            db.execSQL("DROP TABLE " + TABLE_SMARTAPPS);
+            db.execSQL(SMARTAPPS_TABLE_CREATE);
         }
     }
 }

@@ -285,6 +285,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     Configuration previousConfiguration;
 
     List<TypeCard> samples;
+    List<Pair<String, Integer>> smartApps;
     List<Pair<String, String>> hiddenApps;
 
     View dialogView;
@@ -366,6 +367,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         });
 
         samples = new ArrayList<>();
+        smartApps = new ArrayList<>();
         hiddenApps = new ArrayList<>();
 
         //Set up all apps button
@@ -490,6 +492,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                             case R.id.hideApps:
                                 showHideAppsMenu();
                                 break;
+                            case R.id.manageSuggestions:
+                                showManageSuggestionsMenu();
                             case R.id.help:
                                 showTutorial();
                                 break;
@@ -682,8 +686,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 writer.putInt(Constants.VERSION_PREF, Constants.Versions.CURRENT_VERSION).commit();
             }
 
-            loadList(samples);
-            loadHiddenApps(hiddenApps);
+            loadList();
+            loadHiddenApps();
+            loadSmartApps();
         }
 
         //Set up broadcast receivers
@@ -1150,7 +1155,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    private void addSuggestionsApp(String packageName) {
+    private void addSuggestionsApp(final String packageName) {
         View v = LayoutInflater.from(HomeActivity.this).inflate(R.layout.popular_app_icon, suggestionsLayout, false);
 
         final Intent launchIntent = getPackageManager().getLaunchIntentForPackage(packageName);
@@ -1178,7 +1183,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         .callback(new MaterialDialog.ButtonCallback() {
                             @Override
                             public void onPositive(MaterialDialog dialog) {
-                                //TODO: Do the thing
+                                launchableCachedMap.clear();
+                                smartApps.add(new Pair<>(packageName, DatabaseHelper.SMARTAPP_SHOW_NEVER));
+                                persistSmartApps();
+                                populateSuggestions();
                             }
                         }).show();
                 return true;
@@ -1400,7 +1408,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         start = cal.getTimeInMillis();
                         end = System.currentTimeMillis();
                         List<UsageStats> leastGranularOptions = usm.queryUsageStats(UsageStatsManager.INTERVAL_WEEKLY, start, end);
-                        for(UsageStats entry : granularOptions) {
+                        for(UsageStats entry : leastGranularOptions) {
                             if (!isComponentValidSuggestion(entry.getPackageName())) continue;
 
                             long timeUsed = (long) (entry.getTotalTimeInForeground() / 7); //Weighed at base value
@@ -1473,6 +1481,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
     public boolean isComponentValidSuggestion(String packageName) {
         if(packageName == null) return false;
+
         if(!launchableCachedMap.containsKey(packageName)) {
             boolean isValid = getPackageManager().getLaunchIntentForPackage(packageName) != null;
             for(Map.Entry<Integer, ApplicationIcon> entry : dockbarTargetsMap.entrySet()){
@@ -1481,8 +1490,17 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     break;
                 }
             }
+
+            for(Pair<String, Integer> packageToUse : smartApps){
+                if(packageToUse.first.equals(packageName) && packageToUse.second == DatabaseHelper.SMARTAPP_SHOW_NEVER){
+                    isValid = false;
+                    break;
+                }
+            }
+
             launchableCachedMap.put(packageName, isValid);
         }
+
         return launchableCachedMap.get(packageName);
     }
 
@@ -1524,7 +1542,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //endregion
 
     //region Manage ShortcutGestureView apps
-    private void loadList(List<TypeCard> samples) {
+    private void loadList() {
         Log.d(TAG, "Loading list...");
 
         loadRows:
@@ -1797,7 +1815,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     //endregion
 
     //region Manage hidden apps
-    private void loadHiddenApps(List<Pair<String, String>> hiddenApps) {
+    private void loadHiddenApps() {
         Log.d(TAG, "Loading hidden apps...");
         hiddenApps.clear();
 
@@ -1882,8 +1900,70 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                             @Override
                             public void onPositive(MaterialDialog dialog) {
                                 persistHidden(adapter.getApps());
-                                loadHiddenApps(hiddenApps);
+                                loadHiddenApps();
                                 resetAppsList("", false);
+                            }
+                        }).show();
+            }
+        }.execute();
+    }
+
+    private void showManageSuggestionsMenu() {
+        new AsyncTask<Void, Void, List<ApplicationHiderIcon>>() {
+            @Override
+            protected List<ApplicationHiderIcon> doInBackground(Void... params) {
+                List<ApplicationHiderIcon> applicationIcons = new ArrayList<>();
+
+                //Grab all matching applications
+                try {
+                    final Intent allAppsIntent = new Intent(Intent.ACTION_MAIN, null);
+                    allAppsIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                    final List<ResolveInfo> packageList = getPackageManager().queryIntentActivities(allAppsIntent, 0);
+                    for (ResolveInfo ri : packageList) {
+                        try {
+                            String name = (String) ri.loadLabel(getPackageManager());
+                            if (smartApps.contains(new Pair<>(ri.activityInfo.packageName, DatabaseHelper.SMARTAPP_SHOW_NEVER))) {
+                                applicationIcons.add(new ApplicationHiderIcon(ri.activityInfo.packageName,
+                                        name, ri.activityInfo.name, true));
+                            } else {
+                                applicationIcons.add(new ApplicationHiderIcon(ri.activityInfo.packageName,
+                                        name, ri.activityInfo.name, false));
+                            }
+                        } catch (Exception e) {
+                            //Failed to add one.
+                        }
+                    }
+
+                    Collections.sort(applicationIcons, new Comparator<ApplicationIcon>() {
+                        @Override
+                        public int compare(ApplicationIcon lhs, ApplicationIcon rhs) {
+                            return lhs.getName().compareToIgnoreCase(rhs.getName());
+                        }
+                    });
+                    return applicationIcons;
+                } catch (RuntimeException packageManagerDiedException) {
+                    return new ArrayList<>();
+                }
+            }
+
+            @Override
+            protected void onPostExecute(List<ApplicationHiderIcon> apps) {
+                final ApplicationHideAdapter adapter = new ApplicationHideAdapter(HomeActivity.this, apps);
+                new MaterialDialog.Builder(HomeActivity.this)
+                        .adapter(adapter, new LinearLayoutManager(HomeActivity.this))
+                        .title(R.string.manage_suggestions)
+                        .positiveText(R.string.done)
+                        .negativeText(R.string.cancel)
+                        .callback(new MaterialDialog.ButtonCallback() {
+                            @Override
+                            public void onPositive(MaterialDialog dialog) {
+                                launchableCachedMap.clear();
+                                smartApps.clear();
+                                for(ApplicationHiderIcon icon : adapter.getApps()){
+                                    smartApps.add(new Pair<>(icon.getPackageName(), DatabaseHelper.SMARTAPP_SHOW_NEVER));
+                                }
+                                persistSmartApps();
+                                populateSuggestions();
                             }
                         }).show();
             }
@@ -1906,6 +1986,55 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
             Log.d(TAG, result == -1 ? "Error inserting: " + i :
                     "Inserted hidden: " + i + " at " + result);
+        }
+    }
+
+    private void loadSmartApps() {
+        Log.d(TAG, "Loading smart apps...");
+        smartApps.clear();
+
+        loadRows:
+        {
+            Cursor loadItems = db.query(DatabaseHelper.TABLE_SMARTAPPS, null, null, null, null, null, null);
+            if (loadItems.moveToFirst()) {
+                Log.d(TAG, "Found: " + loadItems.getCount());
+
+                int packageColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_PACKAGE);
+                int whenColumn = loadItems.getColumnIndex(DatabaseHelper.COLUMN_WHEN_TO_SHOW);
+                if (packageColumn == -1 || whenColumn == -1) {
+                    loadItems.close();
+                    break loadRows;
+                }
+
+                while (!loadItems.isAfterLast()) {
+                    String packageName = loadItems.getString(packageColumn);
+                    int when = loadItems.getInt(whenColumn);
+
+                    Log.d(TAG, "Loading '" + packageName + "'...");
+                    smartApps.add(new Pair<>(packageName, when));
+
+                    loadItems.moveToNext();
+                }
+            } else {
+                Log.d(TAG, "No smart app prefs found!");
+            }
+            loadItems.close();
+        }
+    }
+
+    private void persistSmartApps() {
+        Log.d(TAG, "Persisting at most " + smartApps.size() + " smartapp hide prefs apps");
+
+        db.delete(DatabaseHelper.TABLE_SMARTAPPS, null, null);
+        for (int i = 0; i < smartApps.size(); i++) {
+
+            ContentValues cv = new ContentValues();
+            cv.put(DatabaseHelper.COLUMN_PACKAGE, smartApps.get(i).first);
+            cv.put(DatabaseHelper.COLUMN_WHEN_TO_SHOW, smartApps.get(i).second);
+
+            long result = db.insert(DatabaseHelper.TABLE_SMARTAPPS, null, cv);
+
+            Log.d(TAG, result == -1 ? "Error inserting: " + i : "Inserted smartapp: " + i + " at " + result);
         }
     }
     //endregion

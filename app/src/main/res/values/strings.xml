@@ -3,7 +3,7 @@
     <string name="app_name">Curveball Launcher</string>
     <string name="hello_world">Hello world!</string>
     <string name="action_settings">Settings</string>
-    <string name="hideApps">Hide Apps</string>
+    <string name="hideApps">Hide apps</string>
     <string name="settingsName">Settings</string>
     <string name="helpName">Help</string>
     <string name="delete">Delete</string>
@@ -11,7 +11,7 @@
     <string name="add_widget">Add Widget</string>
     <string name="widget_sample_name">Widget Name</string>
     <string name="sample">Sample Text</string>
-    <string name="change_wallpaper">Change Wallpaper</string>
+    <string name="change_wallpaper">Change wallpaper</string>
     <string name="add_to_dock">To Dock</string>
     <string name="uninstall">Uninstall</string>
     <string name="new_row">New Row</string>
@@ -39,11 +39,11 @@
     <string name="no_rows">No rows to be edited. Add one by long-pressing an icon in the app drawer.</string>
     <string name="cant_remove_last">Can\'t remove last item in the list.</string>
     <string name="remove_dock_item">Remove dock item</string>
-    <string name="remove_dock_item_message">Would you like to remove this dock item?</string>
+    <string name="remove_dock_item_message">Would you like to remove %s from the dock?</string>
     <string name="yes">Yes</string>
     <string name="app_info">App Info</string>
     <string name="name_your_folder">Name your folder</string>
-    <string name="reorder_rows">Reorder Rows</string>
+    <string name="reorder_rows">Reorder rows</string>
     <string name="sample_text">Some sample text</string>
     <string name="no_snacklets_found">No snacklets found.</string>
     <string name="advanced">Advanced</string>
@@ -169,4 +169,5 @@
     <string name="widget_no_longer_valid">That widget is no longer valid.</string>
     <string name="suppress_suggestion_title">Remove suggestion</string>
     <string name="suppress_suggestion_message">Would you like to remove this suggestion, and prevent it from showing up again?</string>
+    <string name="manage_suggestions">Manage suggestions</string>
 </resources>

@@ -10,6 +10,7 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
+import android.hardware.camera2.TotalCaptureResult;
 import android.os.Handler;
 import android.support.v7.graphics.Palette;
 import android.util.AttributeSet;
@@ -124,8 +125,7 @@ public class DockView extends View {
         inited = true;
         this.host = host;
         this.iconDrawable = getResources().getDrawable(R.drawable.ic_add_circle_outline_white_48dp);
-        greenFilter = new PorterDuffColorFilter(getResources().getColor(R.color.green),
-                PorterDuff.Mode.SRC_IN);
+        greenFilter = new PorterDuffColorFilter(Color.parseColor("#8000ff00"), PorterDuff.Mode.SRC_ATOP);
         this.mHandler = new Handler();
 
         if(laidOut){
@@ -204,6 +204,8 @@ public class DockView extends View {
                     }
                 }
 
+
+
                 if(match != null && match.isValid()){
                     if(i == dragIndex){
                         iconPaint.setColorFilter(greenFilter);
@@ -214,8 +216,12 @@ public class DockView extends View {
                             iconPaint);
                     iconPaint.setColorFilter(null);
                 } else {
+                    if(i == dragIndex){
+                        iconDrawable.setColorFilter(greenFilter);
+                    }
                     iconDrawable.setBounds(getIconBoundsForIndex(i));
                     iconDrawable.draw(canvas);
+                    iconDrawable.setColorFilter(null);
                 }
             }
         } else {
@@ -412,28 +418,29 @@ public class DockView extends View {
                     return true;
                 } else {
                     clearTouchAnimations();
+
                     if(longPressing) {
+                        DockElement choice = null;
+                        for(DockElement de : elements) {
+                            if(de.getIndex() == touchIndex){
+                                choice = de;
+                                break;
+                            }
+                        }
+                        final DockElement toRemove = choice;
+                        if(toRemove == null) return false;
+
                         new MaterialDialog.Builder(getContext())
                                 .title(R.string.remove_dock_item)
-                                .content(R.string.remove_dock_item_message)
+                                .content(getContext().getString(R.string.remove_dock_item_message, toRemove.getTitle()))
                                 .positiveText(R.string.yes)
                                 .negativeText(R.string.cancel)
                                 .callback(new MaterialDialog.ButtonCallback() {
                                     @Override
                                     public void onPositive(MaterialDialog dialog) {
-                                        DockElement toRemove = null;
-                                        for(DockElement de : elements) {
-                                            if(de.getIndex() == touchIndex){
-                                                toRemove = de;
-                                                break;
-                                            }
-                                        }
-
-                                        if(toRemove != null) {
-                                            elements.remove(toRemove);
-                                            host.onElementRemoved(toRemove, touchIndex);
-                                            invalidate();
-                                        }
+                                        elements.remove(toRemove);
+                                        host.onElementRemoved(toRemove, touchIndex);
+                                        invalidate();
                                     }
                                 }).show();
                         return true;

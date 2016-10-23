@@ -2,6 +2,8 @@ package com.inipage.homelylauncher;
 
 import android.app.Application;
 
+import com.inipage.homelylauncher.utils.Utilities;
+
 public class ApplicationClass extends Application {
     public static final String TAG = "ApplicationClass";
 
@@ -16,5 +18,14 @@ public class ApplicationClass extends Application {
         super.onCreate();
      //   Fabric.with(this, new Crashlytics());
         instance = this;
+        Utilities.openLog(this);
+        Utilities.logEvent(Utilities.LogLevel.STATE_CHANGE, "Application started");
+    }
+
+    @Override
+    public void onTerminate() {
+        super.onTerminate();
+        Utilities.logEvent(Utilities.LogLevel.STATE_CHANGE, "Application terminated");
+        Utilities.closeLog();
     }
 }

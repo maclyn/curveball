@@ -168,6 +168,11 @@
     <string name="charging_format">Charging %1$d%%\n%2$s, %3$s %4$s</string>
     <string name="widget_no_longer_valid">That widget is no longer valid.</string>
     <string name="suppress_suggestion_title">Remove suggestion</string>
-    <string name="suppress_suggestion_message">Would you like to remove this suggestion, and prevent it from showing up again?</string>
+    <string name="suppress_suggestion_message">Would you like to remove %s and prevent it from showing up again?</string>
     <string name="manage_suggestions">Manage suggestions</string>
+    <string name="debug">Debug</string>
+    <string name="show_debug_log">Show debug log</string>
+    <string name="show_debug_log_summary">Show the debugging log.</string>
+    <string name="clear_debug_log">Clear debug log</string>
+    <string name="clear_debug_log_summary">Reset the debug log.</string>
 </resources>

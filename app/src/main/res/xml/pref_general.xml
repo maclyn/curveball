@@ -95,6 +95,19 @@
     </PreferenceCategory>
 
     <PreferenceCategory
+        android:title="@string/debug"
+        android:key="pref_debug" >
+        <Preference
+            android:title="@string/show_debug_log"
+            android:summary="@string/show_debug_log_summary"
+            android:key="log_show"/>
+        <Preference
+            android:title="@string/clear_debug_log"
+            android:summary="@string/clear_debug_log_summary"
+            android:key="log_clear"/>
+    </PreferenceCategory>
+
+    <PreferenceCategory
         android:title="@string/attributions"
         android:key="pref_help">
         <Preference

@@ -9,6 +9,7 @@ import android.preference.PreferenceFragment;
 import android.preference.PreferenceManager;
 import android.support.v4.app.NavUtils;
 import android.support.v7.app.ActionBarActivity;
+import android.support.v7.app.AlertDialog;
 import android.view.MenuItem;
 import android.widget.Toast;
 
@@ -111,6 +112,25 @@ public class SettingsActivity extends ActionBarActivity {
                     return true;
                 }
             });
+            findPreference("log_show").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    new AlertDialog.Builder(preference.getContext())
+                            .setTitle(R.string.show_debug_log)
+                            .setMessage(Utilities.dumpLog())
+                            .show();
+                    return true;
+                }
+            });
+            findPreference("log_clear").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    Utilities.clearLog();
+                    return true;
+                }
+            });
+
+
             /*
             findPreference("home_widget_pref").setOnPreferenceChangeListener(new Preference.OnPreferenceChangeListener() {
                 @Override

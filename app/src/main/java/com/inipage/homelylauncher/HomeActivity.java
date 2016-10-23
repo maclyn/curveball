@@ -312,6 +312,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         super.onCreate(savedInstanceState);
 
         Log.d(TAG, "onCreate");
+        Utilities.logEvent(Utilities.LogLevel.STATE_CHANGE, "onCreate HomeActivity");
 
         setContentView(R.layout.activity_home);
         getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
@@ -494,6 +495,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                                 break;
                             case R.id.manageSuggestions:
                                 showManageSuggestionsMenu();
+                                break;
                             case R.id.help:
                                 showTutorial();
                                 break;
@@ -695,6 +697,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         packageReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
+                Utilities.logEvent(Utilities.LogLevel.SYS_BG_TASK, "Package removed and/or changed");
+
                 if (searchBox != null) {
                     searchBox.setText(""); //The TextWatcher resets the app list in this case
                 } else {
@@ -702,19 +706,25 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 }
                 sgv.invalidateCaches();
                 IconCache.getInstance().invalidateCaches();
+
+                Utilities.logEvent(Utilities.LogLevel.SYS_BG_TASK, "Accordingly, invalidating caches...");
             }
         };
 
         storageReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
-                if (intent.getAction() != null) {
-                    if (searchBox != null) {
-                        searchBox.setText(""); //The TextWatcher resets the app list in this case
-                    } else {
-                        resetAppsList("", false);
-                    }
+                Utilities.logEvent(Utilities.LogLevel.SYS_BG_TASK, "A storage medium has been chanegd");
+
+                if (searchBox != null) {
+                    searchBox.setText(""); //The TextWatcher resets the app list in this case
+                } else {
+                    resetAppsList("", false);
                 }
+                sgv.invalidateCaches();
+                IconCache.getInstance().invalidateCaches();
+
+                Utilities.logEvent(Utilities.LogLevel.SYS_BG_TASK, "Accordingly, invalidating caches...");
             }
         };
 
@@ -728,7 +738,6 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         storageFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
         storageFilter.addAction(Intent.ACTION_EXTERNAL_APPLICATIONS_UNAVAILABLE);
         storageFilter.addAction(Intent.ACTION_LOCALE_CHANGED);
-        //storageFilter.addAction(Intent.ACTION_CONFIGURATION_CHANGED);
         registerReceiver(storageReceiver, storageFilter);
 
         //Setup app drawer
@@ -915,7 +924,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             @Override
             protected List<ApplicationIcon> doInBackground(Object... params) {
                 PackageManager pm = (PackageManager) params[0];
-                List<ApplicationIcon> applicationIcons = new ArrayList<ApplicationIcon>();
+                List<ApplicationIcon> applicationIcons = new ArrayList<>();
 
                 //Grab all matching applications
                 final Intent allAppsIntent = new Intent(Intent.ACTION_MAIN, null);
@@ -1171,13 +1180,19 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 }
             }
         });
+
         //Set drag option
         v.setOnLongClickListener(new View.OnLongClickListener() {
             @Override
             public boolean onLongClick(View v) {
+                String appName = packageName;
+                try {
+                    appName = getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(packageName, 0)).toString();
+                } catch (Exception ignored) {}
+
                 new MaterialDialog.Builder(v.getContext())
                         .title(R.string.suppress_suggestion_title)
-                        .content(R.string.suppress_suggestion_message)
+                        .content(R.string.suppress_suggestion_message, appName)
                         .positiveText(R.string.yes)
                         .negativeText(R.string.cancel)
                         .callback(new MaterialDialog.ButtonCallback() {
@@ -1934,9 +1949,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         }
                     }
 
-                    Collections.sort(applicationIcons, new Comparator<ApplicationIcon>() {
+                    Collections.sort(applicationIcons, new Comparator<ApplicationHiderIcon>() {
                         @Override
-                        public int compare(ApplicationIcon lhs, ApplicationIcon rhs) {
+                        public int compare(ApplicationHiderIcon lhs, ApplicationHiderIcon rhs) {
+                            if(lhs.getIsHidden() && rhs.getIsHidden()) return lhs.getName().compareToIgnoreCase(rhs.getName());
+                            if(lhs.getIsHidden()) return -1;
+                            if(rhs.getIsHidden()) return 1;
                             return lhs.getName().compareToIgnoreCase(rhs.getName());
                         }
                     });
@@ -1960,7 +1978,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                                 launchableCachedMap.clear();
                                 smartApps.clear();
                                 for(ApplicationHiderIcon icon : adapter.getApps()){
-                                    smartApps.add(new Pair<>(icon.getPackageName(), DatabaseHelper.SMARTAPP_SHOW_NEVER));
+                                    if(icon.getIsHidden()) smartApps.add(new Pair<>(icon.getPackageName(), DatabaseHelper.SMARTAPP_SHOW_NEVER));
                                 }
                                 persistSmartApps();
                                 populateSuggestions();
@@ -2692,17 +2710,27 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     public void resetState() {
         Log.d(TAG, "resetState");
 
+        final boolean wasShowingWidget = showingWidget;
+
         this.runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 try {
                     //Clear search
-                    quitSearch();
-                    collapseWidgetDrawer();
-                    toggleAppsContainer(false);
-                    showDockApps();
-                    brightenScreen();
-                    showDateTime();
+                    if(wasShowingWidget){
+                        collapseWidgetDrawer();
+                        showTopElements();
+                        showBottomElements();
+                        brightenScreen();
+                        sgv.resetState();
+                    } else {
+                        quitSearch();
+                        collapseWidgetDrawer();
+                        toggleAppsContainer(false);
+                        showDockApps();
+                        brightenScreen();
+                        showDateTime();
+                    }
                 } catch (Exception e) { //May fail at boot due to uncreated UI
                     Log.d(TAG, "Exception: " + e);
                     Log.d(TAG, "Message: " + e.getMessage());

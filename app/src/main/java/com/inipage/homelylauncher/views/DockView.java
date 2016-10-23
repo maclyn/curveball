@@ -402,13 +402,10 @@ public class DockView extends View {
                         @Override
                         public void onGenerated(Palette palette) {
                             if (palette.getVibrantSwatch() != null) {
-                                Log.d(TAG, "Generated vibrant palette; " + palette.getVibrantSwatch().getRgb());
                                 flashColor = palette.getVibrantSwatch().getRgb();
                             } else if (palette.getMutedSwatch() != null) {
-                                Log.d(TAG, "Generated muted palette; " + palette.getMutedSwatch().getRgb());
                                 flashColor = palette.getMutedSwatch().getRgb();
                             } else {
-                                Log.d(TAG, "Unable to generate palette...");
                                 flashColor = whiteColor;
                             }
                             playAnimation(AnimationReasons.FLASH_COLOR);

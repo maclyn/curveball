@@ -20,6 +20,14 @@ import android.view.View;
 import com.inipage.homelylauncher.Constants;
 import com.inipage.homelylauncher.HomeActivity;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.nio.channels.FileChannel;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.security.Permission;
 
 public class Utilities {
@@ -58,6 +66,117 @@ public class Utilities {
         Resources resources = context.getResources();
         DisplayMetrics metrics = resources.getDisplayMetrics();
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, metrics);
+    }
+
+
+    public enum LogLevel {
+		/** Some background task (e.g. icon fetching) has occured. **/
+		BACKGROUND_TASK,
+		/** A system hook has caused us to do something (e.g. packages changed.) **/
+		SYS_BG_TASK,
+		/** Some state has changed (e.g. onCreate(...), onPause(...)). */
+		STATE_CHANGE,
+        /** Some obvious state of error has occurred. **/
+        ERROR_STATE,
+		/** Some specific user action as occured (e.g. swipe to show drawer). **/
+		USER_ACTION;
+
+		public String getRepr(){
+			switch(this){
+				case BACKGROUND_TASK:
+					return "BGTSK";
+				case SYS_BG_TASK:
+					return "SBGTK";
+				case STATE_CHANGE:
+					return "STCHG";
+				case USER_ACTION:
+					return "USACT";
+                case ERROR_STATE:
+                    return "ERRST";
+                default:
+                    return "?????";
+			}
+		}
+	}
+
+	private static File LOG_FILE = null;
+    private static FileInputStream LOG_FILE_IN = null;
+    private static FileOutputStream LOG_FILE_OUT = null;
+
+	public static void openLog(Context context){
+        try {
+            File filesDir = context.getFilesDir();
+            LOG_FILE = new File(filesDir + "/logfile.txt");
+            LOG_FILE_OUT = new FileOutputStream(LOG_FILE);
+            LOG_FILE_IN = new FileInputStream(LOG_FILE);
+        } catch (Exception fileIoEx){
+            Log.e(TAG, "Error opening log!", fileIoEx);
+        }
+	}
+
+    public static void closeLog() {
+        try {
+            LOG_FILE_OUT.close();
+        } catch (Exception ignored){
+        }
+    }
+
+	public static void clearLog(){
+        try {
+            LOG_FILE_OUT.flush();
+            FileChannel channel = LOG_FILE_OUT.getChannel();
+            channel.truncate(0);
+        } catch (Exception ignored) {}
+	}
+
+    public static String dumpLog(){
+        String result = "";
+        byte[] buf = new byte[1024];
+        int read = 0;
+        int off = 0;
+        try {
+            while ((read = LOG_FILE_IN.read(buf, off, 1024)) > 0) {
+                result += new String(buf, StandardCharsets.UTF_8);
+            }
+            return result;
+        } catch (Exception e){
+            return "Log cannot be read! Welp.";
+        }
+    }
+
+	/**
+	 * Append to an internal log of meaningful state changes.
+	 */
+	public static void logEvent(LogLevel level, String message){
+        try {
+            StringBuilder event = new StringBuilder(5 + message.length() + 3 + 10);
+            event.append(level.getRepr());
+            event.append("|");
+            event.append(message.replace("|", "I"));
+            event.append("|");
+            event.append(System.currentTimeMillis());
+            event.append("\n");
+
+            LOG_FILE_OUT.write(event.toString().getBytes(StandardCharsets.UTF_8));
+            LOG_FILE_OUT.flush();
+        } catch (Exception badWrite) {
+            Log.w(TAG, "Error logging event...");
+        }
+    }
+
+    public static void logError(String str, Exception err){
+        logEvent(LogLevel.ERROR_STATE, str);
+
+        //See: Log.e(...)
+        StringWriter sw = new StringWriter();
+        PrintWriter pw = new PrintWriter(sw);
+        err.printStackTrace(pw);
+        pw.flush();
+
+        String[] lines = sw.toString().split("\n");
+        for(String s : lines){
+            logEvent(LogLevel.ERROR_STATE, s);
+        }
     }
 
     /**

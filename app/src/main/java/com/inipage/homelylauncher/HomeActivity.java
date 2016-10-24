@@ -31,6 +31,7 @@ import android.content.pm.ResolveInfo;
 import android.content.res.Configuration;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
+import android.graphics.Bitmap;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
 import android.net.Uri;
@@ -911,8 +912,6 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
     //region App drawer
     public void resetAppsList(final String query, final boolean preCacheIcons) {
-        IconCache.getInstance().cancelPendingIconTasks();
-
         if (appsSearch != null && !appsSearch.isCancelled() && appsSearch.getStatus() == AsyncTask.Status.FINISHED) {
             try {
                 appsSearch.cancel(true);
@@ -966,9 +965,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         adapter.setHasStableIds(true);
                         allAppsScreen.setAdapter(adapter);
 
+                        int fourtyEightDp = (int) getResources().getDimension(R.dimen.fourty_eight_dp);
                         if (preCacheIcons && reader.getBoolean(Constants.AGGRESIVE_CACHING_PREF, true)) {
                             for (ApplicationIcon ai : apps) {
-                                IconCache.getInstance().setIcon(ai.getPackageName(), ai.getActivityName(), null);
+                                IconCache.getInstance().getAppIcon(ai.getPackageName(), ai.getActivityName(), IconCache.IconFetchPriority.APP_DRAWER_ICONS, fourtyEightDp, null);
                             }
                         }
 
@@ -1208,11 +1208,15 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             }
         });
 
-        IconCache.getInstance().setIcon(launchIntent.getPackage(), launchIntent.getComponent().getClassName(),
-                (StickyImageView) v.findViewById(R.id.popularAppIcon));
-
-        int fourtyFourDp = (int) Utilities.convertDpToPixel(48f, this);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(fourtyFourDp, fourtyFourDp);
+        int size = (int) Utilities.convertDpToPixel(48f, this);
+        final StickyImageView popularAppIcon = (StickyImageView) v.findViewById(R.id.popularAppIcon);
+        popularAppIcon.setImageBitmap(IconCache.getInstance().getAppIcon(launchIntent.getPackage(), launchIntent.getComponent().getClassName(), IconCache.IconFetchPriority.DOCK_ICONS, size, new IconCache.ItemRetrievalInterface() {
+            @Override
+            public void onRetrievalComplete(Bitmap result) {
+                popularAppIcon.setImageBitmap(result);
+            }
+        }));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(size, size);
 
         suggestionsLayout.addView(v, params);
     }

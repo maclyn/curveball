@@ -208,11 +208,6 @@ public class ShortcutGestureView extends View {
                 getIconColorForBitmap(result);
             invalidate();
         }
-
-        @Override
-        public void onRetrievalFailed(String reason){
-            Log.e(TAG, "Failed to get icon " + reason);
-        }
     };
 
     //Whether we should reject the next touch event (return false from onTouchEvent)
@@ -742,16 +737,14 @@ public class ShortcutGestureView extends View {
             c.drawText(subText, subX, subCenterYLine, labelPaint);
         }
 
-        Bitmap left = IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_keyboard_arrow_left_white_18dp,
-                helpArrowSize, retrievalInterface);
+        Bitmap left = IconCache.getInstance().getLocalResource(R.drawable.ic_keyboard_arrow_left_white_18dp, IconCache.IconFetchPriority.BUILT_IN_ICONS, (int) helpArrowSize, retrievalInterface);
         scratchRect2.set(0, 0, left.getWidth(), left.getHeight());
         scratchRect.set( (int) (x - arrowPadding - helpArrowSize), (int) (centerYLine - (outRect.height() / 4) - (helpArrowSize / 2)),
                 (int) (x - arrowPadding), (int) (centerYLine - (outRect.height() / 4) + (helpArrowSize / 2)));
         transparencyPaint.setAlpha((int) (alphaMultiplier * (showLeftArrow ? 240f : 0f)));
         c.drawBitmap(left, scratchRect2, scratchRect, transparencyPaint);
 
-        Bitmap right = IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_keyboard_arrow_right_white_18dp,
-                helpArrowSize, retrievalInterface);
+        Bitmap right = IconCache.getInstance().getLocalResource(R.drawable.ic_keyboard_arrow_right_white_18dp, IconCache.IconFetchPriority.BUILT_IN_ICONS, (int) helpArrowSize, retrievalInterface);
         scratchRect2.set(0, 0, right.getWidth(), right.getHeight());
         scratchRect.set( (int) (x + outRect.width() + arrowPadding), (int) (centerYLine - (outRect.height() / 4) - (helpArrowSize / 2)),
                 (int) (x + outRect.width() + arrowPadding + helpArrowSize),
@@ -871,7 +864,7 @@ public class ShortcutGestureView extends View {
         for (int i = 0; i < folderOptionsDrawables.length ; i++) {
             Pair<Float, Float> sizes = sizeQueue.remove(0);
             drawLineToSide(canvas,
-                    IconCache.getInstance().getSwipeCacheIcon(folderOptionsDrawables[i], bigIconSize, retrievalInterface),
+                    IconCache.getInstance().getLocalResource(folderOptionsDrawables[i], IconCache.IconFetchPriority.BUILT_IN_ICONS, (int) bigIconSize, retrievalInterface),
                     getResources().getString(folderOptionsTitles[i]), selectedY == i, ScreenSide.LEFT_SIDE, edgeSlop, yPosition, sizes.first,
                     sizes.second, iconPadding);
             yPosition += (sizes.first + iconPadding);
@@ -899,8 +892,7 @@ public class ShortcutGestureView extends View {
             float endY = startY + previewIconSize;
 
             TypeCard card = data.get(i);
-            Bitmap icon = IconCache.getInstance().getSwipeCacheIcon(card.getDrawablePackage(),
-                    card.getDrawableName(), bigIconSize, retrievalInterface);
+            Bitmap icon = IconCache.getInstance().getForeignResource(card.getDrawablePackage(), card.getDrawableName(), IconCache.IconFetchPriority.SWIPE_FOLDER_ICONS, (int) bigIconSize, retrievalInterface);
 
             scratchRectF.set(startX, startY, endX, endY);
             canvas.drawBitmap(icon, null, scratchRectF, transparencyPaint);
@@ -1048,7 +1040,7 @@ public class ShortcutGestureView extends View {
             for (int i = 0; i < data.size(); i++) {
                 Pair<Float, Float> sizes = sizeQueue.remove(0);
                 drawLineToSide(canvas,
-                        IconCache.getInstance().getSwipeCacheIcon(data.get(i).getDrawablePackage(), data.get(i).getDrawableName(), bigIconSize, retrievalInterface),
+                        IconCache.getInstance().getForeignResource(data.get(i).getDrawablePackage(), data.get(i).getDrawableName(), IconCache.IconFetchPriority.SWIPE_FOLDER_ICONS, (int) bigIconSize, retrievalInterface),
                         data.get(i).getTitle(), selectedY == i, ScreenSide.LEFT_SIDE, edgeSlop, yPosition, sizes.first,
                         sizes.second, iconPadding);
                 yPosition += (sizes.first + iconPadding);
@@ -1084,8 +1076,7 @@ public class ShortcutGestureView extends View {
             float endY = startY + previewIconSize;
 
             Pair<String, String> app = packages.get(j);
-            Bitmap b = IconCache.getInstance().getSwipeCacheAppIcon(app.first,
-                    app.second, bigIconSize, retrievalInterface);
+            Bitmap b = IconCache.getInstance().getAppIcon(app.first, app.second, IconCache.IconFetchPriority.SWIPE_APP_ICONS, (int) bigIconSize, retrievalInterface);
 
             log("For package " + (j + 1) + " of " + packages.size(), false);
 
@@ -1216,8 +1207,7 @@ public class ShortcutGestureView extends View {
             Pair<String, String> app = packages.get(i);
             ComponentName cm = new ComponentName(app.first, app.second);
 
-            Bitmap b = IconCache.getInstance().getSwipeCacheAppIcon(app.first,
-                    app.second, bigIconSize, retrievalInterface);
+            Bitmap b = IconCache.getInstance().getAppIcon(app.first, app.second, IconCache.IconFetchPriority.SWIPE_APP_ICONS, (int) bigIconSize, retrievalInterface);
             String label = grabLabel(cm);
 
             //Right-justify the icons
@@ -1351,7 +1341,7 @@ public class ShortcutGestureView extends View {
             float startY = subIconStart + (j * subIconRoom) + offsetInDrawSpace;
             float endY = startY + previewIconSize;
 
-            Bitmap b = IconCache.getInstance().getSwipeCacheIcon(folderOptionsDrawables[j], previewIconSize, retrievalInterface);
+            Bitmap b = IconCache.getInstance().getLocalResource(folderOptionsDrawables[j], IconCache.IconFetchPriority.BUILT_IN_ICONS, (int) bigIconSize, retrievalInterface);
 
             scratchRectF.set(startX, startY, endX, endY);
             canvas.drawBitmap(b, null, scratchRectF, transparencyPaint);
@@ -1467,13 +1457,13 @@ public class ShortcutGestureView extends View {
     }
 
     private int drawCenteredLine(Canvas c, int resId, String text, int x, int y, boolean selected){
-        return drawCenteredLine(c, IconCache.getInstance().getSwipeCacheIcon(resId,
-                bigIconSize, retrievalInterface), text, x, y, selected);
+        return drawCenteredLine(c, IconCache.getInstance().getLocalResource(resId, IconCache.IconFetchPriority.BUILT_IN_ICONS, (int) bigIconSize, retrievalInterface),
+                text, x, y, selected);
     }
 
     private int drawCenteredLine(Canvas c, String packageName, String resource, String text, int x, int y, boolean selected){
-        return drawCenteredLine(c, IconCache.getInstance().getSwipeCacheIcon(packageName,
-                resource, bigIconSize, retrievalInterface), text, x, y, selected);
+        return drawCenteredLine(c, IconCache.getInstance().getForeignResource(packageName, resource, IconCache.IconFetchPriority.SWIPE_FOLDER_ICONS, (int) bigIconSize, retrievalInterface),
+                text, x, y, selected);
     }
 
     private int drawCenteredLine(Canvas c, Bitmap bitmap, String text, int x, int y, boolean selected){
@@ -1746,11 +1736,9 @@ public class ShortcutGestureView extends View {
     }
 
     private void preloadCard(TypeCard card){
-        IconCache.getInstance().getSwipeCacheIcon(card.getDrawablePackage(), card.getDrawableName(),
-                bigIconSize, retrievalInterface);
+        IconCache.getInstance().getForeignResource(card.getDrawablePackage(), card.getDrawableName(), IconCache.IconFetchPriority.SWIPE_FOLDER_ICONS, (int) bigIconSize, retrievalInterface);
         for(Pair<String, String> icon : card.getPackages()){
-            IconCache.getInstance().getSwipeCacheAppIcon(icon.first, icon.second,
-                    bigIconSize, retrievalInterface);
+            IconCache.getInstance().getAppIcon(icon.first, icon.second, IconCache.IconFetchPriority.SWIPE_APP_ICONS, (int) bigIconSize, retrievalInterface);
         }
     }
 
@@ -1763,12 +1751,9 @@ public class ShortcutGestureView extends View {
         }
 
         //Grab the icons we get from internal sources
-        IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_add_circle_outline_white_48dp,
-                bigIconSize, retrievalInterface);
-        IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_info_white_48dp,
-                bigIconSize, retrievalInterface);
-        IconCache.getInstance().getSwipeCacheIcon(R.drawable.ic_clear_white_48dp,
-                bigIconSize, retrievalInterface);
+        IconCache.getInstance().getLocalResource(R.drawable.ic_add_circle_outline_white_48dp, IconCache.IconFetchPriority.BUILT_IN_ICONS, (int) bigIconSize, retrievalInterface);
+        IconCache.getInstance().getLocalResource(R.drawable.ic_info_white_48dp, IconCache.IconFetchPriority.BUILT_IN_ICONS, (int) bigIconSize, retrievalInterface);
+        IconCache.getInstance().getLocalResource(R.drawable.ic_clear_white_48dp, IconCache.IconFetchPriority.BUILT_IN_ICONS, (int) bigIconSize, retrievalInterface);
     }
 
     public void setCards(List<TypeCard> cards){

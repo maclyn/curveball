@@ -10,7 +10,6 @@ import android.graphics.PorterDuff;
 import android.graphics.PorterDuffColorFilter;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
-import android.hardware.camera2.TotalCaptureResult;
 import android.os.Handler;
 import android.support.v7.graphics.Palette;
 import android.util.AttributeSet;
@@ -324,9 +323,10 @@ public class DockView extends View {
 
                 final DockElement element = el;
                 Log.d(TAG, "Trying to fetch icon for " + element.getActivity());
-                Bitmap cachedCopy = IconCache.getInstance().getSwipeCacheAppIcon(
+                Bitmap cachedCopy = IconCache.getInstance().getAppIcon(
                         element.getActivity().getPackageName(),
                         element.getActivity().getClassName(),
+                        IconCache.IconFetchPriority.DOCK_ICONS,
                         getHeight(),
                         new IconCache.ItemRetrievalInterface() {
                             @Override
@@ -334,11 +334,6 @@ public class DockView extends View {
                                 Log.d(TAG, "Setting icon for element with package " + element.getActivity().getPackageName());
                                 element.setIcon(result);
                                 invalidate();
-                            }
-
-                            @Override
-                            public void onRetrievalFailed(String reason) {
-                                Log.e(TAG, "Error getting " + reason);
                             }
                         });
 

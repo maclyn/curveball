@@ -3,20 +3,19 @@ package com.inipage.homelylauncher.drawer;
 import android.content.ClipData;
 import android.content.Context;
 import android.content.Intent;
-import android.graphics.Typeface;
+import android.graphics.Bitmap;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ImageView;
 import android.widget.RelativeLayout;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.inipage.homelylauncher.HomeActivity;
 import com.inipage.homelylauncher.R;
-import com.inipage.homelylauncher.utils.Utilities;
 import com.inipage.homelylauncher.icons.IconCache;
+import com.inipage.homelylauncher.utils.Utilities;
 
 import java.util.List;
 
@@ -90,17 +89,24 @@ public class ApplicationIconAdapter extends
         */
 
         //Set customIcon
-        if(viewHolder.icon.getTag() != null){
-            IconCache.getInstance().cancelPendingIconTaskIfRunning((String) viewHolder.icon.getTag());
-        }
         RelativeLayout.LayoutParams rllp = new RelativeLayout.LayoutParams((int) iconSize,
                 (int) iconSize);
         rllp.addRule(RelativeLayout.CENTER_HORIZONTAL);
         viewHolder.icon.setLayoutParams(rllp);
         viewHolder.icon.setTag(ai);
-        viewHolder.icon.setImageBitmap(null);
-
-        IconCache.getInstance().setIcon(ai.getPackageName(), ai.getActivityName(), viewHolder.icon);
+        viewHolder.icon.setImageBitmap(IconCache.getInstance().getAppIcon(
+                ai.getPackageName(),
+                ai.getActivityName(),
+                IconCache.IconFetchPriority.APP_DRAWER_ICONS,
+                (int) iconSize,
+                new IconCache.ItemRetrievalInterface() {
+            @Override
+            public void onRetrievalComplete(Bitmap result) {
+                if(viewHolder.icon.getTag().equals(ai)){
+                    viewHolder.icon.setImageBitmap(result);
+                }
+            }
+        }));
 
         //Set launch
         viewHolder.mainView.setOnClickListener(new View.OnClickListener() {

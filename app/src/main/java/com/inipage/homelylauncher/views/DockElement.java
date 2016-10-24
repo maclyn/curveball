@@ -3,20 +3,12 @@ package com.inipage.homelylauncher.views;
 import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Intent;
-import android.content.res.Resources;
 import android.graphics.Bitmap;
-import android.graphics.Canvas;
-import android.graphics.ColorFilter;
-import android.graphics.PorterDuff;
-import android.graphics.PorterDuffColorFilter;
-import android.graphics.Rect;
 import android.util.Log;
-import android.util.TypedValue;
 import android.widget.Toast;
 
 import com.inipage.homelylauncher.R;
 import com.inipage.homelylauncher.icons.IconCache;
-import com.inipage.homelylauncher.utils.Utilities;
 
 import java.util.Comparator;
 

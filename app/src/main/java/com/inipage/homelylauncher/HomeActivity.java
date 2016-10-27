@@ -63,6 +63,7 @@ import android.view.View;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AbsListView;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
@@ -154,6 +155,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     RelativeLayout allAppsContainer;
     @Bind(R.id.allAppsLayout)
     RecyclerView allAppsScreen;
+    @Bind(R.id.allAppsMessageLayout)
+    View allAppsMessageLayout;
+    @Bind(R.id.allAppsMessage)
+    TextView allAppsMessage;
+    @Bind(R.id.allAppsSearchGoogle)
+    Button allAppsSearchGoogle;
     @Bind(R.id.scrollerContainer)
     View scrollerBar;
     @Bind(R.id.startLetter)
@@ -204,8 +211,6 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     ImageView backToHome;
     @Bind(R.id.moreOptions)
     ImageView allAppsMenu;
-    @Bind(R.id.playStore)
-    ImageView playStoreButton;
     @Bind(R.id.clearSearch)
     ImageView clearSearch;
     @Bind(R.id.searchBox)
@@ -503,7 +508,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                                 showTutorial();
                                 break;
                             case R.id.settings:
-                                startActivity(new Intent(HomeActivity.this, SettingsActivity.class));
+                                Intent settingsActivity = new Intent(HomeActivity.this, SettingsActivity.class);
+                                settingsActivity.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                                startActivity(settingsActivity);
                                 break;
                             case R.id.changeWallpaper:
                                 toggleAppsContainer(false);
@@ -528,7 +535,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 quitSearch();
             }
         });
-        playStoreButton.setOnClickListener(new View.OnClickListener() {
+        allAppsSearchGoogle.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 String text = searchBox.getText().toString();
@@ -540,8 +547,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 try {
                     startActivity(intent);
                 } catch (ActivityNotFoundException anfe) {
-                    Toast.makeText(HomeActivity.this, R.string.store_not_installed,
-                            Toast.LENGTH_SHORT).show();
+                    Toast.makeText(HomeActivity.this, R.string.store_not_installed, Toast.LENGTH_SHORT).show();
                 }
 
                 quitSearch();
@@ -915,10 +921,14 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         appsTree.clear();
         searchBox.setEnabled(false);
 
+        allAppsMessageLayout.setVisibility(View.VISIBLE);
+        allAppsMessage.setText(R.string.loading);
+        allAppsSearchGoogle.setVisibility(View.GONE);
+
         new AsyncTask<Object, Void, List<ApplicationIcon>>() {
             @Override
             protected List<ApplicationIcon> doInBackground(Object... params) {
-                PackageManager pm = (PackageManager) getPackageManager();
+                PackageManager pm = getPackageManager();
                 List<ApplicationIcon> applicationIcons = new ArrayList<>();
 
                 //Grab all matching applications
@@ -954,6 +964,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             protected void onPostExecute(List<ApplicationIcon> apps) {
                 cachedApps = apps;
                 searchBox.setEnabled(true);
+                allAppsMessageLayout.setVisibility(View.GONE);
                 performAppQuery(null);
             }
         }.execute();
@@ -974,7 +985,13 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
 
         clearSearch.setVisibility(visibility);
-        playStoreButton.setVisibility(visibility);
+        if(visibility == View.VISIBLE && result.isEmpty()) {
+            allAppsMessageLayout.setVisibility(View.VISIBLE);
+            allAppsMessage.setText(getString(R.string.no_apps_matching_installed, query));
+            allAppsSearchGoogle.setVisibility(View.VISIBLE);
+        } else {
+            allAppsMessageLayout.setVisibility(View.GONE);
+        }
 
         ApplicationIconAdapter adapter = new ApplicationIconAdapter(result, this);
         adapter.setHasStableIds(true);
@@ -1092,7 +1109,6 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         searchBox.setText("");
         searchBox.clearFocus();
         clearSearch.setVisibility(View.GONE);
-        playStoreButton.setVisibility(View.GONE);
         hideKeyboard();
     }
 

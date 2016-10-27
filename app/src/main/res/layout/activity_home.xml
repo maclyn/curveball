@@ -178,6 +178,35 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent"
                         android:scrollbars="vertical" />
+
+                    <LinearLayout
+                        android:id="@+id/allAppsMessageLayout"
+                        android:orientation="vertical"
+                        android:layout_margin="16dp"
+                        android:layout_centerInParent="true"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content">
+
+                        <TextView
+                            android:id="@+id/allAppsMessage"
+                            android:textColor="#303030"
+                            android:gravity="center_horizontal"
+                            android:textSize="18sp"
+                            android:layout_gravity="center"
+                            android:paddingBottom="8dp"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content" />
+
+                        <Button
+                            android:layout_gravity="center_horizontal"
+                            android:gravity="center"
+                            android:id="@+id/allAppsSearchGoogle"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:drawableLeft="@drawable/ic_shop_white_18dp"
+                            android:drawablePadding="8dp"
+                            android:text="@string/search_store"/>
+                    </LinearLayout>
                 </RelativeLayout>
 
                 <View
@@ -250,6 +279,7 @@
 
                 <ImageView
                     android:id="@+id/backToHome"
+                    android:background="?android:attr/selectableItemBackground"
                     android:layout_alignParentLeft="true"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
@@ -262,7 +292,7 @@
                     android:layout_height="wrap_content"
                     android:layout_width="match_parent"
                     android:layout_toRightOf="@+id/backToHome"
-                    android:layout_toLeftOf="@+id/playStore"
+                    android:layout_toLeftOf="@+id/clearSearch"
                     android:hint="@string/search_hint"
                     android:ellipsize="start"
                     android:textSize="18sp"
@@ -277,36 +307,27 @@
                     android:gravity="center_horizontal|center_vertical" />
 
                 <ImageView
-                    android:id="@+id/moreOptions"
-                    android:layout_alignParentRight="true"
-                    android:layout_centerVertical="true"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
-                    android:layout_marginLeft="8dp"
-                    android:src="@drawable/ic_settings_white_36dp"
-                    android:layout_marginRight="8dp"
-                    android:padding="4dp" />
-
-                <ImageView
                     android:id="@+id/clearSearch"
                     android:layout_toLeftOf="@+id/moreOptions"
                     android:layout_width="36dp"
                     android:layout_height="36dp"
                     android:layout_centerVertical="true"
                     android:layout_marginLeft="8dp"
+                    android:background="?android:attr/selectableItemBackground"
                     android:src="@drawable/ic_close_white_48dp"
                     android:visibility="gone"
                     android:padding="4dp" />
 
                 <ImageView
-                    android:id="@+id/playStore"
-                    android:layout_toLeftOf="@+id/clearSearch"
-                    android:layout_width="36dp"
-                    android:layout_height="36dp"
+                    android:id="@+id/moreOptions"
+                    android:layout_alignParentRight="true"
                     android:layout_centerVertical="true"
+                    android:layout_width="36dp"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:layout_height="36dp"
                     android:layout_marginLeft="8dp"
-                    android:src="@drawable/ic_shop_white_48dp"
-                    android:visibility="gone"
+                    android:src="@drawable/ic_settings_white_36dp"
+                    android:layout_marginRight="8dp"
                     android:padding="4dp" />
             </RelativeLayout>
         </RelativeLayout>

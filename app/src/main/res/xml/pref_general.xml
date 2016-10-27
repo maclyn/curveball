@@ -41,6 +41,7 @@
                 android:key="home_widget_pref" />
         </PreferenceCategory>
         -->
+    <!--
     <PreferenceCategory
         android:title="@string/gesture_swipe"
         android:key="pref_gestures" />
@@ -52,6 +53,7 @@
             num_picker:vnt_maxValue="120"
             num_picker:vnt_minValue="20"
             num_picker:vnt_setWrapSelectorWheel="false"/>
+            -->
 
         <!--
         <com.vanniktech.vntnumberpickerpreference.VNTNumberPickerPreference
@@ -72,6 +74,7 @@
     <PreferenceCategory
         android:title="@string/advanced"
         android:key="pref_advanced">
+        <!--
         <CheckBoxPreference
             android:defaultValue="false"
             android:title="@string/debug_modules"
@@ -82,21 +85,13 @@
             android:title="@string/i_am_a_phone"
             android:summary="@string/phone_pref_summary"
             android:key="is_phone_pref" />
+            -->
         <CheckBoxPreference
             android:defaultValue="false"
             android:title="@string/allow_rotation"
             android:summary="@string/allow_rotation_desc"
             android:key="allow_rotation_pref" />
-        <CheckBoxPreference
-            android:defaultValue="true"
-            android:title="@string/aggresive_icon_caching"
-            android:summary="@string/aggresive_icon_caching_summary"
-            android:key="aggresive_caching_pref" />
-    </PreferenceCategory>
 
-    <PreferenceCategory
-        android:title="@string/debug"
-        android:key="pref_debug" >
         <Preference
             android:title="@string/show_debug_log"
             android:summary="@string/show_debug_log_summary"
@@ -105,6 +100,13 @@
             android:title="@string/clear_debug_log"
             android:summary="@string/clear_debug_log_summary"
             android:key="log_clear"/>
+        <!--
+        <CheckBoxPreference
+            android:defaultValue="true"
+            android:title="@string/aggresive_icon_caching"
+            android:summary="@string/aggresive_icon_caching_summary"
+            android:key="aggresive_caching_pref" />
+            -->
     </PreferenceCategory>
 
     <PreferenceCategory

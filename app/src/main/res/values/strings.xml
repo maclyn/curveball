@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Curveball Launcher</string>
-    <string name="hello_world">Hello world!</string>
     <string name="action_settings">Settings</string>
     <string name="hideApps">Hide apps</string>
     <string name="settingsName">Settings</string>
@@ -29,7 +28,7 @@
     <string name="default_calendar_app">Calendar shortcut</string>
     <string name="default_calendar_summary">App to launch when clicking the calendar.</string>
     <string name="default_search_app">Search shortcut</string>
-    <string name="default_search_summary">App to launch when swiping right on the homescreen...</string>
+    <string name="default_search_summary">App to launch when swiping right on the homescreen…</string>
     <string name="widgets">Widgets</string>
     <string name="resize_all_widgets">Resize All Widgets</string>
     <string name="resize_all_widgets_summary">Resize any widget if desired, regardless of widget\'s capability to support resizing. May produced undesirable effects on certain widgets.</string>
@@ -61,19 +60,19 @@
     <string name="failed_to_open_database">Failed to open database!</string>
     <string name="unable_to_start_app">Unable to start an app. It may be uninstalled/upgrading.</string>
     <string name="clear_snacklets">Clear Snacklets</string>
-    <string name="enable_usage_viewing">Enable usage viewing</string>
-    <string name="enable_usage_viewing_message">Please choose to enable us to view usage stats so we can show you popular (and relevant) apps in the smart bar (swipe in from the left). All data remains on your device. The app will work without this, but it won\'t deliver as relevant suggested apps.</string>
+    <string name="enable_usage_viewing">Show suggestions</string>
+    <string name="enable_usage_viewing_message">Let us show your commonly used apps in the bottom bar by enabling Usage Access for Curveball. The launcher will work without this, but it won\'t deliver many (if any) suggestions.</string>
     <string name="enable">Enable</string>
     <string name="nope">Nope</string>
     <string name="aww">Aww.</string>
     <string name="cant_start">Couldn\'t start this app!</string>
     <string name="batch_open">Batch Open</string>
     <string name="default_charging_app">Charging shortcut</string>
-    <string name="default_charging_app_summary">App to show in smartbar when charging.</string>
+    <string name="default_charging_app_summary">App to show in suggestions bar when charging.</string>
     <string name="default_low_power_app">Low power app</string>
-    <string name="default_low_power_app_summary">App to show in smartbar when running low on power.</string>
+    <string name="default_low_power_app_summary">App to show in suggestions bar when running low on power.</string>
     <string name="default_phone_app">Phone shortcut</string>
-    <string name="default_phone_app_summary">App to show in smartbar when on a phone call.</string>
+    <string name="default_phone_app_summary">App to show in suggestions bar when on a phone call.</string>
     <string name="welcome_title">Welcome</string>
     <string name="welcome_message"><![CDATA[Thanks for downloading our beta! We\'re still in the early stages, but we think you\'ll love what we\'ve built. It\'s completely different from any launcher you\'ve probably used before, so you should probably watch the tutorial (see below; it\'s short, don\'t worry). Feel free to email us with bugs, feature requests, feedback, and support questions at support@justpage.me. Thanks!]]></string>
     <string name="lets_go">Lets go!</string>
@@ -106,7 +105,7 @@
         Android Support Library, Palette, and RecyclerView, © 2015 Android Open Source Project under the Apache license.\n
         Gson © 2015 Google Inc. under the Apache license.\n
         DragSortListView © 2012 Carl Bauer under the Apache license.\n
-        NumberPickerPreference © 2014-2015 Vanniktech - Niklas Baudy under the Apache License.\n
+        Apache Collections Commons © 2016 under the Apache license.\n
         MaterialDialogs © Aidan Michael Follestad under the MIT license.\n
         ButterKnife © 2013 Jake Wharton.\n
         Otto © 2013 Square, Inc.\n\n
@@ -143,7 +142,7 @@
         SOFTWARE.
     </string>
     <string name="permissions_needed_for_smartbar">Permissions Needed</string>
-    <string name="smartbar_needs_permissions">To use context-enabled features on the smartbar, such as suggesting apps when in phone calls, calendar events, or low on battery, we need to request permissions to view your phone and calendar state. If you reject them, Curveball will still work, just without these permissions.</string>
+    <string name="smartbar_needs_permissions">To suggest apps in the bottom bar when you\'re on phone calls, in calendar events, or running low on battery, we\'d lke permission to view your phone and calendar state.</string>
     <string name="okay_we_wont_ask">Okay, we won\'t ask again.</string>
     <string name="got_it">Got it</string>
     <string name="suggestions">Suggestions</string>
@@ -176,4 +175,7 @@
     <string name="clear_debug_log">Clear debug log</string>
     <string name="clear_debug_log_summary">Reset the debug log.</string>
     <string name="export_log">Export log</string>
+    <string name="search_store">Find it in the store</string>
+    <string name="loading">Loading...</string>
+    <string name="no_apps_matching_installed">No apps matching \'%s\' installed.</string>
 </resources>

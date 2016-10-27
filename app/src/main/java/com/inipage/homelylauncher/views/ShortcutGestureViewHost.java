@@ -30,8 +30,8 @@ public interface ShortcutGestureViewHost {
 
     /* Adjust the host's UI */
 
-    void brightenScreen();
-    void dimScreen();
+    void clearBackgroundTint();
+    void setAndAnimateToDarkBackgroundTint();
     void showTopElements();
     void showBottomElements();
     void hideTopElements();

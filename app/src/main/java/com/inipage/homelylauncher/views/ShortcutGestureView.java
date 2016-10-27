@@ -615,7 +615,7 @@ public class ShortcutGestureView extends View {
         switch(cm){
             case CHOOSING_FOLDER:
                 resetState();
-                host.brightenScreen();
+                host.clearBackgroundTint();
                 host.showTopElements();
                 host.showBottomElements();
                 break;
@@ -634,7 +634,7 @@ public class ShortcutGestureView extends View {
                         }
 
                         resetState();
-                        host.brightenScreen();
+                        host.clearBackgroundTint();
                         host.showTopElements();
                         host.showBottomElements();
                     }
@@ -654,7 +654,7 @@ public class ShortcutGestureView extends View {
                     }
 
                     resetState();
-                    host.brightenScreen();
+                    host.clearBackgroundTint();
                     host.showTopElements();
                     host.showBottomElements();
                 }
@@ -1409,12 +1409,7 @@ public class ShortcutGestureView extends View {
             }
         };
 
-        try {
-            task.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, b);
-        } catch (RejectedExecutionException e) {
-            task.executeOnExecutor(AsyncTask.SERIAL_EXECUTOR, b);
-        }
-
+        task.execute(b);
         bitmapColorMap.put(hashCode, Color.WHITE);
         return Color.WHITE;
     }
@@ -1602,7 +1597,7 @@ public class ShortcutGestureView extends View {
                     host.collapseWidgetDrawer();
                     host.showTopElements();
                     host.showBottomElements();
-                    host.brightenScreen();
+                    host.clearBackgroundTint();
                     resetState();
                     return false;
                 }
@@ -1610,7 +1605,7 @@ public class ShortcutGestureView extends View {
                 cleanTouchEvents();
                 initTouchOp(event);
 
-                host.dimScreen();
+                host.setAndAnimateToDarkBackgroundTint();
                 host.hideTopElements();
                 host.hideBottomElements();
 
@@ -1684,7 +1679,7 @@ public class ShortcutGestureView extends View {
                 }
 
                 resetState();
-                host.brightenScreen();
+                host.clearBackgroundTint();
                 host.showTopElements();
                 host.showBottomElements();
                 break;

@@ -297,8 +297,6 @@ public class DockView extends View {
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
         if(!inited) return;
 
-        Log.d(TAG, "onLayout");
-
         //Calculated needed data
         this.iconPaint = new Paint();
         this.iconPaint.setAntiAlias(true);
@@ -313,7 +311,7 @@ public class DockView extends View {
         this.perElementWidth = (int) (width - (HORIZONTAL_MARGIN * 2)) / elementCount;
         this.iconSize = perElementWidth > getHeight() ? (int) (getHeight() - (2 * ICON_INTERNAL_MARGIN)) : (int) (perElementWidth - (2 * ICON_INTERNAL_MARGIN));
 
-        Log.d(TAG, "horizontal margin=" + HORIZONTAL_MARGIN + "; icon internal margin=" + ICON_INTERNAL_MARGIN + "; perElementWidth=" + perElementWidth + "; iconSize=" + iconSize);
+        //Log.d(TAG, "horizontal margin=" + HORIZONTAL_MARGIN + "; icon internal margin=" + ICON_INTERNAL_MARGIN + "; perElementWidth=" + perElementWidth + "; iconSize=" + iconSize);
 
         laidOut = true;
 
@@ -378,6 +376,8 @@ public class DockView extends View {
                 }, 500);
                 return true;
             case MotionEvent.ACTION_UP:
+                Log.d(TAG, "onActionUp");
+
                 if(startTouchEventTime != -1L) {
                     DockElement touchedApp = null;
                     for(DockElement de : elements){
@@ -441,6 +441,9 @@ public class DockView extends View {
                     }
                 }
             case MotionEvent.ACTION_CANCEL: //Our touch event has been stolen! Eep!
+                Log.d(TAG, "onActionCancel");
+                startTouchEventTime = -1L;
+                longPressing = false;
                 clearTouchAnimations();
                 return false;
             case MotionEvent.ACTION_MOVE: //HA! We don't care anymore.

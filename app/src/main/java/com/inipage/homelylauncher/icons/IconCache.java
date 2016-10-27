@@ -7,12 +7,18 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
+import android.graphics.Rect;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
+import android.os.Environment;
+import android.os.Handler;
+import android.os.Looper;
+import android.os.StrictMode;
 import android.util.Log;
 
 import com.inipage.homelylauncher.ApplicationClass;
+import com.inipage.homelylauncher.utils.Utilities;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,6 +26,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A cache for icons. This is a rewrite of an earlier build of IconCache that was hard to maintain.
@@ -197,6 +204,7 @@ public class IconCache {
 
     private static IconCache instance;
 
+    private Paint defaultPaint;
     //Dummy bitmap to return while still retrieving bitmaps
     public Bitmap dummyBitmap;
 
@@ -211,8 +219,22 @@ public class IconCache {
             task = params[0];
 
             try {
+                log("Finding bitmap with free memory of " + (Runtime.getRuntime().freeMemory() / 1024 / 1024) + " MiB");
+
+                //This is worst-case fallback
+                if(Utilities.isRunningOutofHeap()){
+                    log("Stalling while running out of heap!");
+                    System.gc();
+                    while(Runtime.getRuntime().freeMemory() / 1024 < 512){
+                        try {
+                            Thread.sleep(100);
+                        } catch (Exception ignored) {}
+                    }
+                    log("Resuming after stall...");
+                }
+
+
                 Drawable d;
-                Bitmap toDraw;
                 switch(task.getType()){
                     case APP_ICON_FULLY_QUALIFIED:
                         ComponentName cm = new ComponentName(task.getPackageName(), task.getComponentName());
@@ -222,36 +244,47 @@ public class IconCache {
                         d = pm.getApplicationIcon(task.getPackageName());
                         break;
                     case PACKAGE_LOCAL_RESOURCE:
-                        d = baseResources.getDrawable(task.getResourceId());
+                        d = baseResources.getDrawable(task.getResourceId(), null);
                         break;
                     case PACKAGE_FOREIGN_RESOURCE:
                         Resources res = pm.getResourcesForApplication(task.getPackageName());
                         int resourceId = res.getIdentifier(task.getResourceName(), "drawable", task.getPackageName());
-                        d = res.getDrawable(resourceId);
+                        d = res.getDrawable(resourceId, null);
                         break;
                     default:
                         return null;
                 }
 
+                Bitmap toDraw = Bitmap.createBitmap(task.getWidth(), task.getHeight(), Bitmap.Config.ARGB_8888);
+                Canvas canvas = new Canvas(toDraw);
+                d.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+                d.draw(canvas);
+
+                /* Old way of doing things -- I *think* this results in us keeping refs to Drawables with potentially large bitmaps but I could be wrong
                 if (d instanceof BitmapDrawable) {
-                    toDraw = ((BitmapDrawable) d).getBitmap();
+                    Bitmap iconBitmap = ((BitmapDrawable) d).getBitmap();
+
+                    Canvas canvas = new Canvas(toDraw);
+                    d.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
+                    canvas.drawBitmap(iconBitmap, null, new Rect(0, 0, canvas.getWidth(), canvas.getHeight()), defaultPaint);
+                    d.draw(canvas);
                 } else { //Draw it to a canvas backed
-                    toDraw = Bitmap.createBitmap(task.getWidth(), task.getHeight(), Bitmap.Config.ARGB_8888);
                     Canvas canvas = new Canvas(toDraw);
                     d.setBounds(0, 0, canvas.getWidth(), canvas.getHeight());
                     d.draw(canvas);
                 }
+                */
 
-                logi(this, "Successful icon fetch");
+                log(task, "Successful icon fetch");
                 return toDraw;
             } catch (PackageManager.NameNotFoundException e) {
-                loge(this, "Unable to retrieve icon for package; " + e.getMessage());
+                log(task, "Unable to retrieve icon for package; " + e.getMessage());
                 return null;
             } catch (Resources.NotFoundException e) {
-                loge(this, "Unable to retrieve icon pack entry; " + e.getMessage());
+                log(task, "Unable to retrieve icon pack entry; " + e.getMessage());
                 return null;
             } catch (OutOfMemoryError e) { //OOM errors, usually
-                loge(this, "OutOfMemory while retrieving icon");
+                log(task, "OutOfMemory while retrieving icon");
                 return null;
             }
         }
@@ -265,6 +298,12 @@ public class IconCache {
                     task.clearCallback();
                 }
             }
+            popFromQueueAndRun();
+        }
+
+        @Override
+        protected void onCancelled() {
+            log("TASK CANCELLED!!!! AHHH!!!!!");
             popFromQueueAndRun();
         }
     }
@@ -282,6 +321,9 @@ public class IconCache {
         p.setColor(Color.WHITE);
         p.setAlpha(123);
         c.drawCircle(dimens / 2, dimens / 2, dimens / 2, p);
+
+        defaultPaint = new Paint();
+        defaultPaint.setAntiAlias(true);
     }
 
     public static IconCache getInstance() {
@@ -304,6 +346,7 @@ public class IconCache {
         IconFetchTask task = new IconFetchTask(priority, IconFetchType.APP_ICON_FULLY_QUALIFIED, packageName, componentName, null, -1, size, size, retrievalInterface);
         Bitmap cachedValue = iconCache.get(task);
         if (cachedValue != null) {
+            log("Cache hit for getAppIcon " + packageName);
             return cachedValue;
         } else {
             queueItemTask(task);
@@ -315,6 +358,7 @@ public class IconCache {
         IconFetchTask task = new IconFetchTask(priority, IconFetchType.APP_ICON_PARTIALLY_QUALIFIED, packageName, null, null, -1, size, size, retrievalInterface);
         Bitmap cachedValue = iconCache.get(task);
         if (cachedValue != null) {
+            log("Cache hit for getPackageIcon " + packageName);
             return cachedValue;
         } else {
             queueItemTask(task);
@@ -326,6 +370,7 @@ public class IconCache {
         IconFetchTask task = new IconFetchTask(priority, IconFetchType.PACKAGE_LOCAL_RESOURCE, null, null, null, resourceId, size, size, retrievalInterface);
         Bitmap cachedValue = iconCache.get(task);
         if (cachedValue != null) {
+            log("Cache hit for getLocalResource " + resourceId);
             return cachedValue;
         } else {
             queueItemTask(task);
@@ -337,6 +382,7 @@ public class IconCache {
         IconFetchTask task = new IconFetchTask(priority, IconFetchType.PACKAGE_FOREIGN_RESOURCE, packageName, null, resourceName, -1, size, size, retrievalInterface);
         Bitmap cachedValue = iconCache.get(task);
         if (cachedValue != null) {
+            log("Cache hit for foreign resource " + resourceName + " from " + packageName);
             return cachedValue;
         } else {
             queueItemTask(task);
@@ -366,27 +412,39 @@ public class IconCache {
             if (bestTask == null) return;
 
             BitmapRetrievalTask getter = new BitmapRetrievalTask();
+
             try {
                 getter.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, bestTask);
                 taskList.remove(bestTask);
-            } catch (RejectedExecutionException ignored) {}
+            } catch (RejectedExecutionException ignored) {
+            }
         }
     }
 
     private void log(String content){
-        if(!QUIET) Log.i(TAG, "[Task ?] " + content);
+        if(!QUIET) Log.d(TAG, content);
     }
 
-    private void logi(BitmapRetrievalTask task, String content){
-        if(!QUIET) Log.i(TAG, "[" + task.toString() + "] " + content);
+    private void log(IconFetchTask task, String content){
+        if(!QUIET) {
+            String prefix = "[?]";
+            switch(task.getType()){
+                case APP_ICON_PARTIALLY_QUALIFIED:
+                case APP_ICON_FULLY_QUALIFIED:
+                    prefix = "[App icon for " + task.getPackageName() + "] ";
+                    break;
+                case PACKAGE_LOCAL_RESOURCE:
+                    prefix = "[Local res of ID " + task.getResourceId() + "] ";
+                    break;
+                case PACKAGE_FOREIGN_RESOURCE:
+                    prefix = "[Foreign res of pkg/id " + task.getPackageName() + "/" + task.getResourceName() + "] ";
+                    break;
+            }
+            Log.d(TAG, prefix + content);
+        }
     }
 
     private void log(String context, Exception e){
-        Log.e(TAG, context, e);
-    }
-
-    private void loge(BitmapRetrievalTask task, String content){
-        //if(!QUIET)
-        Log.e(TAG, "[" + task.toString() + "] " + content);
+        if(!QUIET) Log.e(TAG, context, e);
     }
 }

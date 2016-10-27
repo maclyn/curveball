@@ -138,6 +138,7 @@ public class Utilities {
             while ((read = LOG_FILE_IN.read(buf, off, 1024)) > 0) {
                 result += new String(buf, StandardCharsets.UTF_8);
             }
+            LOG_FILE_IN = new FileInputStream(LOG_FILE);
             return result;
         } catch (Exception e){
             return "Log cannot be read! Welp.";
@@ -229,5 +230,9 @@ public class Utilities {
 
     public static boolean checkPermission(String permission, Context context) {
         return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    public static boolean isRunningOutofHeap(){
+        return Runtime.getRuntime().freeMemory() < (2 * 1024 * 1024); //2MB
     }
 }

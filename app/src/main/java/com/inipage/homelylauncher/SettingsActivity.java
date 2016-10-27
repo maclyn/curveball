@@ -1,5 +1,9 @@
 package com.inipage.homelylauncher;
 
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.ActivityInfo;
@@ -118,6 +122,15 @@ public class SettingsActivity extends ActionBarActivity {
                     new AlertDialog.Builder(preference.getContext())
                             .setTitle(R.string.show_debug_log)
                             .setMessage(Utilities.dumpLog())
+                            .setPositiveButton(R.string.export_log, new DialogInterface.OnClickListener() {
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    ClipboardManager cm = (ClipboardManager) getActivity().getSystemService(Context.CLIPBOARD_SERVICE);
+                                    cm.setPrimaryClip(ClipData.newPlainText("Export log", Utilities.dumpLog()));
+
+                                    Toast.makeText(getActivity(), "Copied to clipboard", Toast.LENGTH_SHORT).show();
+                                }
+                            })
                             .show();
                     return true;
                 }

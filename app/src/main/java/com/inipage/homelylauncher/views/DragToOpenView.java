@@ -16,7 +16,7 @@ import com.inipage.homelylauncher.utils.SizeAttribute;
 public class DragToOpenView extends RelativeLayout {
     public interface OnDragToOpenListener {
         void onDragStarted();
-        void onDragChanged(float distance);
+        boolean onDragChanged(float distance);
         void onDragCompleted(boolean dragAccepted, float finalDistance, float flingVelocity);
     }
 
@@ -26,6 +26,7 @@ public class DragToOpenView extends RelativeLayout {
     float lastY = -1;
     float lastDist = -1;
     float lastTime = -1;
+    boolean completedEvent = false;
     OnDragToOpenListener listener;
 
     @SizeAttribute(24)
@@ -56,20 +57,33 @@ public class DragToOpenView extends RelativeLayout {
 
         switch (event.getAction()){
             case MotionEvent.ACTION_MOVE:
+                if(completedEvent) break;
+
                 lastDist = event.getRawY() - (lastY == -1 ? event.getRawY() : lastY);
                 lastY = event.getRawY();
                 lastTime = event.getEventTime();
-                if(listener != null) listener.onDragChanged(dist);
+                if(listener != null){
+                    if(listener.onDragChanged(dist)){
+                        completedEvent = true;
+                        float time = event.getEventTime() - lastTime;
+                        if(time == 0) time = 1;
+                        listener.onDragCompleted(true, dist, Math.abs(lastDist / time));
+                        break;
+                    }
+                }
                 break;
             case MotionEvent.ACTION_CANCEL:
             case MotionEvent.ACTION_UP:
-                float time = event.getEventTime() - lastTime;
-                if(time == 0) time = 1;
-
-                if(listener != null) listener.onDragCompleted(dist > startSwipeDistance * 4, dist,
-                        Math.abs(lastDist / time));
-                break;
+                if(!completedEvent) {
+                    float time = event.getEventTime() - lastTime;
+                    if (time == 0) time = 1;
+                    if (listener != null)
+                        listener.onDragCompleted(dist > startSwipeDistance * 4, dist, Math.abs(lastDist / time));
+                    break;
+                }
+                completedEvent = false;
         }
+
         return true;
     }
 

@@ -28,121 +28,112 @@
             android:layout_alignParentTop="true"
             android:layout_toEndOf="@+id/strayTouchShield" />
 
-        <!-- Snacklets "hint" -->
         <LinearLayout
-            android:id="@+id/snackletsHint"
-            android:orientation="vertical"
-            android:layout_alignParentLeft="true"
-            android:layout_marginLeft="10dp"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerVertical="true" />
-
-        <RelativeLayout
             android:id="@+id/timeDateContainer"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
+            android:orientation="horizontal"
             android:layout_height="wrap_content"
             android:layout_alignParentTop="true"
             android:layout_marginTop="10dp"
+            android:paddingLeft="32dp"
+            android:paddingRight="32dp"
+            android:weightSum="4"
+            android:background="#70000000"
             android:layout_centerHorizontal="true">
 
             <RelativeLayout
-                android:id="@+id/timeLayout"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingLeft="4dp"
-                android:paddingRight="4dp"
-                android:layout_alignParentLeft="false"
-                android:background="?android:attr/selectableItemBackground"
-                android:layout_centerHorizontal="true">
+                android:layout_weight="3"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content">
 
                 <TextView
-                    android:id="@+id/hour"
+                    android:id="@+id/timeLayout"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_centerInParent="false"
-                    android:layout_centerVertical="true"
-                    android:gravity="center_vertical"
-                    android:text="12"
-                    android:textColor="@android:color/white"
-                    android:textColorHint="@android:color/black"
+                    android:paddingLeft="4dp"
+                    android:paddingRight="4dp"
                     android:textSize="80sp"
-                    android:shadowColor="#000"
-                    android:shadowRadius="4"
-                    android:shadowDy="2"/>
+                    android:fontFamily="sans-serif"
+                    android:text="1:19"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:layout_centerHorizontal="true"
+                    android:textColor="@color/white" />
 
                 <TextView
-                    android:id="@+id/timeColon"
-                    android:layout_toRightOf="@id/hour"
+                    android:id="@+id/date"
+                    android:padding="8dp"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_centerInParent="false"
-                    android:layout_centerVertical="true"
-                    android:gravity="center_vertical"
-                    android:text=":"
+                    android:layout_below="@+id/timeLayout"
+                    android:text="Monday, June 3\nCharging 50%"
+                    android:layout_alignParentLeft="false"
                     android:textColor="@android:color/white"
                     android:textColorHint="@android:color/black"
-                    android:textSize="58sp"
-                    android:shadowColor="#000"
-                    android:shadowRadius="4"
-                    android:shadowDy="2"/>
-
-                <TextView
-                    android:id="@+id/minute"
-                    android:layout_toRightOf="@+id/timeColon"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
+                    android:background="?android:attr/selectableItemBackground"
+                    android:textSize="14sp"
+                    android:layout_marginTop="-14dp"
+                    android:layout_marginLeft="0dp"
                     android:layout_centerInParent="true"
-                    android:layout_centerVertical="true"
-                    android:gravity="center_vertical"
-                    android:text="30"
+                    android:gravity="center_vertical|center_horizontal"
+                    android:textAllCaps="true" />
+
+                <TextView
+                    android:id="@+id/alarm"
+                    android:padding="8dp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_below="@+id/date"
+                    android:text="Next alarm at 8:30 P.M."
                     android:textColor="@android:color/white"
-                    android:textColorHint="@android:color/black"
-                    android:textSize="80sp"
-                    android:shadowColor="#000"
-                    android:shadowRadius="4"
-                    android:shadowDy="2"/>
+                    android:background="?android:attr/selectableItemBackground"
+                    android:textSize="14sp"
+                    android:layout_marginTop="-14dp"
+                    android:layout_centerInParent="true"
+                    android:gravity="center_vertical|center_horizontal"
+                    android:visibility="gone" />
             </RelativeLayout>
 
-            <TextView
-                android:id="@+id/date"
-                android:padding="8dp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/timeLayout"
-                android:text="Monday, June 3\nCharging 50%"
-                android:layout_alignParentLeft="false"
-                android:textColor="@android:color/white"
-                android:textColorHint="@android:color/black"
+            <RelativeLayout
+                android:id="@+id/weather_container"
+                android:layout_weight="1"
+                android:layout_width="0dp"
                 android:background="?android:attr/selectableItemBackground"
-                android:textSize="18sp"
-                android:layout_marginTop="-14dp"
-                android:layout_marginLeft="0dp"
-                android:layout_centerInParent="true"
-                android:gravity="center_vertical|center_horizontal"
-                android:shadowColor="#000"
-                android:shadowRadius="4"
-                android:shadowDy="2"/>
+                android:layout_gravity="center_vertical"
+                android:layout_height="wrap_content">
 
-            <TextView
-                android:id="@+id/alarm"
-                android:padding="8dp"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_below="@+id/date"
-                android:text="Next alarm at 8:30 P.M."
-                android:textColor="@android:color/white"
-                android:textColorHint="@android:color/black"
-                android:background="?android:attr/selectableItemBackground"
-                android:textSize="14sp"
-                android:layout_marginTop="-14dp"
-                android:layout_centerInParent="true"
-                android:gravity="center_vertical|center_horizontal"
-                android:shadowColor="#000"
-                android:shadowRadius="4"
-                android:shadowDy="2"
-                android:visibility="gone" />
-        </RelativeLayout>
+                <ImageView
+                    android:id="@+id/condition"
+                    android:layout_alignParentTop="true"
+                    android:src="@drawable/clima_cloud_drizzle_alt"
+                    android:layout_centerHorizontal="true"
+                    android:layout_height="80dp"
+                    android:layout_width="80dp"
+                    android:scaleType="centerCrop"
+                    android:layout_marginBottom="-12dp" />
+
+                <TextView
+                    android:layout_centerHorizontal="true"
+                    android:layout_below="@+id/condition"
+                    android:id="@+id/temperature"
+                    android:textSize="24sp"
+                    android:text="--°"
+                    android:textColor="@color/white"
+                    android:layout_gravity="center"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+
+                <TextView
+                    android:layout_centerHorizontal="true"
+                    android:layout_below="@+id/temperature"
+                    android:id="@+id/highLow"
+                    android:textSize="14sp"
+                    android:text="↑--/↓--"
+                    android:textColor="@color/white"
+                    android:layout_gravity="center"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content" />
+            </RelativeLayout>
+        </LinearLayout>
 
         <View
             android:id="@+id/strayTouchShield"
@@ -284,7 +275,7 @@
                     android:layout_width="36dp"
                     android:layout_height="36dp"
                     android:layout_centerVertical="true"
-                    android:src="@drawable/ic_expand_more_white_48dp"
+                    android:src="@drawable/ic_arrow_back_white_36dp"
                     android:layout_marginRight="8dp"
                     android:padding="4dp" />
 

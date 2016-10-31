@@ -84,6 +84,13 @@ public class SettingsActivity extends ActionBarActivity {
                     return true;
                 }
             });
+            findPreference("weather_app").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    changeApp(Constants.WEATHER_APP_PREFERENCE);
+                    return true;
+                }
+            });
             findPreference("charging_app").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
                 @Override
                 public boolean onPreferenceClick(Preference preference) {

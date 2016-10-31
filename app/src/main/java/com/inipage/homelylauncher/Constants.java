@@ -15,6 +15,7 @@ public class Constants {
 
     public static final String CLOCK_APP_PREFERENCE = "clock_pref";
     public static final String CALENDAR_APP_PREFERENCE = "cal_pref";
+    public static final String WEATHER_APP_PREFERENCE = "weather_app_pref";
     public static final String CHARGING_APP_PREFERENCE = "charging_app_pref";
     public static final String LOW_POWER_APP_PREFERENCE = "low_power_app_pref";
 
@@ -38,4 +39,6 @@ public class Constants {
     public static final String HOME_WIDGET_PREFERENCE = "home_widget_pref";
     @Deprecated
     public static final String HOME_WIDGET_ID_PREFERENCE = "home_widget_id_pref";
+
+    public static final String CELCIUS_PREF = "celcius_pref";
 }

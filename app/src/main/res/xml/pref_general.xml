@@ -13,6 +13,10 @@
                 android:summary="@string/default_calendar_summary"
                 android:key="calendar_app"/>
             <Preference
+                android:title="@string/default_weather_app"
+                android:summary="@string/default_weather_app_summary"
+                android:key="weather_app"/>
+            <Preference
                 android:title="@string/default_phone_app"
                 android:summary="@string/default_phone_app_summary"
                 android:key="phone_app"/>
@@ -86,6 +90,13 @@
             android:summary="@string/phone_pref_summary"
             android:key="is_phone_pref" />
             -->
+
+        <CheckBoxPreference
+            android:defaultValue="false"
+            android:title="@string/use_celcius"
+            android:summary="@string/use_celcius_summary"
+            android:key="celcius_pref" />
+
         <CheckBoxPreference
             android:defaultValue="false"
             android:title="@string/allow_rotation"

@@ -19,6 +19,7 @@ import android.view.View;
 
 import com.inipage.homelylauncher.Constants;
 import com.inipage.homelylauncher.HomeActivity;
+import com.inipage.homelylauncher.R;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -234,5 +235,75 @@ public class Utilities {
 
     public static boolean isRunningOutofHeap(){
         return Runtime.getRuntime().freeMemory() < (2 * 1024 * 1024); //2MB
+    }
+
+    public static boolean isUsingCelcius(Context context){
+        return PreferenceManager.getDefaultSharedPreferences(context).getBoolean(Constants.CELCIUS_PREF, false);
+    }
+
+    public static String getTempFromValue(float temp, Context context){
+        if(isUsingCelcius(context)){
+            return String.valueOf(Math.round(temp)) + "°C";
+        } else {
+            temp = (temp * 9/5) + 32;
+            return String.valueOf(Math.round(temp)) + "°F";
+        }
+    }
+
+    public static int convertConditionToId(String condition){
+        condition = condition.replace("Dark_", "");
+        switch(condition){
+            case "Sun":
+                return R.drawable.clima_sun;
+            case "PartlyCloud":
+            case "LightCloud":
+                return R.drawable.clima_cloud_sun;
+            case "Cloud":
+                return R.drawable.clima_cloud;
+            case "Drizzle":
+            case "LightRain":
+                return R.drawable.clima_cloud_drizzle;
+            case "LightRainSun":
+            case "RainSun":
+            case "DrizzleSun":
+                return R.drawable.clima_cloud_rain_sun;
+            case "Rain":
+                return R.drawable.clima_cloud_rain;
+            case "LightRainThunder":
+            case "RainThunder":
+            case "RainThunderSun":
+            case "DrizzleThunder":
+            case "LightRainThunderSun":
+            case "DrizzleThunderSun":
+                return R.drawable.clima_cloud_lightning;
+            case "Fog":
+                return R.drawable.clima_cloud_fog;
+            case "Sleet":
+            case "SleetThunder":
+            case "SleetSun":
+            case "SleetSunThunder":
+            case "SnowSun":
+            case "LightSleetThunderSun":
+            case "LightSleetSun":
+            case "HeavySleetSun":
+            case "HeavySleetThunderSun":
+            case "LightSleetThunder":
+            case "HeavySleetThunder":
+            case "Snow":
+            case "LightSleet":
+            case "HeavySleet":
+            case "SnowThunder":
+            case "SnowSunThunder":
+            case "LightSnowSun":
+            case "LightSnowThunder":
+            case "HeavySnowThunder":
+                return R.drawable.clima_cloud_snow;
+            case "HeavySnow":
+            case "HeavysnowSun":
+            case "LightSnowThunderSun":
+            case "HeavySnowThunderSun":
+                return R.drawable.clima_cloud_snow_alt;
+        }
+        return R.drawable.clima_umbrella;
     }
 }

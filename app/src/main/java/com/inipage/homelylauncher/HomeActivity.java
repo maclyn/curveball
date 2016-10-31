@@ -3,11 +3,10 @@ package com.inipage.homelylauncher;
 import android.Manifest;
 import android.animation.Animator;
 import android.animation.ObjectAnimator;
+import android.animation.ValueAnimator;
 import android.annotation.TargetApi;
 import android.app.Activity;
-import android.app.ActivityOptions;
 import android.app.AlarmManager;
-import android.app.Application;
 import android.app.usage.UsageEvents;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
@@ -36,6 +35,10 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
+import android.location.Criteria;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.BatteryManager;
@@ -95,6 +98,10 @@ import com.inipage.homelylauncher.views.DockViewHost;
 import com.inipage.homelylauncher.views.DragToOpenView;
 import com.inipage.homelylauncher.views.ShortcutGestureView;
 import com.inipage.homelylauncher.views.ShortcutGestureViewHost;
+import com.inipage.homelylauncher.weather.model.LTSForecastModel;
+import com.inipage.homelylauncher.weather.WeatherApiFactory;
+import com.inipage.homelylauncher.weather.model.LocationModel;
+import com.inipage.homelylauncher.weather.model.TimeModel;
 import com.inipage.homelylauncher.widgets.WidgetAddAdapter;
 import com.mobeta.android.dslv.DragSortListView;
 
@@ -119,6 +126,9 @@ import java.util.TimerTask;
 import butterknife.Bind;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 @SuppressWarnings("unchecked")
 public class HomeActivity extends Activity implements ShortcutGestureViewHost {
@@ -181,21 +191,13 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     TextView date;
     @Bind(R.id.alarm)
     TextView alarm;
-    @Bind(R.id.hour)
-    TextView hour;
-    @Bind(R.id.minute)
-    TextView minute;
     @Bind(R.id.timeLayout)
-    View timeLayout;
-    @Bind(R.id.timeColon)
-    TextView timeColon;
+    TextView timeLayout;
 
-    SimpleDateFormat minutes;
-    SimpleDateFormat hours;
-    SimpleDateFormat alarmTime = new SimpleDateFormat("h:mm aa", Locale.getDefault());
-    Typeface light;
-    Typeface regular;
-    Typeface condensed;
+    final SimpleDateFormat alarmTime = new SimpleDateFormat("h:mm aa", Locale.getDefault());
+    final SimpleDateFormat timeFormat = new SimpleDateFormat("h:mm", Locale.getDefault());
+    Typeface regularTypeface;
+    Typeface lightTypeface;
     Timer timer;
 
     //Home dockbar
@@ -203,6 +205,15 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     RelativeLayout dockbarApps;
     @Bind(R.id.dockView)
     DockView dockView;
+
+    @Bind(R.id.weather_container)
+    View weatherContainer;
+    @Bind(R.id.temperature)
+    TextView temperature;
+    @Bind(R.id.highLow)
+    TextView highLow;
+    @Bind(R.id.condition)
+    ImageView condition;
 
     //Search/menu
     @Bind(R.id.searchActionBar)
@@ -334,6 +345,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             size = ScreenSize.PHONE;
         }
 
+        bigTint.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
+
         widgetManager = AppWidgetManager.getInstance(this);
         widgetHost = new AppWidgetHost(this, HOST_ID);
 
@@ -352,25 +365,30 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         previousConfiguration = getResources().getConfiguration();
 
-        minutes = new SimpleDateFormat("mm", Locale.US);
-        hours = new SimpleDateFormat("h", Locale.US);
-        light = Typeface.createFromAsset(this.getAssets(), "Roboto-Thin.ttf");
-        regular = Typeface.createFromAsset(this.getAssets(), "Roboto-Regular.ttf");
-        condensed = Typeface.createFromAsset(this.getAssets(), "Roboto-Condensed.ttf");
+        regularTypeface = Typeface.createFromAsset(this.getAssets(), "Roboto-Regular.ttf");
+        lightTypeface = Typeface.createFromAsset(this.getAssets(), "Roboto-Light.ttf");
 
-        hour.setTypeface(light);
-        minute.setTypeface(light);
-        timeColon.setTypeface(light);
+        timeLayout.setTypeface(regularTypeface);
+        //alarm.setTypeface(lightTypeface);
+        //date.setTypeface(lightTypeface);
+        date.setAllCaps(true);
+        alarm.setAllCaps(true);
         timeLayout.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                handleDedicatedAppButton(Constants.CLOCK_APP_PREFERENCE, false);
+                handleDedicatedAppButton(Constants.CLOCK_APP_PREFERENCE);
             }
         });
         date.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                handleDedicatedAppButton(Constants.CALENDAR_APP_PREFERENCE, false);
+                handleDedicatedAppButton(Constants.CALENDAR_APP_PREFERENCE);
+            }
+        });
+        weatherContainer.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                handleDedicatedAppButton(Constants.WEATHER_APP_PREFERENCE);
             }
         });
 
@@ -385,45 +403,44 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         //Set up dockbar apps
         dockBar.setOnDragToOpenListener(new DragToOpenView.OnDragToOpenListener() {
-            boolean hasHiddenClock = false;
-
             @Override
             public void onDragStarted() {
                 allAppsContainer.setVisibility(View.VISIBLE);
             }
 
             @Override
-            public void onDragChanged(float distance) {
+            public boolean onDragChanged(float distance) {
+
                 dockBar.setTranslationY(-distance);
                 float translationToSet = (allAppsContainer.getHeight()) - distance;
                 if (translationToSet < 0) {
                     allAppsContainer.setTranslationY(0);
                 } else {
+                    allAppsContainer.setTranslationY(translationToSet);
+
                     float threshold = sgv.getHeight() / 2;
 
-                    if (!hasHiddenClock && (Math.abs(distance) > threshold)) {
-                        hideDateTime();
-                        hasHiddenClock = true;
+                    if (Math.abs(distance) > threshold) {
+                        return true;
                     }
-
-                    allAppsContainer.setTranslationY(translationToSet);
                 }
 
                 if(distance < 0){
                     distance = 0;
                 }
                 bigTint.setAlpha(distance / (float) allAppsContainer.getHeight());
+                sgv.invalidate(); //To "accordian" the icons
+                return false;
             }
 
             @Override
             public void onDragCompleted(boolean dragAccepted, float finalDistance, float finalVelocity) {
                 if (dragAccepted) {
-                    if (!hasHiddenClock) hideDateTime();
+                    hideDateTime();
                 } else {
-                    if (hasHiddenClock) showDateTime();
+                    showDateTime();
                 }
                 toggleAppsContainer(dragAccepted, finalVelocity);
-                hasHiddenClock = false;
             }
         });
 
@@ -800,6 +817,99 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             sgv.onActivityResumed();
             startSuggestionsPopulation();
         }
+
+        //Get the weather
+        //TODO: Cache & prevent fetching if it's been an hour
+        if(Utilities.checkPermission(Manifest.permission.ACCESS_FINE_LOCATION, this)){
+            LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+            Criteria criteria = new Criteria();
+            criteria.setAltitudeRequired(false);
+            criteria.setPowerRequirement(Criteria.POWER_LOW);
+            criteria.setAccuracy(Criteria.ACCURACY_LOW);
+            lm.requestSingleUpdate(criteria, new LocationListener() {
+                @Override
+                public void onLocationChanged(Location location) {
+                    Log.d(TAG, "Got location: " + location);
+                    if(location != null){
+                        Log.d(TAG, location.getLatitude() + "; " + location.getLongitude());
+                    }
+
+                    if(location == null) return;
+
+                    WeatherApiFactory.getInstance().getWeatherLTS(location.getLatitude(), location.getLongitude()).enqueue(new Callback<LTSForecastModel>() {
+                        @Override
+                        public void onResponse(Call<LTSForecastModel> call, Response<LTSForecastModel> response) {
+                            Log.d(TAG, "Got weather response!");
+                            try {
+                                Pair<Date, LocationModel> conditionEntry = null;
+                                Pair<Date, LocationModel> temperatureEntry = null;
+                                Pair<Date, LocationModel> rangeEntry = null;
+
+                                LTSForecastModel model = response.body();
+                                for(TimeModel forecast : model.getProduct().getTimeEntries()){
+                                    Log.d(TAG, "Forecast @ " + forecast.getFrom() + " to " + forecast.getTo());
+                                    LocationModel l = forecast.getLocation();
+                                    if(l != null){
+                                        if(l.getMaxTemperature() != null && l.getMinTemperature() != null){
+                                            if(rangeEntry == null || rangeEntry.first.getTime() > forecast.getFrom().getTime()){
+                                                rangeEntry = new Pair<>(forecast.getFrom(), l);
+                                            }
+                                        } else if (l.getTemperature() != null){
+                                            if(temperatureEntry == null || temperatureEntry.first.getTime() > forecast.getFrom().getTime()){
+                                                temperatureEntry = new Pair<>(forecast.getFrom(), l);
+                                            }
+                                        } else if (l.getSymbol() != null){
+                                            if(conditionEntry == null || conditionEntry.first.getTime() > forecast.getFrom().getTime()){
+                                                conditionEntry = new Pair<>(forecast.getFrom(), l);
+                                            }
+                                        }
+                                    }
+                                }
+
+                                //TODO: Cache here (saveWeatherValues(...)/loadWeatherValues(...)).
+                                weatherContainer.setVisibility(View.VISIBLE);
+                                condition.setVisibility(conditionEntry != null ? View.VISIBLE : View.GONE);
+                                if(conditionEntry != null) {
+                                    condition.setImageResource(Utilities.convertConditionToId(conditionEntry.second.getSymbol().getId()));
+                                }
+                                temperature.setVisibility(temperatureEntry != null ? View.VISIBLE : View.GONE);
+                                if(temperatureEntry != null){
+                                    temperature.setText(Utilities.getTempFromValue(temperatureEntry.second.getTemperature().getValue(), HomeActivity.this));
+                                }
+                                highLow.setVisibility(rangeEntry != null ? View.VISIBLE : View.GONE);
+                                if(rangeEntry != null){
+                                    highLow.setText(
+                                            "↑" + Utilities.getTempFromValue(rangeEntry.second.getMaxTemperature().getValue(), HomeActivity.this) +
+                                            "/" +
+                                            "↓" + Utilities.getTempFromValue(rangeEntry.second.getMinTemperature().getValue(), HomeActivity.this));
+                                }
+                            } catch (Exception ignored) {
+                                Log.d(TAG, response.raw().toString());
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Call<LTSForecastModel> call, Throwable t) {
+                            Log.e(TAG, "Failure fetching weather", t);
+                        }
+                    });
+                }
+
+                @Override
+                public void onStatusChanged(String provider, int status, Bundle extras) {
+                }
+
+                @Override
+                public void onProviderEnabled(String provider) {
+                }
+
+                @Override
+                public void onProviderDisabled(String provider) {
+                }
+            }, Looper.getMainLooper());
+        } else {
+            weatherContainer.setVisibility(View.GONE);
+        }
     }
 
     @Override
@@ -1049,6 +1159,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
             ObjectAnimator oa2 = ObjectAnimator.ofFloat(dockBar, "translationY", -getAbsoluteBottom());
             oa2.setDuration(duration);
+            oa2.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                @Override
+                public void onAnimationUpdate(ValueAnimator animation) {
+                    sgv.invalidate();
+                }
+            });
             oa2.start();
 
             ObjectAnimator.ofFloat(bigTint, "alpha", 1)
@@ -1063,6 +1179,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
             ObjectAnimator oa2 = ObjectAnimator.ofFloat(dockBar, "translationY", 0);
             oa2.setDuration(500);
+            oa2.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+                @Override
+                public void onAnimationUpdate(ValueAnimator animation) {
+                    sgv.invalidate();
+                }
+            });
             oa2.start();
 
             strayTouchCatch.setVisibility(View.GONE);
@@ -1127,8 +1249,10 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         Log.d(TAG, "Starting suggestions population...");
 
         //We always show a prompt UI to explain if we need to ask for permissions.
-        String[] permissions = new String[]{Manifest.permission.READ_PHONE_STATE,
-                Manifest.permission.READ_CALENDAR};
+        String[] permissions = new String[]{
+                Manifest.permission.READ_PHONE_STATE,
+                Manifest.permission.READ_CALENDAR,
+                Manifest.permission.ACCESS_FINE_LOCATION };
         List<String> neededPermissions = new ArrayList<>();
 
         for (String permission : permissions) {
@@ -2074,7 +2198,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     @Override
     public Pair<Float, Float> getBoundsWhenNotFullscreen() {
         float top = timeDateContainer.getTop() + timeDateContainer.getHeight();
-        float bottom = dockBar.getTop();
+        float bottom = dockBar.getTop() + dockBar.getTranslationY();
 
         return new Pair<>(top, bottom);
     }
@@ -2544,6 +2668,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         ObjectAnimator leavingAnim = ObjectAnimator.ofFloat(dockBar, "translationY",
                 dockBar.getHeight(), 0);
         leavingAnim.setDuration(DEFAULT_ANIMATION_DURATION);
+        leavingAnim.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                sgv.invalidate();
+            }
+        });
         leavingAnim.start();
     }
 
@@ -2636,8 +2766,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             public void run() {
                 Calendar cal = GregorianCalendar.getInstance();
 
-                hour.setText(hours.format(cal.getTime()));
-                minute.setText(minutes.format(cal.getTime()));
+                timeLayout.setText(timeFormat.format(cal.getTime()));
 
                 //Set date
                 SimpleDateFormat sdfDay = new SimpleDateFormat("EEEE", Locale.US);
@@ -2694,7 +2823,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         }
     }
 
-    public void handleDedicatedAppButton(String pref, boolean slideTransition) {
+    public void handleDedicatedAppButton(String pref) {
         cachedPref = pref;
         String existingData = reader.getString(pref, "null");
         if (!existingData.equals("null")) {
@@ -2706,7 +2835,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     Intent appLaunch = new Intent();
                     appLaunch.setClassName(ai.getPackageName(), ai.getActivityName());
                     appLaunch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    startActivity(appLaunch, ActivityOptions.makeCustomAnimation(this, R.anim.search_slide_anim, R.anim.slide_out_right_anim).toBundle());
+                    startActivity(appLaunch);
                 } catch (Exception e) { //Show launcher!
                     Utilities.grabActivity(this, HomeActivity.REQUEST_CHOOSE_APPLICATION);
                 }

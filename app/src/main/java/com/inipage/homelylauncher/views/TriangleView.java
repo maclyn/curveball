@@ -38,8 +38,12 @@ public class TriangleView extends View {
         defaultPaint.setStrokeWidth(0);
         defaultPaint.setStyle(Paint.Style.FILL_AND_STROKE);
         defaultPaint.setShader(new LinearGradient(getWidth() / 2, 0, getWidth() / 2, getHeight(),
-                new int[] {getResources().getColor(R.color.triangle_color),
-                        getResources().getColor(R.color.transparent)} , null, Shader.TileMode.CLAMP));
+                new int[] {
+                        getResources().getColor(R.color.triangle_color),
+                        getResources().getColor(R.color.transparent)
+                },
+                null,
+                Shader.TileMode.CLAMP));
         defaultPaint.setAntiAlias(true);
     }
 
@@ -47,8 +51,12 @@ public class TriangleView extends View {
     protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
         if(changed){
             defaultPaint.setShader(new LinearGradient(getWidth() / 2, 0, getWidth() / 2, getHeight(),
-                    new int[] {getResources().getColor(R.color.triangle_color),
-                            getResources().getColor(R.color.transparent)} , null, Shader.TileMode.CLAMP));
+                    new int[] {
+                            getResources().getColor(R.color.triangle_color),
+                            getResources().getColor(R.color.transparent)
+                    },
+                    null,
+                    Shader.TileMode.CLAMP));
         }
     }
 

@@ -142,7 +142,7 @@
         SOFTWARE.
     </string>
     <string name="permissions_needed_for_smartbar">Permissions Needed</string>
-    <string name="smartbar_needs_permissions">To suggest apps in the bottom bar when you\'re on phone calls, in calendar events, or running low on battery, we\'d lke permission to view your phone and calendar state.</string>
+    <string name="smartbar_needs_permissions">To suggest apps in the bottom bar when you\'re on phone calls, in calendar events, or running low on battery, we\'d lke permission to view your phone and calendar state. We\'d also like permission to get your location to show your local weather.</string>
     <string name="okay_we_wont_ask">Okay, we won\'t ask again.</string>
     <string name="got_it">Got it</string>
     <string name="suggestions">Suggestions</string>
@@ -178,4 +178,8 @@
     <string name="search_store">Find it in the store</string>
     <string name="loading">Loading...</string>
     <string name="no_apps_matching_installed">No apps matching \'%s\' installed.</string>
+    <string name="use_celcius">Use celcius</string>
+    <string name="use_celcius_summary">Use celcius instead of farenheight for the weather temperature.</string>
+    <string name="default_weather_app">Weather shortcut</string>
+    <string name="default_weather_app_summary">App to launch when clicking on the current weather conditions.</string>
 </resources>

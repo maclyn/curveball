@@ -103,12 +103,14 @@
     <string name="attributions_message">
         We are grateful to be able to use the following libraries in this product:\n\n
         Android Support Library, Palette, and RecyclerView, © 2015 Android Open Source Project under the Apache license.\n
-        Gson © 2015 Google Inc. under the Apache license.\n
+        Gson, Roboto Font © 2015 Google Inc. under the Apache license.\n
         DragSortListView © 2012 Carl Bauer under the Apache license.\n
         Apache Collections Commons © 2016 under the Apache license.\n
         MaterialDialogs © Aidan Michael Follestad under the MIT license.\n
-        ButterKnife © 2013 Jake Wharton.\n
-        Otto © 2013 Square, Inc.\n\n
+        ButterKnife © 2013 Jake Wharton under the Apache License.\n
+        Otto © 2013 Square, Inc under the Apache License.\n
+        Climaicons by Adam Whitcroft.\n
+        Weather data from MET Norway under the CC BY 3.0\n\n
         Apache License:\n
         Licensed under the Apache License, Version 2.0 (the "License");
         you may not use this file except in compliance with the License.

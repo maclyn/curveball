@@ -157,7 +157,7 @@
                 android:background="@drawable/all_apps_bg">
 
                 <!-- Layout for the apps grid (vertically scrolling list) -->
-                <RelativeLayout
+                <com.inipage.homelylauncher.views.PushoverRelativeLayout
                     android:id="@+id/allAppsLayoutContainer"
                     android:layout_alignParentTop="true"
                     android:layout_above="@+id/appsDivider"
@@ -198,7 +198,7 @@
                             android:drawablePadding="8dp"
                             android:text="@string/search_store"/>
                     </LinearLayout>
-                </RelativeLayout>
+                </com.inipage.homelylauncher.views.PushoverRelativeLayout>
 
                 <View
                     android:layout_above="@+id/scrollerContainer"

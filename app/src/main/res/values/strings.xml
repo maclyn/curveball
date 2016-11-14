@@ -184,4 +184,6 @@
     <string name="use_celcius_summary">Use celcius instead of farenheight for the weather temperature.</string>
     <string name="default_weather_app">Weather shortcut</string>
     <string name="default_weather_app_summary">App to launch when clicking on the current weather conditions.</string>
+    <string name="title_activity_onboarding">Welcome</string>
+    <string name="section_format">Hello World from section: %1$d</string>
 </resources>

@@ -96,6 +96,7 @@ import com.inipage.homelylauncher.views.DockElement;
 import com.inipage.homelylauncher.views.DockView;
 import com.inipage.homelylauncher.views.DockViewHost;
 import com.inipage.homelylauncher.views.DragToOpenView;
+import com.inipage.homelylauncher.views.PushoverRelativeLayout;
 import com.inipage.homelylauncher.views.ShortcutGestureView;
 import com.inipage.homelylauncher.views.ShortcutGestureViewHost;
 import com.inipage.homelylauncher.weather.model.LTSForecastModel;
@@ -165,6 +166,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     RelativeLayout allAppsContainer;
     @Bind(R.id.allAppsLayout)
     RecyclerView allAppsScreen;
+    @Bind(R.id.allAppsLayoutContainer)
+    PushoverRelativeLayout allAppsScreenContainer;
     @Bind(R.id.allAppsMessageLayout)
     View allAppsMessageLayout;
     @Bind(R.id.allAppsMessage)
@@ -179,6 +182,8 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     TextView endLetter;
     @Bind(R.id.popup)
     TextView popup;
+
+    int allsAppsRecyclerViewState = RecyclerView.SCROLL_STATE_IDLE;
 
     //Dockbar background
     @Bind(R.id.dockBar)
@@ -368,11 +373,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         regularTypeface = Typeface.createFromAsset(this.getAssets(), "Roboto-Regular.ttf");
         lightTypeface = Typeface.createFromAsset(this.getAssets(), "Roboto-Light.ttf");
 
-        timeLayout.setTypeface(regularTypeface);
-        //alarm.setTypeface(lightTypeface);
-        //date.setTypeface(lightTypeface);
+        timeLayout.setTypeface(lightTypeface);
+        date.setTypeface(lightTypeface);
+        alarm.setTypeface(lightTypeface);
         date.setAllCaps(true);
         alarm.setAllCaps(true);
+
         timeLayout.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -1224,6 +1230,22 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         GridLayoutManager glm = new GridLayoutManager(this, columnCount);
         allAppsScreen.setLayoutManager(glm);
+        allAppsScreen.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            @Override
+            public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
+                super.onScrollStateChanged(recyclerView, newState);
+                Log.d(TAG, "Scroll state: " + (newState == RecyclerView.SCROLL_STATE_SETTLING? " settling" : newState == RecyclerView.SCROLL_STATE_IDLE ? " idle" : "dragging"));
+                if(newState == RecyclerView.SCROLL_STATE_DRAGGING && recyclerView.computeVerticalScrollOffset() == 0){
+
+                }
+            }
+
+            @Override
+            public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
+                super.onScrolled(recyclerView, dx, dy);
+                Log.d(TAG, "onScrolled " + dy);
+            }
+        });
         loadApps();
     }
 

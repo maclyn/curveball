@@ -186,4 +186,5 @@
     <string name="default_weather_app_summary">App to launch when clicking on the current weather conditions.</string>
     <string name="title_activity_onboarding">Welcome</string>
     <string name="section_format">Hello World from section: %1$d</string>
+    <string name="manually_refreshing_weather">Refreshing weather forecast</string>
 </resources>

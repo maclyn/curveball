@@ -9,8 +9,9 @@ public class Constants {
     public class Versions {
         public static final int VERSION_0_2_3 = 1;
         public static final int VERSION_0_2_4 = 2;
+        public static final int VERSION_0_3_1 = 3;
 
-        public static final int CURRENT_VERSION = VERSION_0_2_4;
+        public static final int CURRENT_VERSION = VERSION_0_3_1;
     }
 
     public static final String CLOCK_APP_PREFERENCE = "clock_pref";
@@ -18,6 +19,10 @@ public class Constants {
     public static final String WEATHER_APP_PREFERENCE = "weather_app_pref";
     public static final String CHARGING_APP_PREFERENCE = "charging_app_pref";
     public static final String LOW_POWER_APP_PREFERENCE = "low_power_app_pref";
+
+    public static final String CACHED_WEATHER_RESPONSE_JSON_PREFERENCE = "cached_weather_response_json_pref";
+    public static final String CACHED_WEATHER_RESPONSE_TIME_PREFERENCE = "cached_weather_response_time_pref";
+
 
     @Deprecated
     public static final String SEARCH_APP_PREFERENCE = "search_pref";

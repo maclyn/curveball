@@ -1409,7 +1409,11 @@ public class ShortcutGestureView extends View {
             }
         };
 
-        task.execute(b);
+        try {
+            task.execute(b);
+        } catch (Exception tooManyTasks){
+            //Whoopsies. Better to do the improper thing (draw WHITE) than crash.
+        }
         bitmapColorMap.put(hashCode, Color.WHITE);
         return Color.WHITE;
     }

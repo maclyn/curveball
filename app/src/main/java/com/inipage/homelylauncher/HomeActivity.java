@@ -48,6 +48,7 @@ import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.provider.CalendarContract;
 import android.provider.Settings;
+import android.support.v4.app.ActivityCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.LinearLayoutManager;
@@ -146,6 +147,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
     public static final int HOST_ID = 505;
     private static final long ONE_DAY_MILLIS = 1000 * 60 * 60 * 24;
     private static final long DEFAULT_ANIMATION_DURATION = 300;
+    private static final long WEATHER_CACHE_DURATION = 60 * 60 * 1000; //1 hour
     //endregion
 
     //region Enums
@@ -191,7 +193,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
     //Date stuff
     @Bind(R.id.timeDateContainer)
-    View timeDateContainer;
+    LinearLayout timeDateContainer;
+    @Bind(R.id.time_container)
+    View timeImmediateContainer;
     @Bind(R.id.date)
     TextView date;
     @Bind(R.id.alarm)
@@ -397,6 +401,14 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 handleDedicatedAppButton(Constants.WEATHER_APP_PREFERENCE);
             }
         });
+        weatherContainer.setOnLongClickListener(new View.OnLongClickListener() {
+            @Override
+            public boolean onLongClick(View view) {
+                Toast.makeText(HomeActivity.this, R.string.manually_refreshing_weather, Toast.LENGTH_SHORT).show();
+                refreshWeather();
+                return true;
+            }
+        });
 
         samples = new ArrayList<>();
         smartApps = new ArrayList<>();
@@ -409,6 +421,9 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         //Set up dockbar apps
         dockBar.setOnDragToOpenListener(new DragToOpenView.OnDragToOpenListener() {
+            boolean hasHiddenClock = false;
+
+
             @Override
             public void onDragStarted() {
                 allAppsContainer.setVisibility(View.VISIBLE);
@@ -416,24 +431,28 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
             @Override
             public boolean onDragChanged(float distance) {
-
-                dockBar.setTranslationY(-distance);
                 float translationToSet = (allAppsContainer.getHeight()) - distance;
-                if (translationToSet < 0) {
-                    allAppsContainer.setTranslationY(0);
+
+                if (distance < 0) {
+                    allAppsContainer.setTranslationY(allAppsContainer.getHeight());
+                    dockBar.setTranslationY(0);
                 } else {
                     allAppsContainer.setTranslationY(translationToSet);
+                    dockBar.setTranslationY(-distance);
 
                     float threshold = sgv.getHeight() / 2;
 
-                    if (Math.abs(distance) > threshold) {
-                        return true;
+                    if (Math.abs(distance) > threshold && !hasHiddenClock) {
+                        hideDateTime();
+                        hasHiddenClock = true;
+                        return false;
                     }
                 }
 
-                if(distance < 0){
+                if (distance < 0) {
                     distance = 0;
                 }
+
                 bigTint.setAlpha(distance / (float) allAppsContainer.getHeight());
                 sgv.invalidate(); //To "accordian" the icons
                 return false;
@@ -442,11 +461,12 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             @Override
             public void onDragCompleted(boolean dragAccepted, float finalDistance, float finalVelocity) {
                 if (dragAccepted) {
-                    hideDateTime();
+                    if (!hasHiddenClock) hideDateTime();
                 } else {
-                    showDateTime();
+                    if (hasHiddenClock) showDateTime();
                 }
                 toggleAppsContainer(dragAccepted, finalVelocity);
+                hasHiddenClock = false;
             }
         });
 
@@ -460,7 +480,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             elementCount = 7;
         }
 
-        for(int i = 0; i < elementCount; i++){
+        for (int i = 0; i < elementCount; i++) {
             String existingData = reader.getString("dockbarTarget_" + i, "null");
             Gson gson = new Gson();
             try {
@@ -605,7 +625,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         searchBox.setOnFocusChangeListener(new View.OnFocusChangeListener() {
             @Override
             public void onFocusChange(View v, boolean hasFocus) {
-                if(hasFocus){
+                if (hasFocus) {
                     collapseSuggestions();
                 } else {
                     expandSuggestions();
@@ -731,7 +751,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             public void onReceive(Context context, Intent intent) {
                 Utilities.logEvent(Utilities.LogLevel.SYS_BG_TASK, "Package removed and/or changed");
 
-                if(searchBox != null) searchBox.setText("");
+                if (searchBox != null) searchBox.setText("");
                 loadApps();
                 sgv.invalidateCaches();
                 IconCache.getInstance().invalidateCaches();
@@ -745,7 +765,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             public void onReceive(Context context, Intent intent) {
                 Utilities.logEvent(Utilities.LogLevel.SYS_BG_TASK, "A storage medium has been chanegd");
 
-                if(searchBox != null) searchBox.setText("");
+                if (searchBox != null) searchBox.setText("");
                 loadApps();
                 sgv.invalidateCaches();
                 IconCache.getInstance().invalidateCaches();
@@ -800,7 +820,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         Log.d(TAG, "onResume");
 
-        if(reader.getBoolean(Constants.ALLOW_ROTATION_PREF, false)) {
+        if (reader.getBoolean(Constants.ALLOW_ROTATION_PREF, false)) {
             this.setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR);
         }
 
@@ -818,7 +838,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         resetState();
 
-        if(System.currentTimeMillis() - lastPauseTime > 1000L){
+        if (System.currentTimeMillis() - lastPauseTime > 1000L) {
             updateWidgetAvailabilityInfo();
             sgv.onActivityResumed();
             startSuggestionsPopulation();
@@ -826,95 +846,144 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
         //Get the weather
         //TODO: Cache & prevent fetching if it's been an hour
-        if(Utilities.checkPermission(Manifest.permission.ACCESS_FINE_LOCATION, this)){
-            LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
-            Criteria criteria = new Criteria();
-            criteria.setAltitudeRequired(false);
-            criteria.setPowerRequirement(Criteria.POWER_LOW);
-            criteria.setAccuracy(Criteria.ACCURACY_LOW);
-            lm.requestSingleUpdate(criteria, new LocationListener() {
-                @Override
-                public void onLocationChanged(Location location) {
-                    Log.d(TAG, "Got location: " + location);
-                    if(location != null){
-                        Log.d(TAG, location.getLatitude() + "; " + location.getLongitude());
-                    }
+        if (Utilities.checkPermission(Manifest.permission.ACCESS_FINE_LOCATION, this)) {
+            weatherContainer.setVisibility(View.VISIBLE);
 
-                    if(location == null) return;
+            LinearLayout.LayoutParams timeParams = (LinearLayout.LayoutParams) timeImmediateContainer.getLayoutParams();
+            timeParams.weight = 2.7f;
+            timeImmediateContainer.setLayoutParams(timeParams);
 
-                    WeatherApiFactory.getInstance().getWeatherLTS(location.getLatitude(), location.getLongitude()).enqueue(new Callback<LTSForecastModel>() {
-                        @Override
-                        public void onResponse(Call<LTSForecastModel> call, Response<LTSForecastModel> response) {
-                            Log.d(TAG, "Got weather response!");
-                            try {
-                                Pair<Date, LocationModel> conditionEntry = null;
-                                Pair<Date, LocationModel> temperatureEntry = null;
-                                Pair<Date, LocationModel> rangeEntry = null;
+            LinearLayout.LayoutParams weatherParams = (LinearLayout.LayoutParams) weatherContainer.getLayoutParams();
+            weatherParams.weight = 1.3f;
+            weatherContainer.setLayoutParams(weatherParams);
 
-                                LTSForecastModel model = response.body();
-                                for(TimeModel forecast : model.getProduct().getTimeEntries()){
-                                    Log.d(TAG, "Forecast @ " + forecast.getFrom() + " to " + forecast.getTo());
-                                    LocationModel l = forecast.getLocation();
-                                    if(l != null){
-                                        if(l.getMaxTemperature() != null && l.getMinTemperature() != null){
-                                            if(rangeEntry == null || rangeEntry.first.getTime() > forecast.getFrom().getTime()){
-                                                rangeEntry = new Pair<>(forecast.getFrom(), l);
-                                            }
-                                        } else if (l.getTemperature() != null){
-                                            if(temperatureEntry == null || temperatureEntry.first.getTime() > forecast.getFrom().getTime()){
-                                                temperatureEntry = new Pair<>(forecast.getFrom(), l);
-                                            }
-                                        } else if (l.getSymbol() != null){
-                                            if(conditionEntry == null || conditionEntry.first.getTime() > forecast.getFrom().getTime()){
-                                                conditionEntry = new Pair<>(forecast.getFrom(), l);
-                                            }
-                                        }
-                                    }
-                                }
-
-                                //TODO: Cache here (saveWeatherValues(...)/loadWeatherValues(...)).
-                                weatherContainer.setVisibility(View.VISIBLE);
-                                condition.setVisibility(conditionEntry != null ? View.VISIBLE : View.GONE);
-                                if(conditionEntry != null) {
-                                    condition.setImageResource(Utilities.convertConditionToId(conditionEntry.second.getSymbol().getId()));
-                                }
-                                temperature.setVisibility(temperatureEntry != null ? View.VISIBLE : View.GONE);
-                                if(temperatureEntry != null){
-                                    temperature.setText(Utilities.getTempFromValue(temperatureEntry.second.getTemperature().getValue(), HomeActivity.this));
-                                }
-                                highLow.setVisibility(rangeEntry != null ? View.VISIBLE : View.GONE);
-                                if(rangeEntry != null){
-                                    highLow.setText(
-                                            "↑" + Utilities.getTempFromValue(rangeEntry.second.getMaxTemperature().getValue(), HomeActivity.this) +
-                                            "/" +
-                                            "↓" + Utilities.getTempFromValue(rangeEntry.second.getMinTemperature().getValue(), HomeActivity.this));
-                                }
-                            } catch (Exception ignored) {
-                                Log.d(TAG, response.raw().toString());
-                            }
-                        }
-
-                        @Override
-                        public void onFailure(Call<LTSForecastModel> call, Throwable t) {
-                            Log.e(TAG, "Failure fetching weather", t);
-                        }
-                    });
+            long lastWeatherResponseTime = reader.getLong(Constants.CACHED_WEATHER_RESPONSE_TIME_PREFERENCE, -1);
+            if(lastWeatherResponseTime > (System.currentTimeMillis() - (WEATHER_CACHE_DURATION))){
+                try {
+                    Log.d(TAG, "Displaying cached weather...");
+                    displayWeather(LTSForecastModel.deserialize(reader.getString(Constants.CACHED_WEATHER_RESPONSE_JSON_PREFERENCE, null)));
+                } catch (Exception e){
+                    Log.e(TAG, "Error displaying cached weather", e);
+                    refreshWeather();
                 }
-
-                @Override
-                public void onStatusChanged(String provider, int status, Bundle extras) {
-                }
-
-                @Override
-                public void onProviderEnabled(String provider) {
-                }
-
-                @Override
-                public void onProviderDisabled(String provider) {
-                }
-            }, Looper.getMainLooper());
+            } else {
+                Log.d(TAG, "Weather data is stale; refreshing");
+                refreshWeather();
+            }
         } else {
             weatherContainer.setVisibility(View.GONE);
+            LinearLayout.LayoutParams timeParams = (LinearLayout.LayoutParams) timeImmediateContainer.getLayoutParams();
+            timeParams.weight = 4;
+            timeImmediateContainer.setLayoutParams(timeParams);
+
+            LinearLayout.LayoutParams weatherParams = (LinearLayout.LayoutParams) weatherContainer.getLayoutParams();
+            weatherParams.weight = 0;
+            weatherContainer.setLayoutParams(weatherParams);
+        }
+    }
+
+    public void refreshWeather() {
+        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        Criteria criteria = new Criteria();
+        criteria.setAltitudeRequired(false);
+        criteria.setPowerRequirement(Criteria.POWER_LOW);
+        criteria.setAccuracy(Criteria.ACCURACY_LOW);
+
+        //Gdi Android Studio. This is redundant.
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
+                != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+
+        lm.requestSingleUpdate(criteria, new LocationListener() {
+            @Override
+            public void onLocationChanged(Location location) {
+                Log.d(TAG, "Got location: " + location);
+                if (location != null) {
+                    Log.d(TAG, location.getLatitude() + "; " + location.getLongitude());
+                }
+
+                if (location == null) return;
+
+                WeatherApiFactory.getInstance().getWeatherLTS(location.getLatitude(), location.getLongitude()).enqueue(new Callback<LTSForecastModel>() {
+                    @Override
+                    public void onResponse(Call<LTSForecastModel> call, Response<LTSForecastModel> response) {
+                        Log.d(TAG, "Got weather response!");
+                        try {
+                            LTSForecastModel model = response.body();
+                            displayWeather(model);
+
+                            //Cache me if you can
+                            writer.putString(Constants.CACHED_WEATHER_RESPONSE_JSON_PREFERENCE, model.serialize());
+                            writer.putLong(Constants.CACHED_WEATHER_RESPONSE_TIME_PREFERENCE, System.currentTimeMillis());
+                            writer.commit();
+                        } catch (Exception ignored) {
+                            Log.d(TAG, response.raw().toString());
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<LTSForecastModel> call, Throwable t) {
+                        Log.e(TAG, "Failure fetching weather", t);
+                    }
+                });
+            }
+
+            @Override
+            public void onStatusChanged(String provider, int status, Bundle extras) {
+            }
+
+            @Override
+            public void onProviderEnabled(String provider) {
+            }
+
+            @Override
+            public void onProviderDisabled(String provider) {
+            }
+        }, Looper.getMainLooper());
+    }
+
+    private void displayWeather(LTSForecastModel model){
+        Pair<Date, LocationModel> conditionEntry = null;
+        Pair<Date, LocationModel> temperatureEntry = null;
+        Pair<Date, LocationModel> rangeEntry = null;
+
+        for (TimeModel forecast : model.getProduct().getTimeEntries()) {
+            LocationModel l = forecast.getLocation();
+            if (l != null) {
+                if (l.getMaxTemperature() != null && l.getMinTemperature() != null) {
+                    if (rangeEntry == null || rangeEntry.first.getTime() > forecast.getFrom().getTime()) {
+                        rangeEntry = new Pair<>(forecast.getFrom(), l);
+                    }
+                } else if (l.getTemperature() != null) {
+                    if (temperatureEntry == null || temperatureEntry.first.getTime() > forecast.getFrom().getTime()) {
+                        temperatureEntry = new Pair<>(forecast.getFrom(), l);
+                    }
+                } else if (l.getSymbol() != null) {
+                    if (conditionEntry == null || conditionEntry.first.getTime() > forecast.getFrom().getTime()) {
+                        conditionEntry = new Pair<>(forecast.getFrom(), l);
+                    }
+                }
+            }
+        }
+
+        weatherContainer.setVisibility(View.VISIBLE);
+        condition.setVisibility(conditionEntry != null ? View.VISIBLE : View.GONE);
+        if (conditionEntry != null) {
+            condition.setImageResource(Utilities.convertConditionToId(conditionEntry.second.getSymbol().getId()));
+        }
+        temperature.setVisibility(temperatureEntry != null ? View.VISIBLE : View.GONE);
+        if (temperatureEntry != null) {
+            temperature.setText(Utilities.getTempFromValue(temperatureEntry.second.getTemperature().getValue(), HomeActivity.this));
+        }
+        highLow.setVisibility(rangeEntry != null ? View.VISIBLE : View.GONE);
+        if (rangeEntry != null) {
+            highLow.setText(
+                    "↑" + Utilities.getTempFromValue(rangeEntry.second.getMaxTemperature().getValue(), HomeActivity.this) +
+                            "/" +
+                            "↓" + Utilities.getTempFromValue(rangeEntry.second.getMinTemperature().getValue(), HomeActivity.this));
         }
     }
 
@@ -1829,7 +1898,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     @Override
                     public void onPositive(MaterialDialog dialog) {
                         String name = et.getText().toString();
-                        if (name == null || name.length() == 0) {
+                        if (name.length() == 0) {
                             name = "Folder";
                         }
                         if (packageName.equals("null")) {

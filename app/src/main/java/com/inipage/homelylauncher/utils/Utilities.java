@@ -1,16 +1,13 @@
 package com.inipage.homelylauncher.utils;
 
-import android.Manifest;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Color;
-import android.os.*;
 import android.preference.PreferenceManager;
 import android.support.v4.content.ContextCompat;
-import android.support.v4.content.PermissionChecker;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.TypedValue;
@@ -18,7 +15,6 @@ import android.view.MotionEvent;
 import android.view.View;
 
 import com.inipage.homelylauncher.Constants;
-import com.inipage.homelylauncher.HomeActivity;
 import com.inipage.homelylauncher.R;
 
 import java.io.File;
@@ -27,9 +23,7 @@ import java.io.FileOutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.channels.FileChannel;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
-import java.security.Permission;
 
 public class Utilities {
     private static final String TAG = "Utilities";
@@ -225,24 +219,20 @@ public class Utilities {
         return false;
     }
 
-    public static boolean checkMarshmallow() {
-        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M;
-    }
-
     public static boolean checkPermission(String permission, Context context) {
         return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED;
     }
 
-    public static boolean isRunningOutofHeap(){
+    public static boolean isRunningOutOfHeap(){
         return Runtime.getRuntime().freeMemory() < (2 * 1024 * 1024); //2MB
     }
 
-    public static boolean isUsingCelcius(Context context){
+    public static boolean isUsingCelsius(Context context){
         return PreferenceManager.getDefaultSharedPreferences(context).getBoolean(Constants.CELCIUS_PREF, false);
     }
 
     public static String getTempFromValue(float temp, Context context){
-        if(isUsingCelcius(context)){
+        if(isUsingCelsius(context)){
             return String.valueOf(Math.round(temp)) + "°C";
         } else {
             temp = (temp * 9/5) + 32;

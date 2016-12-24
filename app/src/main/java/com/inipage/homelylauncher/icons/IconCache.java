@@ -7,14 +7,8 @@ import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
-import android.graphics.Rect;
-import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.os.AsyncTask;
-import android.os.Environment;
-import android.os.Handler;
-import android.os.Looper;
-import android.os.StrictMode;
 import android.util.Log;
 
 import com.inipage.homelylauncher.ApplicationClass;
@@ -26,7 +20,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * A cache for icons. This is a rewrite of an earlier build of IconCache that was hard to maintain.
@@ -222,7 +215,7 @@ public class IconCache {
                 log("Finding bitmap with free memory of " + (Runtime.getRuntime().freeMemory() / 1024 / 1024) + " MiB");
 
                 //This is worst-case fallback
-                if(Utilities.isRunningOutofHeap()){
+                if(Utilities.isRunningOutOfHeap()){
                     log("Stalling while running out of heap!");
                     System.gc();
                     while(Runtime.getRuntime().freeMemory() / 1024 < 512){

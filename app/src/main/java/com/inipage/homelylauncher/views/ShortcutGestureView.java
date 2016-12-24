@@ -28,7 +28,6 @@ import android.widget.Toast;
 
 import com.inipage.homelylauncher.BuildConfig;
 import com.inipage.homelylauncher.R;
-import com.inipage.homelylauncher.TypeCard;
 import com.inipage.homelylauncher.drawer.ApplicationIcon;
 import com.inipage.homelylauncher.icons.IconCache;
 import com.inipage.homelylauncher.utils.AttributeApplier;
@@ -40,7 +39,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Timer;
 import java.util.TimerTask;
-import java.util.concurrent.RejectedExecutionException;
 
 import static java.lang.Math.*;
 
@@ -49,6 +47,126 @@ public class ShortcutGestureView extends View {
     private static final String TAG = "ShortcutGestureView";
     private static final boolean NEEDLE = true; //For debug purposes
     private static final long WIDGET_HOLD_DURATION = 1200;
+    //endregion
+
+    //region Related classes
+    public static class ShortcutCard {
+        public enum TypeCardType {
+            APP, ROW
+        }
+
+        private String drawablePackage;
+        private String drawableName;
+        private String title;
+        private List<Pair<String, String>> apps;
+        private TypeCardType type;
+
+        public ShortcutCard(String title, String drawableName, List<Pair<String, String>> apps) {
+            this.title = title;
+            this.drawablePackage = getClass().getPackage().getName();
+            this.drawableName = drawableName;
+            this.apps = apps;
+            this.type = TypeCardType.ROW;
+        }
+
+        public ShortcutCard(Pair<String, String> appName){
+            this.title = "";
+            this.drawablePackage = getClass().getPackage().getName();
+            this.drawableName = "ic_launcher";
+            this.apps = new ArrayList<>();
+            this.apps.add(appName);
+            this.type = TypeCardType.APP;
+        }
+
+        public ShortcutCard(String title, String drawablePackage, String drawableName, List<Pair<String, String>> apps) {
+            this.title = title;
+            this.drawablePackage = drawablePackage;
+            this.drawableName = drawableName;
+            this.apps = apps;
+        }
+
+        public String getDrawableName() {
+            return drawableName;
+        }
+
+        public String getDrawablePackage(){
+            return drawablePackage;
+        }
+
+        public void setDrawable(String dRes, String dPkg){
+            this.drawableName = dRes;
+            this.drawablePackage = dPkg;
+        }
+
+        public List<Pair<String, String>> getPackages() {
+            return apps;
+        }
+
+        public String getTitle(){
+            return title;
+        }
+
+        public void setTitle(String title) {
+            this.title = title;
+        }
+
+        public TypeCardType getType(){
+            return this.type;
+        }
+    }
+
+    public static interface ShortcutGestureViewHost {
+        /* Widget management */
+
+        boolean hasWidget(String packageName);
+
+        void showWidget(String packageName);
+
+        void collapseWidgetDrawer();
+
+        /* Folder data management */
+
+        void showCreateFolderDialog(ApplicationIcon ai);
+
+        void persistList(List<ShortcutCard> samples);
+
+        /* Tell us we need to change */
+
+        void invalidateGestureView();
+
+        /* Folder options */
+
+        void showEditFolderDialog(int folderIndex);
+
+        void batchOpen(int folderIndex);
+
+        /* Adjust the host's UI */
+
+        void clearBackgroundTint();
+
+        void setAndAnimateToDarkBackgroundTint();
+
+        void showTopElements();
+
+        void showBottomElements();
+
+        void hideTopElements();
+
+        void hideBottomElements();
+
+        /* Helpful draw information */
+
+        /**
+         * Polling for information about where to draw.
+         *
+         * @return Pair with top in first and bottom in second
+         **/
+        Pair<Float, Float> getBoundsWhenNotFullscreen();
+
+        float getTopMargin();
+
+        float getBottomMargin();
+    }
     //endregion
 
     //region Enums
@@ -156,7 +274,7 @@ public class ShortcutGestureView extends View {
     ShortcutGestureViewHost host;
 
     //Data set used
-    List<TypeCard> data;
+    List<ShortcutCard> data;
 
     //Initial data when you start
     float startX = 0;
@@ -891,7 +1009,7 @@ public class ShortcutGestureView extends View {
             float startY = (float) (top + ((i + 0.5) * spaceForEach) - (previewIconSize / 2));
             float endY = startY + previewIconSize;
 
-            TypeCard card = data.get(i);
+            ShortcutCard card = data.get(i);
             Bitmap icon = IconCache.getInstance().getForeignResource(card.getDrawablePackage(), card.getDrawableName(), IconCache.IconFetchPriority.SWIPE_FOLDER_ICONS, (int) bigIconSize, retrievalInterface);
 
             scratchRectF.set(startX, startY, endX, endY);
@@ -1734,7 +1852,7 @@ public class ShortcutGestureView extends View {
         log("resetState() finished", false);
     }
 
-    private void preloadCard(TypeCard card){
+    private void preloadCard(ShortcutCard card){
         IconCache.getInstance().getForeignResource(card.getDrawablePackage(), card.getDrawableName(), IconCache.IconFetchPriority.SWIPE_FOLDER_ICONS, (int) bigIconSize, retrievalInterface);
         for(Pair<String, String> icon : card.getPackages()){
             IconCache.getInstance().getAppIcon(icon.first, icon.second, IconCache.IconFetchPriority.SWIPE_APP_ICONS, (int) bigIconSize, retrievalInterface);
@@ -1745,7 +1863,7 @@ public class ShortcutGestureView extends View {
         if(data == null) return;
 
         //Grab all the icons for folder icons + app icons
-        for(TypeCard card : data){
+        for(ShortcutCard card : data){
             preloadCard(card);
         }
 
@@ -1755,7 +1873,7 @@ public class ShortcutGestureView extends View {
         IconCache.getInstance().getLocalResource(R.drawable.ic_clear_white_48dp, IconCache.IconFetchPriority.BUILT_IN_ICONS, (int) bigIconSize, retrievalInterface);
     }
 
-    public void setCards(List<TypeCard> cards){
+    public void setCards(List<ShortcutCard> cards){
         this.data = cards;
         preCache();
     }

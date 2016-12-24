@@ -8,16 +8,16 @@ import android.widget.ArrayAdapter;
 import android.widget.TextView;
 
 import com.inipage.homelylauncher.R;
-import com.inipage.homelylauncher.TypeCard;
+import com.inipage.homelylauncher.views.ShortcutGestureView;
 import com.mobeta.android.dslv.DragSortListView;
 
 import java.util.List;
 
-public class RowEditAdapter extends ArrayAdapter<TypeCard> implements
+public class RowEditAdapter extends ArrayAdapter<ShortcutGestureView.ShortcutCard> implements
         DragSortListView.DragListener, DragSortListView.DropListener {
-    List<TypeCard> objects;
+    List<ShortcutGestureView.ShortcutCard> objects;
 
-    public RowEditAdapter(Context context, int resource, List<TypeCard> objects) {
+    public RowEditAdapter(Context context, int resource, List<ShortcutGestureView.ShortcutCard> objects) {
         super(context, resource, objects);
         this.objects = objects;
     }
@@ -45,7 +45,7 @@ public class RowEditAdapter extends ArrayAdapter<TypeCard> implements
     @Override
     public void drop(int from, int to) {
         //Edit underlying data set
-        TypeCard element = getItem(from);
+        ShortcutGestureView.ShortcutCard element = getItem(from);
         objects.remove(element);
         objects.add(to, element);
         notifyDataSetChanged();

@@ -16,7 +16,6 @@ import android.widget.Toast;
 
 import com.inipage.homelylauncher.R;
 import com.inipage.homelylauncher.views.ShortcutGestureView;
-import com.inipage.homelylauncher.views.ShortcutGestureViewHost;
 import com.mobeta.android.dslv.DragSortListView;
 
 import java.util.List;
@@ -112,8 +111,8 @@ public class AppEditAdapter extends ArrayAdapter<Pair<String, String>> implement
     }
 
     private void redrawGestureView(){
-        if(getContext() instanceof ShortcutGestureViewHost){
-            ((ShortcutGestureViewHost) getContext()).invalidateGestureView();
+        if(getContext() instanceof ShortcutGestureView.ShortcutGestureViewHost){
+            ((ShortcutGestureView.ShortcutGestureViewHost) getContext()).invalidateGestureView();
         }
     }
 }

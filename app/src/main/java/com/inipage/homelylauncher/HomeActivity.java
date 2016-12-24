@@ -64,6 +64,7 @@ import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.AbsListView;
@@ -93,18 +94,14 @@ import com.inipage.homelylauncher.icons.IconChooserActivity;
 import com.inipage.homelylauncher.swiper.AppEditAdapter;
 import com.inipage.homelylauncher.swiper.RowEditAdapter;
 import com.inipage.homelylauncher.utils.Utilities;
-import com.inipage.homelylauncher.views.DockElement;
 import com.inipage.homelylauncher.views.DockView;
-import com.inipage.homelylauncher.views.DockViewHost;
 import com.inipage.homelylauncher.views.DragToOpenView;
 import com.inipage.homelylauncher.views.PushoverRelativeLayout;
 import com.inipage.homelylauncher.views.ShortcutGestureView;
-import com.inipage.homelylauncher.views.ShortcutGestureViewHost;
 import com.inipage.homelylauncher.weather.model.LTSForecastModel;
 import com.inipage.homelylauncher.weather.WeatherApiFactory;
 import com.inipage.homelylauncher.weather.model.LocationModel;
 import com.inipage.homelylauncher.weather.model.TimeModel;
-import com.inipage.homelylauncher.widgets.WidgetAddAdapter;
 import com.mobeta.android.dslv.DragSortListView;
 
 import org.apache.commons.collections4.trie.PatriciaTrie;
@@ -133,7 +130,7 @@ import retrofit2.Callback;
 import retrofit2.Response;
 
 @SuppressWarnings("unchecked")
-public class HomeActivity extends Activity implements ShortcutGestureViewHost {
+public class HomeActivity extends Activity implements ShortcutGestureView.ShortcutGestureViewHost {
     //region Constants
     public static final String TAG = "HomeActivity";
 
@@ -311,7 +308,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
 
     Configuration previousConfiguration;
 
-    List<TypeCard> samples;
+    List<ShortcutGestureView.ShortcutCard> samples;
     List<Pair<String, Integer>> smartApps;
     List<Pair<String, String>> hiddenApps;
 
@@ -470,7 +467,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             }
         });
 
-        List<DockElement> de = new ArrayList<>();
+        List<DockView.DockElement> de = new ArrayList<>();
         int elementCount;
         if (size == ScreenSize.PHONE) {
             Log.d(TAG, "Is phone");
@@ -489,14 +486,14 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 String label = getPackageManager().getActivityInfo(cn, 0).loadLabel(getPackageManager()).toString();
 
                 dockbarTargetsMap.put(i, ai);
-                de.add(new DockElement(cn, label, i));
+                de.add(new DockView.DockElement(cn, label, i));
             } catch (Exception fail) {
             }
         }
 
-        dockView.init(elementCount, de, new DockViewHost() {
+        dockView.init(elementCount, de, new DockView.DockViewHost() {
             @Override
-            public void onElementRemoved(DockElement oldElement, int index) {
+            public void onElementRemoved(DockView.DockElement oldElement, int index) {
                 Log.d(TAG, "Clearing dock element at " + index);
                 dockbarTargetsMap.remove(index);
                 writer.putString(" dockbarTarget_" + index, "null").apply();
@@ -505,7 +502,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
             }
 
             @Override
-            public void onElementReplaced(DockElement oldElement, DockElement newElement, int index) {
+            public void onElementReplaced(DockView.DockElement oldElement, DockView.DockElement newElement, int index) {
                 final ApplicationIcon ai = new ApplicationIcon(newElement.getActivity().getPackageName(), newElement.getTitle(), newElement.getActivity().getClassName());
                 Gson gson = new Gson();
                 String repl = gson.toJson(ai);
@@ -723,17 +720,13 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
         //Check if we've run before
         if (!reader.getBoolean(Constants.HAS_RUN_PREFERENCE, false)) {
             writer.putInt(Constants.VERSION_PREF, Constants.Versions.CURRENT_VERSION).apply();
-            sgv.setCards(new ArrayList<TypeCard>());
+            sgv.setCards(new ArrayList<ShortcutGestureView.ShortcutCard>());
 
             showTutorial();
         } else {
             //Do version upgrades
             int lastUsedVersion = reader.getInt(Constants.VERSION_PREF, Constants.Versions.VERSION_0_2_3);
             switch (lastUsedVersion) {
-                case Constants.Versions.VERSION_0_2_3:
-                    writer.putBoolean(Constants.HOME_WIDGET_PREFERENCE, false).commit();
-                    writer.putInt(Constants.HOME_WIDGET_ID_PREFERENCE, -1).commit();
-                    break;
             }
 
             if (lastUsedVersion != Constants.Versions.CURRENT_VERSION) {
@@ -1816,7 +1809,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                     if (data.startsWith("<!--APPTYPE-->")) { //This is just one app, not a full row
                         String appName = data.replace("<!--APPTYPE-->", "");
                         String[] split = appName.split("\\|");
-                        TypeCard tc = new TypeCard(new Pair<>(split[0], split[1]));
+                        ShortcutGestureView.ShortcutCard tc = new ShortcutGestureView.ShortcutCard(new Pair<>(split[0], split[1]));
                         samples.add(tc);
                     } else { //A full row type (this is the default)
                         List<Pair<String, String>> paPairs = new ArrayList<>();
@@ -1826,7 +1819,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                             String[] packAndAct = pairs[i].split("\\|");
                             paPairs.add(new Pair<>(packAndAct[0], packAndAct[1]));
                         }
-                        TypeCard tc = new TypeCard(title, graphicPackage, graphic, paPairs);
+                        ShortcutGestureView.ShortcutCard tc = new ShortcutGestureView.ShortcutCard(title, graphicPackage, graphic, paPairs);
                         samples.add(tc);
                     }
                     loadItems.moveToNext();
@@ -1845,7 +1838,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
      *
      * @param cards Cards to save.
      */
-    public void persistList(List<TypeCard> cards) {
+    public void persistList(List<ShortcutGestureView.ShortcutCard> cards) {
         Log.d(TAG, "Persisting at most " + cards.size() + " cards");
         db.delete(DatabaseHelper.TABLE_ROWS, null, null);
         for (int i = 0; i < cards.size(); i++) {
@@ -1907,7 +1900,7 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                         }
                         List<Pair<String, String>> apps = new ArrayList<Pair<String, String>>();
                         apps.add(new Pair<>(ai.getPackageName(), ai.getActivityName()));
-                        samples.add(new TypeCard(name, packageName, resourceName, apps));
+                        samples.add(new ShortcutGestureView.ShortcutCard(name, packageName, resourceName, apps));
                         persistList(samples);
                         sgv.invalidate();
                         dialog.dismiss();
@@ -2971,5 +2964,96 @@ public class HomeActivity extends Activity implements ShortcutGestureViewHost {
                 }
             }
         });
+    }
+
+    public static class WidgetAddAdapter extends RecyclerView.Adapter<WidgetAddAdapter.WidgetAddVH> {
+        private Context context;
+        private List<AppWidgetProviderInfo> objects;
+        private OnWidgetClickListener listener;
+
+        public interface OnWidgetClickListener {
+            void onClick(AppWidgetProviderInfo awpi);
+        }
+
+        public class WidgetAddVH extends RecyclerView.ViewHolder {
+            private LinearLayout mainLayout;
+            private TextView widgetName;
+            private ImageView widgetPreview;
+
+            public WidgetAddVH(View itemView) {
+                super(itemView);
+                mainLayout = (LinearLayout) itemView;
+                widgetName = (TextView) mainLayout.findViewById(R.id.widgetPreviewText);
+                widgetPreview = (ImageView) mainLayout.findViewById(R.id.widgetPreviewImage);
+            }
+        }
+
+        @Override
+        public WidgetAddVH onCreateViewHolder(ViewGroup parent, int viewType) {
+            return new WidgetAddVH(LayoutInflater.from(parent.getContext()).inflate(R.layout.widget_preview, parent, false));
+        }
+
+        @Override
+        public int getItemCount() {
+            return objects.size();
+        }
+
+        @Override
+        public void onBindViewHolder(WidgetAddVH holder, int position) {
+            final AppWidgetProviderInfo awpi = objects.get(position);
+            if(awpi != null){
+                holder.widgetName.setText(awpi.label);
+
+                //Do this in an AsyncTask() to avoid slowing stuff down needlessly
+                Drawable preview = null;
+                holder.widgetPreview.setImageDrawable(null); //Clear slate
+                holder.widgetPreview.setTag(awpi); //We check at the end of the AsyncTask to ensure validity
+                setImageAsync(awpi, holder.widgetPreview);
+
+                holder.mainLayout.setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View view) {
+                        if(listener != null) listener.onClick(awpi);
+                    }
+                });
+            }
+        }
+
+        public WidgetAddAdapter(List<AppWidgetProviderInfo> objects, Context context){
+            this.objects = objects;
+            this.context = context;
+        }
+
+        private void setImageAsync(final AppWidgetProviderInfo awpi, final ImageView iv){
+            new AsyncTask<PackageManager, Void, Drawable>(){
+                @Override
+                protected Drawable doInBackground(PackageManager... params) {
+                    Drawable preview = null;
+                    try {
+                        if(awpi.previewImage != 0) {
+                            preview = params[0].getDrawable(awpi.provider.getPackageName(),
+                                    awpi.previewImage, null);
+                        } else {
+                            preview = params[0].getApplicationIcon(awpi.provider.getPackageName());
+                        }
+                    } catch (Exception e) {
+                        preview = context.getResources().getDrawable(android.R.drawable.sym_def_app_icon);
+                    }
+                    return preview;
+                }
+
+                @Override
+                protected void onPostExecute(Drawable d){
+                    AppWidgetProviderInfo tag = (AppWidgetProviderInfo) iv.getTag();
+                    if(tag != null && tag.equals(awpi) && d != null){
+                        iv.setImageDrawable(d);
+                    }
+                }
+            }.execute(context.getPackageManager());
+        }
+
+        public void setOnClickListener(OnWidgetClickListener listener) {
+            this.listener = listener;
+        }
     }
 }

@@ -995,6 +995,7 @@ public class ShortcutGestureView extends View {
         float top = bounds.first;
         float bottom = bounds.second;
         float space = bottom - top - (previewIconPadding * 2);
+        float horizontalSpace = getWidth();
 
         if(space < 0) return; //Low-res display..? WEIRD.
 
@@ -1002,7 +1003,13 @@ public class ShortcutGestureView extends View {
         float startX = (getWidth() / 2) - (previewIconSize / 2);
         float endX = startX + previewIconSize;
 
-        transparencyPaint.setAlpha(180);
+        float UPPER_RATIO_THRESHOLD = 1.f;
+        float LOWER_RATIO_THRESHOLD = 10.f;
+        float ratioOfSizes = horizontalSpace / space;
+        if(ratioOfSizes > LOWER_RATIO_THRESHOLD) ratioOfSizes = LOWER_RATIO_THRESHOLD;
+        if(ratioOfSizes < UPPER_RATIO_THRESHOLD) ratioOfSizes = UPPER_RATIO_THRESHOLD;
+        transparencyPaint.setAlpha((int)
+                ( 200 - (200 * ((ratioOfSizes - UPPER_RATIO_THRESHOLD) / (LOWER_RATIO_THRESHOLD - UPPER_RATIO_THRESHOLD)))));
 
         //Draw each folder icon with 1/2 opacity and a size of 10dp x 10dp in the center of the screen
         for(int i = 0; i < data.size(); i++){
@@ -1015,10 +1022,6 @@ public class ShortcutGestureView extends View {
             scratchRectF.set(startX, startY, endX, endY);
             canvas.drawBitmap(icon, null, scratchRectF, transparencyPaint);
         }
-    }
-
-    private void drawSuggestion(){
-
     }
 
     private void drawAddIcon(Canvas canvas) {

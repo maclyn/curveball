@@ -322,6 +322,7 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
      * lets us know when we intentionally raise a child dialog of depth two, so as not to trigger
      * the onDismiss(...) showing of a depth 1 dialog from a child dialog of depth 2. Yes,
      * this is a gimmicky hack until we have better dialog management.
+     * OH GOD THE ABJECT HORROR. ARRRGHGHG. `
      */
     boolean depthThreeDialogRaised = false;
 
@@ -335,7 +336,7 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        Log.d(TAG, "onCreate");
+        Log.d(TAG, "onCreate Home");
         Utilities.logEvent(Utilities.LogLevel.STATE_CHANGE, "onCreate HomeActivity");
 
         setContentView(R.layout.activity_home);
@@ -419,7 +420,6 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
         //Set up dockbar apps
         dockBar.setOnDragToOpenListener(new DragToOpenView.OnDragToOpenListener() {
             boolean hasHiddenClock = false;
-
 
             @Override
             public void onDragStarted() {
@@ -632,22 +632,63 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
 
         //Set drag type of dockbar
         appDropLayout.setOnDragListener(new View.OnDragListener() {
+            long startToDockDrag = -1L;
+
             @Override
             public boolean onDrag(View v, DragEvent event) {
                 switch (event.getAction()) {
                     case DragEvent.ACTION_DRAG_ENTERED:
                         return true;
                     case DragEvent.ACTION_DRAG_EXITED:
+                        uninstallApp.setBackgroundResource(0);
+                        addToDock.setBackgroundResource(0);
+                        appInfo.setBackgroundResource(0);
                         return true;
                     case DragEvent.ACTION_DRAG_LOCATION:
                         if (event.getLocalState() == null || !(event.getLocalState() instanceof ApplicationIcon))
                             return false;
+                        if(allAppsContainer.getTranslationY() != getAbsoluteBottom()) return false;
 
                         double sw = getResources().getDisplayMetrics().widthPixels;
                         double prog = event.getX() / sw;
 
-                        if (prog >= (2d / 3d) && allAppsContainer.getTranslationY() == getAbsoluteBottom()) {
-                            showDockApps();
+                        if (prog <= (1d / 3d)) { //Uninstall
+                            startToDockDrag = -1L;
+
+                            uninstallApp.setBackgroundResource(R.drawable.uninstall_selected_bg);
+                            addToDock.setBackgroundResource(0);
+                            appInfo.setBackgroundResource(0);
+                        } else if (prog <= (2d / 3d)) { //App info
+                            startToDockDrag = -1L;
+
+                            uninstallApp.setBackgroundResource(0);
+                            addToDock.setBackgroundResource(0);
+                            appInfo.setBackgroundResource(R.drawable.app_info_selected_bg);
+                        } else { //To dock
+                            //Wait 500ms before doing this to avoid accidents
+                            if(startToDockDrag == -1L){
+                                startToDockDrag = System.currentTimeMillis();
+                                timer.schedule(new TimerTask() {
+                                    @Override
+                                    public void run() {
+                                        if(startToDockDrag != -1L){
+                                            runOnUiThread(new Runnable() {
+                                                @Override
+                                                public void run() {
+                                                    showDockApps();
+                                                }
+                                            });
+                                            startToDockDrag = -1L;
+                                        }
+                                    }
+                                }, 500L);
+                            } else { //Do nothing, Mr. Timer will trigger the change if it's needed
+                            }
+
+
+                            uninstallApp.setBackgroundResource(0);
+                            addToDock.setBackgroundResource(R.drawable.to_dock_selected_bg);
+                            appInfo.setBackgroundResource(0);
                             return true;
                         }
                         return false;
@@ -655,11 +696,14 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                         if (event.getLocalState() == null || !(event.getLocalState() instanceof ApplicationIcon))
                             return false;
 
+                        uninstallApp.setBackgroundResource(0);
+                        addToDock.setBackgroundResource(0);
+                        appInfo.setBackgroundResource(0);
+
                         double screenWidth = getResources().getDisplayMetrics().widthPixels;
                         double progress = event.getX() / screenWidth;
 
                         if (progress <= (1d / 3d)) {
-
                             ApplicationIcon ai = (ApplicationIcon) event.getLocalState();
                             try {
                                 Uri uri = Uri.parse("package:" + ai.getPackageName());
@@ -1219,7 +1263,7 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
             } else {
                 duration = 500;
             }
-
+            if(duration < 0) duration = 0;
 
             ObjectAnimator oa = ObjectAnimator.ofFloat(allAppsContainer, "translationY", getAbsoluteTop());
             oa.setDuration(duration);

@@ -668,10 +668,11 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                             //Wait 500ms before doing this to avoid accidents
                             if(startToDockDrag == -1L){
                                 startToDockDrag = System.currentTimeMillis();
+                                final long startCheck = startToDockDrag;
                                 timer.schedule(new TimerTask() {
                                     @Override
                                     public void run() {
-                                        if(startToDockDrag != -1L){
+                                        if(startToDockDrag != -1L && startToDockDrag == startCheck){
                                             runOnUiThread(new Runnable() {
                                                 @Override
                                                 public void run() {

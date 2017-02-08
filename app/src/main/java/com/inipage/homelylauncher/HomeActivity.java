@@ -48,6 +48,7 @@ import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.provider.CalendarContract;
 import android.provider.Settings;
+import android.support.design.widget.CoordinatorLayout;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.support.v7.widget.GridLayoutManager;
@@ -1233,15 +1234,20 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
         //Do the popup for usage requests if needed
         if (visible && !reader.getBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, false)) {
             try {
-                @SuppressWarnings("ResourceType")
+                if(Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) throw new RuntimeException("Hi Edmund");
+
                 final UsageStatsManager usm = (UsageStatsManager) HomeActivity.this.getSystemService("usagestats");
 
                 long end = 0L;
                 long start = System.currentTimeMillis();
 
-                UsageEvents use = usm.queryEvents(start, end);
-                UsageEvents.Event event = new UsageEvents.Event();
-                if (use.hasNextEvent() && use.getNextEvent(event)) {
+                UsageEvents use = null;
+                UsageEvents.Event event = null;
+                if(usm != null) {
+                    use = usm.queryEvents(start, end);
+                    event = new UsageEvents.Event();
+                }
+                if (usm != null && use.hasNextEvent() && use.getNextEvent(event)) {
                     Log.d(TAG, "Found usage events...");
                 } else {
                     showUsageMessage(); //We assume this means a problem..?
@@ -1513,8 +1519,20 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
         }
     }
 
+    private void hideSuggestionsBox(){
+        suggestionsRootView.setVisibility(View.GONE);
+        RelativeLayout.LayoutParams dockBarParams = (RelativeLayout.LayoutParams) dockBar.getLayoutParams();
+        dockBarParams.height = (int) Utilities.convertDpToPixel(64, this);
+        dockBar.setLayoutParams(dockBarParams);
+    }
+
     List<SuggestionApp> suggestions = new ArrayList<>();
     private void populateSuggestions() {
+        if(Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP){
+            hideSuggestionsBox();
+            return;
+        }
+
         //Clean up
         suggestionsLayout.removeAllViews();
 
@@ -2723,6 +2741,11 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
     }
 
     private void showUsageMessage() {
+        if(Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP){
+            hideSuggestionsBox();
+            return;
+        }
+
         writer.putBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, true).commit();
         new MaterialDialog.Builder(this)
                 .title(R.string.enable_usage_viewing)
@@ -2924,22 +2947,24 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
 
                     //Check if there's an alarm set
                     AlarmManager am = (AlarmManager) getSystemService(ALARM_SERVICE);
-                    final AlarmManager.AlarmClockInfo aci = am.getNextAlarmClock();
+                    if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                        final AlarmManager.AlarmClockInfo aci = am.getNextAlarmClock();
 
-                    if (aci != null && (aci.getTriggerTime() - System.currentTimeMillis() < ONE_DAY_MILLIS)) {
-                        alarm.setVisibility(View.VISIBLE);
-                        alarm.setText(getString(R.string.next_alarm_at, alarmTime.format(new Date(aci.getTriggerTime()))));
-                        alarm.setOnClickListener(new View.OnClickListener() {
-                            @Override
-                            public void onClick(View v) {
-                                try {
-                                    aci.getShowIntent().send();
-                                } catch (Exception ignored) {
+                        if (aci != null && (aci.getTriggerTime() - System.currentTimeMillis() < ONE_DAY_MILLIS)) {
+                            alarm.setVisibility(View.VISIBLE);
+                            alarm.setText(getString(R.string.next_alarm_at, alarmTime.format(new Date(aci.getTriggerTime()))));
+                            alarm.setOnClickListener(new View.OnClickListener() {
+                                @Override
+                                public void onClick(View v) {
+                                    try {
+                                        aci.getShowIntent().send();
+                                    } catch (Exception ignored) {
+                                    }
                                 }
-                            }
-                        });
-                    } else {
-                        alarm.setVisibility(View.GONE);
+                            });
+                        } else {
+                            alarm.setVisibility(View.GONE);
+                        }
                     }
                 }
             }

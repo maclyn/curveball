@@ -237,12 +237,12 @@ public class IconCache {
                         d = pm.getApplicationIcon(task.getPackageName());
                         break;
                     case PACKAGE_LOCAL_RESOURCE:
-                        d = baseResources.getDrawable(task.getResourceId(), null);
+                        d = baseResources.getDrawable(task.getResourceId());
                         break;
                     case PACKAGE_FOREIGN_RESOURCE:
                         Resources res = pm.getResourcesForApplication(task.getPackageName());
                         int resourceId = res.getIdentifier(task.getResourceName(), "drawable", task.getPackageName());
-                        d = res.getDrawable(resourceId, null);
+                        d = res.getDrawable(resourceId);
                         break;
                     default:
                         return null;

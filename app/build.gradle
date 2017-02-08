@@ -16,10 +16,10 @@ android {
 
     defaultConfig {
         applicationId "com.inipage.homelylauncher"
-        minSdkVersion 21
+        minSdkVersion 19
         targetSdkVersion 25
         versionCode 9
-        versionName "0.3.1"
+        versionName "0.3.2"
     }
 
     buildTypes {

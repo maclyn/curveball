@@ -187,4 +187,9 @@
     <string name="title_activity_onboarding">Welcome</string>
     <string name="section_format">Hello World from section: %1$d</string>
     <string name="manually_refreshing_weather">Refreshing weather forecast</string>
+    <string name="loading_curveball">Loading Curveball</string>
+    <string name="starting_up">Starting up...</string>
+    <string name="progress_step_loading_app_icons">(1/4) Loading app icons</string>
+    <string name="progress_step_loading_sgv_icons">(2/4) Loading shortcut icons...</string>
+    <string name="progress_step_loading_dock_icons">(3/4) Loading dock icons...</string>
 </resources>

@@ -783,6 +783,7 @@ public class ShortcutGestureView extends View {
     @Override
     protected synchronized void onDraw(Canvas canvas) {
         if(isInEditMode()) return;
+        if(host == null) return; //Can't do anything yet -- host is set when the host is ready!
 
         switch(cm) {
             case ADDING_ICON:
@@ -1862,23 +1863,8 @@ public class ShortcutGestureView extends View {
         }
     }
 
-    private void preCache(){
-        if(data == null) return;
-
-        //Grab all the icons for folder icons + app icons
-        for(ShortcutCard card : data){
-            preloadCard(card);
-        }
-
-        //Grab the icons we get from internal sources
-        IconCache.getInstance().getLocalResource(R.drawable.ic_add_circle_outline_white_48dp, IconCache.IconFetchPriority.BUILT_IN_ICONS, (int) bigIconSize, retrievalInterface);
-        IconCache.getInstance().getLocalResource(R.drawable.ic_info_white_48dp, IconCache.IconFetchPriority.BUILT_IN_ICONS, (int) bigIconSize, retrievalInterface);
-        IconCache.getInstance().getLocalResource(R.drawable.ic_clear_white_48dp, IconCache.IconFetchPriority.BUILT_IN_ICONS, (int) bigIconSize, retrievalInterface);
-    }
-
     public void setCards(List<ShortcutCard> cards){
         this.data = cards;
-        preCache();
     }
 
     private void log(String text, boolean hasFocus){

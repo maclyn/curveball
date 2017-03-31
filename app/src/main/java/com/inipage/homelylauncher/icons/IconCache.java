@@ -26,7 +26,7 @@ import java.util.concurrent.RejectedExecutionException;
  */
 public class IconCache {
     private static final String TAG = "IconCache";
-    private static final boolean QUIET = false; //IconCache can make our logs noisy
+    private static final boolean QUIET = true; //IconCache can make our logs noisy
 
     public enum IconFetchPriority {
         /** Needs to get done ASAP (e.g. dock icons on start). **/

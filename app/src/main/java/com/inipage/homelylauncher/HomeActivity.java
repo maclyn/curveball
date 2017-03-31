@@ -7,6 +7,7 @@ import android.animation.ValueAnimator;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.AlarmManager;
+import android.app.ProgressDialog;
 import android.app.usage.UsageEvents;
 import android.app.usage.UsageStats;
 import android.app.usage.UsageStatsManager;
@@ -48,9 +49,9 @@ import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.provider.CalendarContract;
 import android.provider.Settings;
-import android.support.design.widget.CoordinatorLayout;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -122,6 +123,7 @@ import java.util.Set;
 import java.util.TimeZone;
 import java.util.Timer;
 import java.util.TimerTask;
+import java.util.Vector;
 
 import butterknife.Bind;
 import butterknife.ButterKnife;
@@ -155,6 +157,9 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
     //endregion
 
     //region Fields
+    //Init state (basically, don't resume(...) until we've init'd fully
+    boolean hasInited = false;
+
     //Dock states
     ScreenSize size;
 
@@ -341,10 +346,8 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
         Utilities.logEvent(Utilities.LogLevel.STATE_CHANGE, "onCreate HomeActivity");
 
         setContentView(R.layout.activity_home);
-        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
-
         ButterKnife.bind(this);
-
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
         if (Utilities.isSmallTablet(this)) {
             size = ScreenSize.SMALL_TABLET;
         } else if (Utilities.isLargeTablet(this)) {
@@ -352,8 +355,6 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
         } else {
             size = ScreenSize.PHONE;
         }
-
-        bigTint.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
 
         widgetManager = AppWidgetManager.getInstance(this);
         widgetHost = new AppWidgetHost(this, HOST_ID);
@@ -373,6 +374,162 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
 
         previousConfiguration = getResources().getConfiguration();
 
+        samples = new ArrayList<>();
+        smartApps = new ArrayList<>();
+        hiddenApps = new ArrayList<>();
+        loadList();
+        loadHiddenApps();
+        loadSmartApps();
+
+        dockElements = new ArrayList<>();
+        int elementCount;
+        if (size == ScreenSize.PHONE) {
+            Log.d(TAG, "Is phone");
+            elementCount = 5;
+        } else { //Two extra spots for tablets
+            Log.d(TAG, "Is tablet");
+            elementCount = 7;
+        }
+
+        for (int i = 0; i < elementCount; i++) {
+            String existingData = reader.getString("dockbarTarget_" + i, "null");
+            Gson gson = new Gson();
+            try {
+                ApplicationIcon ai = gson.fromJson(existingData, ApplicationIcon.class);
+                ComponentName cn = new ComponentName(ai.getPackageName(), ai.getActivityName());
+                String label = getPackageManager().getActivityInfo(cn, 0).loadLabel(getPackageManager()).toString();
+
+                dockElements.add(new DockView.DockElement(cn, label, i));
+            } catch (Exception ignored) {
+            }
+        }
+
+        performPreload();
+    }
+
+    /**
+     * Preload resources we can expect to need. The idea behind this step is that, instead of
+     * loading sometimes 100s of icons all at the same time (lots of callbacks existing at once --
+     * ouch), we can do it synchronously and optimize.
+     */
+    private void performPreload() {
+        ProgressDialog loadProgressDialog = ProgressDialog.show(this,
+                getString(R.string.loading_curveball),
+                getString(R.string.starting_up),
+                true,
+                false);
+
+        new AsyncTask<ProgressDialog, String, Void>(){
+            ProgressDialog pd;
+
+            class LocalItemRetrievalInterface implements IconCache.ItemRetrievalInterface {
+                boolean isDone = false;
+
+                boolean isDone(){
+                    return isDone;
+                }
+
+                void taskQueued(){
+                    isDone = true;
+                }
+
+                @Override
+                public void onRetrievalComplete(Bitmap result) {
+                    isDone = true;
+                }
+            }
+
+
+            @Override
+            protected Void doInBackground(ProgressDialog... params) {
+                pd = params[0];
+
+                LocalItemRetrievalInterface worker = new LocalItemRetrievalInterface();
+
+                //Why is there some code duplication from loadApps(...), etc.?
+                //We just want temporary data here to ask the IconCache to perform synchronous loads -- some of these methods are way faster here
+
+                //(1) Load icons for apps
+                publishProgress(getString(R.string.progress_step_loading_app_icons));
+                PackageManager pm = getPackageManager();
+                int appIconSize = (int) Utilities.convertDpToPixel(48f, HomeActivity.this);
+                final Intent allAppsIntent = new Intent(Intent.ACTION_MAIN, null);
+                allAppsIntent.addCategory(Intent.CATEGORY_LAUNCHER);
+                final List<ResolveInfo> packageList = pm.queryIntentActivities(allAppsIntent, 0);
+                for (ResolveInfo ri : packageList) {
+                    try {
+                        worker.taskQueued();
+                        IconCache.getInstance().getAppIcon(ri.activityInfo.packageName,
+                                ri.activityInfo.name, IconCache.IconFetchPriority.APP_DRAWER_ICONS,
+                                appIconSize, worker);
+                        while(!worker.isDone()) {} //Spin until done
+                    } catch (Exception ignored) {}
+                }
+
+                //(2) Load icons for SGV
+                publishProgress(getString(R.string.progress_step_loading_sgv_icons));
+                int sgvIconSize = (int) Utilities.convertDpToPixel(60f, HomeActivity.this); //TODO: Use getDimen(...)
+                for(ShortcutGestureView.ShortcutCard card : samples){
+                    worker.taskQueued();
+                    IconCache.getInstance().getForeignResource(card.getDrawablePackage(),
+                            card.getDrawableName(),
+                            IconCache.IconFetchPriority.SWIPE_FOLDER_ICONS,
+                            sgvIconSize,
+                            worker);
+                    while(!worker.isDone()) {} //Spin until done
+                }
+
+                worker.taskQueued();
+                IconCache.getInstance().getLocalResource(R.drawable.ic_add_circle_outline_white_48dp,
+                        IconCache.IconFetchPriority.BUILT_IN_ICONS, sgvIconSize, worker);
+                while(!worker.isDone()) {}
+                worker.taskQueued();
+                IconCache.getInstance().getLocalResource(R.drawable.ic_info_white_48dp,
+                        IconCache.IconFetchPriority.BUILT_IN_ICONS, sgvIconSize, worker);
+                while(!worker.isDone()) {}
+                worker.taskQueued();
+                IconCache.getInstance().getLocalResource(R.drawable.ic_clear_white_48dp,
+                        IconCache.IconFetchPriority.BUILT_IN_ICONS, sgvIconSize, worker);
+                while(!worker.isDone()) {}
+
+                //(3) Load icons for the dock
+                int dockIconSize = (int) Utilities.convertDpToPixel(64f, HomeActivity.this);
+                publishProgress(getString(R.string.progress_step_loading_dock_icons));
+                for(DockView.DockElement dockElement : dockElements){
+                    worker.taskQueued();
+                    IconCache.getInstance().getAppIcon(
+                            dockElement.getActivity().getPackageName(),
+                            dockElement.getActivity().getClassName(),
+                            IconCache.IconFetchPriority.DOCK_ICONS,
+                            dockIconSize,
+                            worker);
+                    while(!worker.isDone()) {}
+                }
+
+                //(4) Calculate colors for the SGV
+                //TODO: Get to this in time; it involves adding something to IconCache (since colors are cached outside of it!)
+
+                return null;
+            }
+
+            @Override
+            protected void onProgressUpdate(String... values) {
+                pd.setMessage(values[0]);
+            }
+
+            @Override
+            protected void onPostExecute(Void aVoid) {
+                pd.dismiss();
+                lateStageInit();
+            }
+        }.execute(loadProgressDialog);
+    }
+
+    /**
+     * Handles initialization/setup of UI elements. Deferred until the IconCache has been "warmed",
+     * among other long-running setup operations performed from {@linkplain Activity#onCreate(Bundle)}.
+     */
+    private void lateStageInit(){
         regularTypeface = Typeface.createFromAsset(this.getAssets(), "Roboto-Regular.ttf");
         lightTypeface = Typeface.createFromAsset(this.getAssets(), "Roboto-Light.ttf");
 
@@ -381,6 +538,7 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
         alarm.setTypeface(lightTypeface);
         date.setAllCaps(true);
         alarm.setAllCaps(true);
+        bigTint.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
 
         timeLayout.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -408,10 +566,6 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                 return true;
             }
         });
-
-        samples = new ArrayList<>();
-        smartApps = new ArrayList<>();
-        hiddenApps = new ArrayList<>();
 
         //Allow rotation if requested or a tablet
         if ((Utilities.isSmallTablet(this) || Utilities.isLargeTablet(this)) || reader.getBoolean(Constants.ALLOW_ROTATION_PREF, false)) {
@@ -468,36 +622,12 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
             }
         });
 
-        List<DockView.DockElement> de = new ArrayList<>();
-        int elementCount;
-        if (size == ScreenSize.PHONE) {
-            Log.d(TAG, "Is phone");
-            elementCount = 5;
-        } else { //Two extra spots for tablets
-            Log.d(TAG, "Is tablet");
-            elementCount = 7;
-        }
-
-        for (int i = 0; i < elementCount; i++) {
-            String existingData = reader.getString("dockbarTarget_" + i, "null");
-            Gson gson = new Gson();
-            try {
-                ApplicationIcon ai = gson.fromJson(existingData, ApplicationIcon.class);
-                ComponentName cn = new ComponentName(ai.getPackageName(), ai.getActivityName());
-                String label = getPackageManager().getActivityInfo(cn, 0).loadLabel(getPackageManager()).toString();
-
-                dockbarTargetsMap.put(i, ai);
-                de.add(new DockView.DockElement(cn, label, i));
-            } catch (Exception fail) {
-            }
-        }
-
-        dockView.init(elementCount, de, new DockView.DockViewHost() {
+        dockView.init(size == ScreenSize.PHONE ? 5 : 7, dockElements, new DockView.DockViewHost() {
             @Override
             public void onElementRemoved(DockView.DockElement oldElement, int index) {
                 Log.d(TAG, "Clearing dock element at " + index);
-                dockbarTargetsMap.remove(index);
-                writer.putString(" dockbarTarget_" + index, "null").apply();
+                dockElements.remove(oldElement);
+                writer.putString("dockbarTarget_" + index, "null").apply();
 
                 populateSuggestions();
             }
@@ -509,13 +639,11 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                 String repl = gson.toJson(ai);
                 Log.d(TAG, "Replacing dock element at " + index + " with " + repl);
                 writer.putString("dockbarTarget_" + index, repl).apply();
-                dockbarTargetsMap.put(index, ai);
+                dockElements.add(newElement);
 
                 populateSuggestions();
             }
         });
-
-        sgv.setActivity(this);
 
         //Search action bar
         strayTouchCatch.setOnClickListener(new View.OnClickListener() {
@@ -778,10 +906,6 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
             if (lastUsedVersion != Constants.Versions.CURRENT_VERSION) {
                 writer.putInt(Constants.VERSION_PREF, Constants.Versions.CURRENT_VERSION).commit();
             }
-
-            loadList();
-            loadHiddenApps();
-            loadSmartApps();
         }
 
         //Set up broadcast receivers
@@ -827,6 +951,12 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
 
         //Setup app drawer
         updateRowCount(getResources().getConfiguration().orientation);
+
+        sgv.setCards(samples);
+        sgv.setActivity(this);
+
+        hasInited = true;
+        onResume();
     }
 
     @Override
@@ -856,6 +986,8 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
     @Override
     public void onResume() {
         super.onResume();
+
+        if(!hasInited) return;
 
         Log.d(TAG, "onResume");
 
@@ -1166,7 +1298,6 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                                 ri.activityInfo.name))) {
                             applicationIcons.add(new ApplicationIcon(ri.activityInfo.packageName,
                                     name, ri.activityInfo.name));
-                            ri.loadIcon(pm);
                         }
                     } catch (Exception e) {
                         //Failed to add one.
@@ -1344,18 +1475,32 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
         GridLayoutManager glm = new GridLayoutManager(this, columnCount);
         allAppsScreen.setLayoutManager(glm);
         allAppsScreen.addOnScrollListener(new RecyclerView.OnScrollListener() {
+            Vector<Integer> lastStates = new Vector<>(3);
+
             @Override
             public void onScrollStateChanged(RecyclerView recyclerView, int newState) {
-                super.onScrollStateChanged(recyclerView, newState);
                 Log.d(TAG, "Scroll state: " + (newState == RecyclerView.SCROLL_STATE_SETTLING? " settling" : newState == RecyclerView.SCROLL_STATE_IDLE ? " idle" : "dragging"));
-                if(newState == RecyclerView.SCROLL_STATE_DRAGGING && recyclerView.computeVerticalScrollOffset() == 0){
 
+                if(recyclerView.computeVerticalScrollOffset() != 0) return;
+
+                lastStates.add(newState);
+                if(lastStates.size() >= 3 && recyclerView.computeVerticalScrollOffset() == 0){
+                    if(lastStates.get(0) == RecyclerView.SCROLL_STATE_DRAGGING &&
+                            lastStates.get(1) == RecyclerView.SCROLL_STATE_SETTLING &&
+                            lastStates.get(2) == RecyclerView.SCROLL_STATE_IDLE){
+                        lastStates.clear();
+                        resetState();
+                    }
+                }
+
+                if(newState == RecyclerView.SCROLL_STATE_DRAGGING && recyclerView.computeVerticalScrollOffset() == 0){
+                    //toggleAppsContainer(false);
+                    Log.d(TAG, "at top");
                 }
             }
 
             @Override
             public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
-                super.onScrolled(recyclerView, dx, dy);
                 Log.d(TAG, "onScrolled " + dy);
             }
         });
@@ -1775,7 +1920,7 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
         }.execute();
     }
 
-    Map<Integer, ApplicationIcon> dockbarTargetsMap = new HashMap<>();
+    List<DockView.DockElement> dockElements = new ArrayList<>();
     private Map<String, Boolean> launchableCachedMap = new HashMap<>();
 
     public boolean isComponentValidSuggestion(String packageName) {
@@ -1783,8 +1928,8 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
 
         if(!launchableCachedMap.containsKey(packageName)) {
             boolean isValid = getPackageManager().getLaunchIntentForPackage(packageName) != null;
-            for(Map.Entry<Integer, ApplicationIcon> entry : dockbarTargetsMap.entrySet()){
-                if(entry.getValue().getPackageName().equals(packageName)){
+            for(DockView.DockElement element : dockElements){
+                if(element.getActivity().getPackageName().equals(packageName)){
                     isValid = false;
                     break;
                 }
@@ -1892,8 +2037,6 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
             }
             loadItems.close();
         }
-
-        sgv.setCards(samples);
     }
 
     /**
@@ -2137,7 +2280,7 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                     String activityName = loadItems.getString(activityColumn);
 
                     Log.d(TAG, "Loading '" + packageName + "'...");
-                    hiddenApps.add(new Pair<String, String>(packageName, activityName));
+                    hiddenApps.add(new Pair<>(packageName, activityName));
 
                     loadItems.moveToNext();
                 }

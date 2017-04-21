@@ -20,7 +20,10 @@ import android.widget.Toast;
 import com.afollestad.materialdialogs.MaterialDialog;
 import com.google.gson.Gson;
 import com.inipage.homelylauncher.drawer.ApplicationIcon;
+import com.inipage.homelylauncher.model.Favorite;
 import com.inipage.homelylauncher.utils.Utilities;
+
+import java.util.ArrayList;
 
 public class SettingsActivity extends ActionBarActivity {
     private static final int REQUEST_CHOOSE_APPLICATION = 500;
@@ -146,6 +149,20 @@ public class SettingsActivity extends ActionBarActivity {
                 @Override
                 public boolean onPreferenceClick(Preference preference) {
                     Utilities.clearLog();
+                    return true;
+                }
+            });
+            findPreference("debug").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    startActivity(new Intent(getActivity(), DebugActivity.class));
+                    return true;
+                }
+            });
+            findPreference("drop_fav").setOnPreferenceClickListener(new Preference.OnPreferenceClickListener() {
+                @Override
+                public boolean onPreferenceClick(Preference preference) {
+                    DatabaseEditor.getInstance().saveFavorites(new ArrayList<Favorite>());
                     return true;
                 }
             });

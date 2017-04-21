@@ -9,7 +9,7 @@ import android.util.AttributeSet;
 import android.view.View;
 
 /**
- * An ImageView _without_ many of the optimizations of Android's ImageView, allowing for more
+ * An 'ImageView' _without_ many of the optimizations of Android's ImageView, allowing for more
  * direct memory management (I mean, we're manually caching bitmaps anyways...)
  */
 public class StickyImageView extends View {

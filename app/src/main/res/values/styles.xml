@@ -29,6 +29,22 @@
         <item name="md_dark_theme">true</item>
     </style>
 
+    <style name="HomeThemeAppCompatSource" parent="Theme.AppCompat.NoActionBar">
+        <!-- Show wallpaper behind activity -->
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+        <item name="android:windowShowWallpaper">true</item>
+
+        <!-- Translucent status bar/navigation bar -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowTranslucentStatus">false</item>
+        <item name="android:windowTranslucentNavigation">false</item>
+        <item name="android:fitsSystemWindows">false</item>
+
+        <item name="md_dark_theme">true</item>
+    </style>
+
     <style name="AppTheme.NoActionBar">
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>

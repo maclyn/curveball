@@ -104,9 +104,20 @@
             android:key="allow_rotation_pref" />
 
         <Preference
+            android:title="@string/debug"
+            android:summary="@string/dont_click_this"
+            android:key="debug"/>
+
+        <Preference
+            android:title="@string/bobby_table"
+            android:summary="@string/dont_click_this"
+            android:key="drop_fav"/>
+
+        <Preference
             android:title="@string/show_debug_log"
             android:summary="@string/show_debug_log_summary"
             android:key="log_show"/>
+
         <Preference
             android:title="@string/clear_debug_log"
             android:summary="@string/clear_debug_log_summary"

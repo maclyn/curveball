@@ -1,5 +1,8 @@
 package com.inipage.homelylauncher.utils;
 
+import android.animation.Animator;
+import android.animation.TypeEvaluator;
+import android.animation.ValueAnimator;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
@@ -13,6 +16,8 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.view.View;
+import android.view.ViewGroup;
+import android.widget.AbsoluteLayout;
 
 import com.inipage.homelylauncher.Constants;
 import com.inipage.homelylauncher.R;
@@ -227,73 +232,49 @@ public class Utilities {
         return Runtime.getRuntime().freeMemory() < (2 * 1024 * 1024); //2MB
     }
 
-    public static boolean isUsingCelsius(Context context){
-        return PreferenceManager.getDefaultSharedPreferences(context).getBoolean(Constants.CELCIUS_PREF, false);
+    public static void throwNotImplemented(){
+        throw new RuntimeException("Not implemented!");
     }
 
-    public static String getTempFromValue(float temp, Context context){
-        if(isUsingCelsius(context)){
-            return String.valueOf(Math.round(temp)) + "°C";
-        } else {
-            temp = (temp * 9/5) + 32;
-            return String.valueOf(Math.round(temp)) + "°F";
-        }
-    }
+    public static void animateAbsoluteLayoutChange(final View alChild, final AbsoluteLayout.LayoutParams newParams, long duration){
+        AbsoluteLayout.LayoutParams oldParams = (AbsoluteLayout.LayoutParams) alChild.getLayoutParams();
+        ValueAnimator animation = ValueAnimator.ofObject(new TypeEvaluator<AbsoluteLayout.LayoutParams>() {
+            @Override
+            public AbsoluteLayout.LayoutParams evaluate(float fraction,
+                                                        AbsoluteLayout.LayoutParams startValue,
+                                                        AbsoluteLayout.LayoutParams endValue) {
+                int currX = (int) (startValue.x + ((endValue.x - startValue.x) * fraction));
+                int currY = (int) (startValue.y + ((endValue.y - startValue.y) * fraction));
+                return new AbsoluteLayout.LayoutParams(startValue.width, startValue.height, currX, currY);
+            }
+        }, oldParams, newParams);
+        animation.setTarget(alChild);
+        animation.addUpdateListener(new ValueAnimator.AnimatorUpdateListener() {
+            @Override
+            public void onAnimationUpdate(ValueAnimator animation) {
+                alChild.setLayoutParams((AbsoluteLayout.LayoutParams) animation.getAnimatedValue());
+            }
+        });
+        animation.addListener(new Animator.AnimatorListener() {
+            @Override
+            public void onAnimationStart(Animator animation) {
+            }
 
-    public static int convertConditionToId(String condition){
-        condition = condition.replace("Dark_", "");
-        switch(condition){
-            case "Sun":
-                return R.drawable.clima_sun;
-            case "PartlyCloud":
-            case "LightCloud":
-                return R.drawable.clima_cloud_sun;
-            case "Cloud":
-                return R.drawable.clima_cloud;
-            case "Drizzle":
-            case "LightRain":
-                return R.drawable.clima_cloud_drizzle;
-            case "LightRainSun":
-            case "RainSun":
-            case "DrizzleSun":
-                return R.drawable.clima_cloud_rain_sun;
-            case "Rain":
-                return R.drawable.clima_cloud_rain;
-            case "LightRainThunder":
-            case "RainThunder":
-            case "RainThunderSun":
-            case "DrizzleThunder":
-            case "LightRainThunderSun":
-            case "DrizzleThunderSun":
-                return R.drawable.clima_cloud_lightning;
-            case "Fog":
-                return R.drawable.clima_cloud_fog;
-            case "Sleet":
-            case "SleetThunder":
-            case "SleetSun":
-            case "SleetSunThunder":
-            case "SnowSun":
-            case "LightSleetThunderSun":
-            case "LightSleetSun":
-            case "HeavySleetSun":
-            case "HeavySleetThunderSun":
-            case "LightSleetThunder":
-            case "HeavySleetThunder":
-            case "Snow":
-            case "LightSleet":
-            case "HeavySleet":
-            case "SnowThunder":
-            case "SnowSunThunder":
-            case "LightSnowSun":
-            case "LightSnowThunder":
-            case "HeavySnowThunder":
-                return R.drawable.clima_cloud_snow;
-            case "HeavySnow":
-            case "HeavysnowSun":
-            case "LightSnowThunderSun":
-            case "HeavySnowThunderSun":
-                return R.drawable.clima_cloud_snow_alt;
-        }
-        return R.drawable.clima_umbrella;
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                alChild.setLayoutParams(newParams);
+            }
+
+            @Override
+            public void onAnimationCancel(Animator animation) {
+                alChild.setLayoutParams(newParams);
+            }
+
+            @Override
+            public void onAnimationRepeat(Animator animation) {
+            }
+        });
+        animation.setDuration(duration);
+        animation.start();
     }
 }

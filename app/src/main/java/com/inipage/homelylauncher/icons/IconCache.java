@@ -19,7 +19,12 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A cache for icons. This is a rewrite of an earlier build of IconCache that was hard to maintain.
@@ -188,6 +193,9 @@ public class IconCache {
     private Resources baseResources;
     private PackageManager pm;
 
+    //Our executor
+    ThreadPoolExecutor executor;
+
     //The primary caches
     private Map<IconFetchTask, Bitmap> iconCache = Collections.synchronizedMap(new HashMap<IconFetchTask, Bitmap>());
 
@@ -301,6 +309,16 @@ public class IconCache {
         }
     }
 
+    //For all the executor creation logic, see ThreadPoolExecutor creation in AsyncTask
+    private static final ThreadFactory iconCacheThreadFactory = new ThreadFactory() {
+        private final AtomicInteger mCount = new AtomicInteger(1);
+
+        public Thread newThread(Runnable r) {
+            return new Thread(r, "IconCacheTask #" + mCount.getAndIncrement() + " from "
+                    + System.currentTimeMillis());
+        }
+    };
+
     private IconCache() {
         pm = ApplicationClass.getInstance().getPackageManager();
         baseResources = ApplicationClass.getInstance().getResources();
@@ -317,6 +335,16 @@ public class IconCache {
 
         defaultPaint = new Paint();
         defaultPaint.setAntiAlias(true);
+
+        int cpuCount = Runtime.getRuntime().availableProcessors();
+        executor = new ThreadPoolExecutor(
+                Math.max(2, Math.min(cpuCount - 1, 4)),
+                cpuCount * 2 + 1,
+                30,
+                TimeUnit.SECONDS,
+                new LinkedBlockingQueue<Runnable>(64),
+                iconCacheThreadFactory);
+        executor.allowCoreThreadTimeOut(true);
     }
 
     public static IconCache getInstance() {
@@ -407,9 +435,11 @@ public class IconCache {
             BitmapRetrievalTask getter = new BitmapRetrievalTask();
 
             try {
-                getter.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR, bestTask);
+                getter.executeOnExecutor(executor, bestTask);
                 taskList.remove(bestTask);
             } catch (RejectedExecutionException ignored) {
+                //To clarify: we've likely saturated the thread pool for some reason, so we'll just
+                //wait for another resource request to tell us to run again.
             }
         }
     }

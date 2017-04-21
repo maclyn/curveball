@@ -51,7 +51,7 @@ import android.provider.CalendarContract;
 import android.provider.Settings;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
-import android.support.v7.app.AlertDialog;
+import android.support.v7.graphics.Palette;
 import android.support.v7.widget.GridLayoutManager;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -100,10 +100,13 @@ import com.inipage.homelylauncher.views.DockView;
 import com.inipage.homelylauncher.views.DragToOpenView;
 import com.inipage.homelylauncher.views.PushoverRelativeLayout;
 import com.inipage.homelylauncher.views.ShortcutGestureView;
-import com.inipage.homelylauncher.weather.model.LTSForecastModel;
 import com.inipage.homelylauncher.weather.WeatherApiFactory;
+import com.inipage.homelylauncher.weather.WeatherController;
+import com.inipage.homelylauncher.weather.model.CleanedUpWeatherModel;
+import com.inipage.homelylauncher.weather.model.LTSForecastModel;
 import com.inipage.homelylauncher.weather.model.LocationModel;
 import com.inipage.homelylauncher.weather.model.TimeModel;
+import com.jakewharton.processphoenix.ProcessPhoenix;
 import com.mobeta.android.dslv.DragSortListView;
 
 import org.apache.commons.collections4.trie.PatriciaTrie;
@@ -147,7 +150,6 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
     public static final int HOST_ID = 505;
     private static final long ONE_DAY_MILLIS = 1000 * 60 * 60 * 24;
     private static final long DEFAULT_ANIMATION_DURATION = 300;
-    private static final long WEATHER_CACHE_DURATION = 60 * 60 * 1000; //1 hour
     //endregion
 
     //region Enums
@@ -440,6 +442,7 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
             }
 
 
+            @SuppressWarnings("WrongThread")
             @Override
             protected Void doInBackground(ProgressDialog... params) {
                 pd = params[0];
@@ -463,6 +466,8 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                                 ri.activityInfo.name, IconCache.IconFetchPriority.APP_DRAWER_ICONS,
                                 appIconSize, worker);
                         while(!worker.isDone()) {} //Spin until done
+
+                        Log.d(TAG, "Thread pool executor load: " + AsyncTask.THREAD_POOL_EXECUTOR.toString());
                     } catch (Exception ignored) {}
                 }
 
@@ -477,6 +482,21 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                             sgvIconSize,
                             worker);
                     while(!worker.isDone()) {} //Spin until done
+
+                    //Great -- now go find colors!
+                    Bitmap folderIcon = IconCache.getInstance().getForeignResource(card.getDrawablePackage(),
+                            card.getDrawableName(),
+                            IconCache.IconFetchPriority.SWIPE_FOLDER_ICONS,
+                            sgvIconSize,
+                            worker);
+                    sgv.putCacheColor(folderIcon, Palette.from(folderIcon).generate());
+
+                    for(Pair<String, String> app : card.getPackages()){
+                        Bitmap appBitmap = IconCache.getInstance().getAppIcon(app.first, app.second,
+                                IconCache.IconFetchPriority.SWIPE_APP_ICONS, (int) sgvIconSize,
+                                null);
+                        sgv.putCacheColor(appBitmap, Palette.from(appBitmap).generate());
+                    }
                 }
 
                 worker.taskQueued();
@@ -505,9 +525,6 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                             worker);
                     while(!worker.isDone()) {}
                 }
-
-                //(4) Calculate colors for the SGV
-                //TODO: Get to this in time; it involves adding something to IconCache (since colors are cached outside of it!)
 
                 return null;
             }
@@ -562,7 +579,22 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
             @Override
             public boolean onLongClick(View view) {
                 Toast.makeText(HomeActivity.this, R.string.manually_refreshing_weather, Toast.LENGTH_SHORT).show();
-                refreshWeather();
+                WeatherController.requestWeather(view.getContext(), new WeatherController.WeatherPresenter() {
+                    @Override
+                    public void requestLocationPermission() {
+                        Toast.makeText(HomeActivity.this, R.string.location_permission_needed, Toast.LENGTH_SHORT).show();
+                    }
+
+                    @Override
+                    public void onWeatherFound(LTSForecastModel weather) {
+                        displayWeather(weather);
+                    }
+
+                    @Override
+                    public void onFetchFailure() {
+                        Toast.makeText(HomeActivity.this, R.string.error_getting_weather, Toast.LENGTH_LONG).show();
+                    }
+                }, true);
                 return true;
             }
         });
@@ -675,6 +707,9 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                                 break;
                             case R.id.help:
                                 showTutorial();
+                                break;
+                            case R.id.debug_restart:
+                                ProcessPhoenix.triggerRebirth(HomeActivity.this);
                                 break;
                             case R.id.settings:
                                 Intent settingsActivity = new Intent(HomeActivity.this, SettingsActivity.class);
@@ -1016,7 +1051,6 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
         }
 
         //Get the weather
-        //TODO: Cache & prevent fetching if it's been an hour
         if (Utilities.checkPermission(Manifest.permission.ACCESS_FINE_LOCATION, this)) {
             weatherContainer.setVisibility(View.VISIBLE);
 
@@ -1028,19 +1062,20 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
             weatherParams.weight = 1.3f;
             weatherContainer.setLayoutParams(weatherParams);
 
-            long lastWeatherResponseTime = reader.getLong(Constants.CACHED_WEATHER_RESPONSE_TIME_PREFERENCE, -1);
-            if(lastWeatherResponseTime > (System.currentTimeMillis() - (WEATHER_CACHE_DURATION))){
-                try {
-                    Log.d(TAG, "Displaying cached weather...");
-                    displayWeather(LTSForecastModel.deserialize(reader.getString(Constants.CACHED_WEATHER_RESPONSE_JSON_PREFERENCE, null)));
-                } catch (Exception e){
-                    Log.e(TAG, "Error displaying cached weather", e);
-                    refreshWeather();
+            WeatherController.requestWeather(this, new WeatherController.WeatherPresenter() {
+                @Override
+                public void requestLocationPermission() {
                 }
-            } else {
-                Log.d(TAG, "Weather data is stale; refreshing");
-                refreshWeather();
-            }
+
+                @Override
+                public void onWeatherFound(LTSForecastModel weather) {
+                    displayWeather(weather);
+                }
+
+                @Override
+                public void onFetchFailure() {
+                }
+            }, true);
         } else {
             weatherContainer.setVisibility(View.GONE);
             LinearLayout.LayoutParams timeParams = (LinearLayout.LayoutParams) timeImmediateContainer.getLayoutParams();
@@ -1053,108 +1088,18 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
         }
     }
 
-    public void refreshWeather() {
-        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
-        Criteria criteria = new Criteria();
-        criteria.setAltitudeRequired(false);
-        criteria.setPowerRequirement(Criteria.POWER_LOW);
-        criteria.setAccuracy(Criteria.ACCURACY_LOW);
-
-        //Gdi Android Studio. This is redundant.
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED
-                && ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION)
-                != PackageManager.PERMISSION_GRANTED) {
-            return;
-        }
-
-        lm.requestSingleUpdate(criteria, new LocationListener() {
-            @Override
-            public void onLocationChanged(Location location) {
-                Log.d(TAG, "Got location: " + location);
-                if (location != null) {
-                    Log.d(TAG, location.getLatitude() + "; " + location.getLongitude());
-                }
-
-                if (location == null) return;
-
-                WeatherApiFactory.getInstance().getWeatherLTS(location.getLatitude(), location.getLongitude()).enqueue(new Callback<LTSForecastModel>() {
-                    @Override
-                    public void onResponse(Call<LTSForecastModel> call, Response<LTSForecastModel> response) {
-                        Log.d(TAG, "Got weather response!");
-                        try {
-                            LTSForecastModel model = response.body();
-                            displayWeather(model);
-
-                            //Cache me if you can
-                            writer.putString(Constants.CACHED_WEATHER_RESPONSE_JSON_PREFERENCE, model.serialize());
-                            writer.putLong(Constants.CACHED_WEATHER_RESPONSE_TIME_PREFERENCE, System.currentTimeMillis());
-                            writer.commit();
-                        } catch (Exception ignored) {
-                            Log.d(TAG, response.raw().toString());
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Call<LTSForecastModel> call, Throwable t) {
-                        Log.e(TAG, "Failure fetching weather", t);
-                    }
-                });
-            }
-
-            @Override
-            public void onStatusChanged(String provider, int status, Bundle extras) {
-            }
-
-            @Override
-            public void onProviderEnabled(String provider) {
-            }
-
-            @Override
-            public void onProviderDisabled(String provider) {
-            }
-        }, Looper.getMainLooper());
-    }
-
     private void displayWeather(LTSForecastModel model){
-        Pair<Date, LocationModel> conditionEntry = null;
-        Pair<Date, LocationModel> temperatureEntry = null;
-        Pair<Date, LocationModel> rangeEntry = null;
-
-        for (TimeModel forecast : model.getProduct().getTimeEntries()) {
-            LocationModel l = forecast.getLocation();
-            if (l != null) {
-                if (l.getMaxTemperature() != null && l.getMinTemperature() != null) {
-                    if (rangeEntry == null || rangeEntry.first.getTime() > forecast.getFrom().getTime()) {
-                        rangeEntry = new Pair<>(forecast.getFrom(), l);
-                    }
-                } else if (l.getTemperature() != null) {
-                    if (temperatureEntry == null || temperatureEntry.first.getTime() > forecast.getFrom().getTime()) {
-                        temperatureEntry = new Pair<>(forecast.getFrom(), l);
-                    }
-                } else if (l.getSymbol() != null) {
-                    if (conditionEntry == null || conditionEntry.first.getTime() > forecast.getFrom().getTime()) {
-                        conditionEntry = new Pair<>(forecast.getFrom(), l);
-                    }
-                }
-            }
-        }
-
+        CleanedUpWeatherModel cModel = CleanedUpWeatherModel.parseFromLTSForceastModel(model, this);
         weatherContainer.setVisibility(View.VISIBLE);
-        condition.setVisibility(conditionEntry != null ? View.VISIBLE : View.GONE);
-        if (conditionEntry != null) {
-            condition.setImageResource(Utilities.convertConditionToId(conditionEntry.second.getSymbol().getId()));
-        }
-        temperature.setVisibility(temperatureEntry != null ? View.VISIBLE : View.GONE);
-        if (temperatureEntry != null) {
-            temperature.setText(Utilities.getTempFromValue(temperatureEntry.second.getTemperature().getValue(), HomeActivity.this));
-        }
-        highLow.setVisibility(rangeEntry != null ? View.VISIBLE : View.GONE);
-        if (rangeEntry != null) {
-            highLow.setText(
-                    "↑" + Utilities.getTempFromValue(rangeEntry.second.getMaxTemperature().getValue(), HomeActivity.this) +
-                            "/" +
-                            "↓" + Utilities.getTempFromValue(rangeEntry.second.getMinTemperature().getValue(), HomeActivity.this));
+        condition.setVisibility(cModel.getResourceId() != -1 ? View.VISIBLE : View.GONE);
+        if (cModel.getResourceId() != -1)
+            condition.setImageResource(cModel.getResourceId());
+        temperature.setVisibility(cModel.getTemp() != null ? View.VISIBLE : View.GONE);
+        if (cModel.getTemp() != null)
+            temperature.setText(cModel.getTemp());
+        highLow.setVisibility(cModel.getHigh() != null ? View.VISIBLE : View.GONE);
+        if (cModel.getHigh() != null) {
+            highLow.setText("↑" + cModel.getHigh() + "/" + "↓" + cModel.getLow());
         }
     }
 
@@ -1361,30 +1306,34 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
         toggleAppsContainer(visible, -1);
     }
 
+    @TargetApi(Build.VERSION_CODES.LOLLIPOP)
     public void toggleAppsContainer(boolean visible, float animationVelocity) {
         //Do the popup for usage requests if needed
-        if (visible && !reader.getBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, false)) {
-            try {
-                if(Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) throw new RuntimeException("Hi Edmund");
+        usageRequestPopup: {
+            if(Build.VERSION.SDK_INT < Build.VERSION_CODES.LOLLIPOP) break usageRequestPopup;
 
-                final UsageStatsManager usm = (UsageStatsManager) HomeActivity.this.getSystemService("usagestats");
+            if (visible && !reader.getBoolean(Constants.HAS_REQUESTED_USAGE_PERMISSION_PREF, false)) {
+                try {
+                    @SuppressWarnings("WrongConstant")
+                    final UsageStatsManager usm = (UsageStatsManager) HomeActivity.this.getSystemService("usagestats");
 
-                long end = 0L;
-                long start = System.currentTimeMillis();
+                    long end = 0L;
+                    long start = System.currentTimeMillis();
 
-                UsageEvents use = null;
-                UsageEvents.Event event = null;
-                if(usm != null) {
-                    use = usm.queryEvents(start, end);
-                    event = new UsageEvents.Event();
+                    UsageEvents use = null;
+                    UsageEvents.Event event = null;
+                    if(usm != null) {
+                        use = usm.queryEvents(start, end);
+                        event = new UsageEvents.Event();
+                    }
+                    if (usm != null && use.hasNextEvent() && use.getNextEvent(event)) {
+                        Log.d(TAG, "Found usage events...");
+                    } else {
+                        showUsageMessage(); //We assume this means a problem..?
+                    }
+                } catch (Exception notAllowed) {
+                    showUsageMessage();
                 }
-                if (usm != null && use.hasNextEvent() && use.getNextEvent(event)) {
-                    Log.d(TAG, "Found usage events...");
-                } else {
-                    showUsageMessage(); //We assume this means a problem..?
-                }
-            } catch (Exception notAllowed) {
-                showUsageMessage();
             }
         }
 
@@ -1791,6 +1740,7 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
         //(5) Use remaining space to show popular apps
         // Get data from system usage events and integrate into our own database
         new AsyncTask<Void, Void, List<SuggestionApp>>() {
+            @TargetApi(Build.VERSION_CODES.LOLLIPOP)
             @Override
             protected List<SuggestionApp> doInBackground(Void... params) {
                 try {
@@ -2163,7 +2113,7 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                         @Override
                         public void onPositive(MaterialDialog dialog) {
                             String name = et.getText().toString();
-                            if (name == null || name.length() == 0) {
+                            if (name.length() == 0) {
                                 name = "Folder";
                             }
 
@@ -3082,6 +3032,7 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                                     sdfMonth.format(cal.getTime()),
                                     sdfDayOfMonth.format(cal.getTime())));
                         } else {
+                            //Why did I do this. This seems bad.
                             date.setText(sdfDay.format(cal.getTime())
                                     + ", " + sdfMonth.format(cal.getTime())
                                     + " " + sdfDayOfMonth.format(cal.getTime()));
@@ -3097,6 +3048,7 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
                             alarm.setVisibility(View.VISIBLE);
                             alarm.setText(getString(R.string.next_alarm_at, alarmTime.format(new Date(aci.getTriggerTime()))));
                             alarm.setOnClickListener(new View.OnClickListener() {
+                                @TargetApi(Build.VERSION_CODES.LOLLIPOP)
                                 @Override
                                 public void onClick(View v) {
                                     try {

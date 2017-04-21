@@ -4,7 +4,9 @@
     package="com.inipage.homelylauncher">
 
     <!-- For suggestions. -->
-    <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
+    <uses-permission
+        android:name="android.permission.PACKAGE_USAGE_STATS"
+        tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.READ_CALENDAR" />
     <!-- For battery state. -->
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
@@ -19,7 +21,6 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:largeHeap="true">
-
         <activity
             android:name=".HomeActivity"
             android:label="@string/app_name"
@@ -34,12 +35,10 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
-
         <activity
             android:name=".icons.IconChooserActivity"
             android:label="@string/title_activity_icon_chooser"
             android:theme="@style/AppThemeDarkNoActionBar" />
-
         <activity
             android:name=".SettingsActivity"
             android:label="Settings"
@@ -63,5 +62,13 @@
             android:name=".OnboardingActivity"
             android:label="@string/title_activity_onboarding"
             android:theme="@style/AppTheme.NoActionBar" />
+
+        <activity
+            android:name=".DebugActivity"
+            android:label="@string/title_activity_debug"
+            android:theme="@style/HomeThemeAppCompatSource"
+            android:exported="true">
+        </activity>
     </application>
+
 </manifest>

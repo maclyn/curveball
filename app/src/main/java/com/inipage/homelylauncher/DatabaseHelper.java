@@ -10,7 +10,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
 
     //Database basics
     public static final String DATABASE_NAME = "database.db";
-    public static final int DATABASE_VERSION = 6;
+    public static final int DATABASE_VERSION = 8;
 
     //Base columns
     public static final String COLUMN_ID = "_id";
@@ -39,6 +39,23 @@ public class DatabaseHelper extends SQLiteOpenHelper {
     public static final int SMARTAPP_SHOW_ALWAYS = 1;
     public static final int SMARTAPP_SHOW_NEVER = 2;
 
+
+    //Favorites table
+    public static final String TABLE_FAVORITES = "favorites";
+    public static final String COLUMN_FAVORITE_TYPE = "fav_type";
+    public static final int FAVORITE_TYPE_APP = 1; /* Package name, activity name {str@2} */
+    public static final int FAVORITE_TYPE_WIDGET = 2; /* Widget ID {int@1} */
+    public static final int FAVORITE_TYPE_SHORTCUT = 3; /* TODO: Find out what this entails {?} */
+    public static final int FAVORITE_TYPE_FOLDER = 4; /* Handled by CONTAINING_FOLDER, POSITION, but also a name {str@1} */
+    public static final String COLUMN_POSITION_X = "position_x";
+    public static final String COLUMN_POSITION_Y = "position_y";
+    public static final String COLUMN_HEIGHT = "height";
+    public static final String COLUMN_WIDTH = "width";
+    public static final String COLUMN_CONTAINING_FOLDER = "in_folder";
+    public static final String COLUMN_DATA_STRING_1 = "ds1";
+    public static final String COLUMN_DATA_STRING_2 = "ds2";
+    public static final String COLUMN_DATA_INT_1 = "di1";
+
     //Functions for creating it
     private static final String ROWS_TABLE_CREATE = "create table "
             + TABLE_ROWS +
@@ -62,6 +79,20 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             "(" + COLUMN_ID + " integer primary key autoincrement, "
             + COLUMN_PACKAGE + " text not null, "
             + COLUMN_WHEN_TO_SHOW + " integer not null" + ");";
+
+    private static final String FAVORITES_TABLE_CREATE = "CREATE TABLE "
+            + TABLE_FAVORITES
+            + "(" + COLUMN_ID + " INTEGER PRIMARY KEY AUTOINCREMENT, "
+            + COLUMN_POSITION_X + " integer not null, "
+            + COLUMN_POSITION_Y + " integer not null, "
+            + COLUMN_HEIGHT + " integer not null, "
+            + COLUMN_WIDTH + " integer not null, "
+            + COLUMN_CONTAINING_FOLDER + " integer not null, " // Has to be either -1 or a valid ID!
+            + COLUMN_FAVORITE_TYPE + " integer not null, "
+            + COLUMN_DATA_STRING_1 + " text, "
+            + COLUMN_DATA_STRING_2 + " text, "
+            + COLUMN_DATA_INT_1 + " integer);";
+
     public DatabaseHelper(Context context){
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
@@ -73,6 +104,7 @@ public class DatabaseHelper extends SQLiteOpenHelper {
             db.execSQL(WIDGET_TABLE_CREATE);
             db.execSQL(HIDDEN_APPS_TABLE_CREATE);
             db.execSQL(SMARTAPPS_TABLE_CREATE);
+            db.execSQL(FAVORITES_TABLE_CREATE);
             Log.d(TAG, "Created!");
         } catch (Exception e) {
             Log.d(TAG, "Failed to create!");
@@ -99,6 +131,13 @@ public class DatabaseHelper extends SQLiteOpenHelper {
         if (oldVersion < 6){
             db.execSQL("DROP TABLE " + TABLE_SMARTAPPS);
             db.execSQL(SMARTAPPS_TABLE_CREATE);
+        }
+
+        if (oldVersion < 8){
+            try {
+                db.execSQL("DROP TABLE " + TABLE_FAVORITES);
+            } catch (Exception ignored) {} //Might fail; whatever
+            db.execSQL(FAVORITES_TABLE_CREATE);
         }
     }
 }

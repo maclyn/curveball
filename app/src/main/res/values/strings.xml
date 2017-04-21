@@ -192,4 +192,15 @@
     <string name="progress_step_loading_app_icons">(1/4) Loading app icons</string>
     <string name="progress_step_loading_sgv_icons">(2/4) Loading shortcut icons...</string>
     <string name="progress_step_loading_dock_icons">(3/4) Loading dock icons...</string>
+    <string name="debug_restart">Debug Restart</string>
+    <string name="title_activity_debug">Debug Activity</string>
+    <string name="dont_click_this">Don\'t click this</string>
+    <string name="location_permission_needed">Location permission needed</string>
+    <string name="error_getting_weather">Error getting weather -- is location on and are you connected?</string>
+    <string name="favorite">Favorite</string>
+    <string name="hide">Hide</string>
+    <string name="app_hidden">App hidden.</string>
+    <string name="app_no_info">This app does not have info.</string>
+    <string name="cannot_uninstall">Cannot uninstall this app.</string>
+    <string name="bobby_table">Little Bobby TABLEs</string>
 </resources>

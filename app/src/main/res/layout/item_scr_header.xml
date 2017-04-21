@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/timeDateContainer"
+    android:layout_width="match_parent"
+    android:orientation="horizontal"
+    android:layout_height="wrap_content"
+    android:layout_alignParentTop="true"
+    android:background="#7F000000"
+    android:paddingRight="16dp"
+    android:paddingLeft="16dp"
+    android:paddingBottom="8dp"
+    android:paddingTop="8dp"
+    android:weightSum="4"
+    android:layout_centerHorizontal="true">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="true"
+        android:layout_alignParentStart="true">
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <LinearLayout
+                android:orientation="horizontal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_alignParentTop="true"
+                android:layout_alignParentStart="true">
+
+                <ImageView
+                    android:id="@+id/weatherIcon"
+                    android:layout_width="52dp"
+                    android:layout_height="52dp"
+                    android:layout_marginLeft="-8dp"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/clima_cloud_fog" />
+
+                <TextView
+                    android:id="@+id/temp"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:layout_marginLeft="-6dp"
+                    android:text="75F"
+                    android:textColor="@color/white"
+                    android:textSize="30sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/time"
+                android:layout_centerVertical="true"
+                android:layout_alignParentRight="true"
+                android:text="5:49"
+                android:textColor="@color/white"
+                android:textSize="44sp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+        </RelativeLayout>
+
+        <RelativeLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/highLow"
+                android:layout_centerVertical="true"
+                android:layout_alignParentLeft="true"
+                android:text="68F/58F"
+                android:textColor="@color/white"
+                android:textSize="16sp"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content" />
+
+            <TextView
+                android:id="@+id/date"
+                android:layout_centerVertical="true"
+                android:layout_alignParentRight="true"
+                android:text="Tuesday, January 18"
+                android:textSize="16sp"
+                android:layout_width="wrap_content"
+                android:textColor="@color/white"
+                android:layout_height="wrap_content" />
+        </RelativeLayout>
+    </LinearLayout>
+</RelativeLayout>

@@ -6,4 +6,5 @@
     <item android:id="@+id/changeWallpaper" android:title="@string/change_wallpaper" android:orderInCategory="5" />
     <item android:id="@+id/settings" android:title="@string/preferences_name" android:orderInCategory="6"/>
     <item android:id="@+id/help" android:title="@string/helpName" android:orderInCategory="7"/>
+    <item android:id="@+id/debug_restart" android:title="@string/debug_restart" android:orderInCategory="8" />
 </menu>

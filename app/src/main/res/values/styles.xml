@@ -29,7 +29,7 @@
         <item name="md_dark_theme">true</item>
     </style>
 
-    <style name="HomeThemeAppCompatSource" parent="Theme.AppCompat.NoActionBar">
+    <style name="HomeThemeAppCompatSource" parent="Theme.AppCompat.NoActionBar" >
         <!-- Show wallpaper behind activity -->
         <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:colorBackgroundCacheHint">@null</item>

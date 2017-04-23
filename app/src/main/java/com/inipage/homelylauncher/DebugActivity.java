@@ -7,10 +7,14 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
+import android.graphics.Rect;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.support.design.internal.ScrimInsetsFrameLayout;
+import android.support.v4.view.ViewCompat;
+import android.support.v4.view.WindowInsetsCompat;
 import android.support.v7.view.SupportMenuInflater;
 import android.support.v7.view.menu.MenuBuilder;
 import android.support.v7.view.menu.MenuPopupHelper;
@@ -18,6 +22,7 @@ import android.view.LayoutInflater;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.AbsoluteLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -62,6 +67,15 @@ public class DebugActivity extends Activity implements WeatherController.Weather
     private final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("h:mm", Locale.getDefault());
     private final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("EEEE, MMMM d", Locale.getDefault());
 
+    @Bind(R.id.top_scrim)
+    View topScrim;
+
+    @Bind(R.id.bottom_scrim)
+    View bottomScrim;
+
+    @Bind(R.id.space)
+    View space;
+
     @Bind(R.id.app_list)
     LinearLayout appList;
 
@@ -93,6 +107,7 @@ public class DebugActivity extends Activity implements WeatherController.Weather
         setContentView(R.layout.activity_debug);
         ButterKnife.bind(this);
 
+        setScrims();
         loadApps();
         loadFavorites();
         timeUpdateTimer = new Timer();
@@ -112,6 +127,27 @@ public class DebugActivity extends Activity implements WeatherController.Weather
             }
         };
         timeUpdateTimer.schedule(clockUpdateTask, new Date(), 1000L);
+    }
+
+    private void setScrims() {
+        ViewCompat.setOnApplyWindowInsetsListener(topScrim,
+            new android.support.v4.view.OnApplyWindowInsetsListener() {
+                Rect mInsets;
+
+                @Override
+                public WindowInsetsCompat onApplyWindowInsets(View v, WindowInsetsCompat insets) {
+                    if (null == mInsets) {
+                        mInsets = new Rect();
+                    }
+                    topScrim.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, insets.getSystemWindowInsetTop()));
+                    bottomScrim.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, insets.getSystemWindowInsetBottom()));
+                    mInsets.set(insets.getSystemWindowInsetLeft(),
+                            insets.getSystemWindowInsetTop(),
+                            insets.getSystemWindowInsetRight(),
+                            insets.getSystemWindowInsetBottom());
+                    return insets.consumeSystemWindowInsets();
+                }
+            });
     }
 
     @Override
@@ -282,6 +318,11 @@ public class DebugActivity extends Activity implements WeatherController.Weather
 
     public void requestLaunch(ComponentName cn){
         startAppImpl(this, cn);
+    }
+
+    @Override
+    public Activity getActivityContext() {
+        return this;
     }
 
     private void startAppImpl(Context context, ComponentName cn){

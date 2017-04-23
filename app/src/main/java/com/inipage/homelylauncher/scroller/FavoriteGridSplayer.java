@@ -4,34 +4,32 @@ package com.inipage.homelylauncher.scroller;
 import android.animation.Animator;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
-import android.animation.ValueAnimator;
+import android.app.Activity;
+import android.content.ClipData;
 import android.content.ComponentName;
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.graphics.Point;
 import android.util.Log;
+import android.view.DragEvent;
 import android.view.LayoutInflater;
 import android.view.View;
-import android.view.ViewGroup;
 import android.view.animation.BounceInterpolator;
 import android.widget.AbsoluteLayout;
 import android.widget.ImageView;
 
-import com.inipage.homelylauncher.DatabaseEditor;
 import com.inipage.homelylauncher.DatabaseHelper;
 import com.inipage.homelylauncher.R;
 import com.inipage.homelylauncher.icons.IconCache;
 import com.inipage.homelylauncher.model.Favorite;
 import com.inipage.homelylauncher.utils.Utilities;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import okhttp3.internal.Util;
+import java.util.Timer;
+import java.util.TimerTask;
 
 /**
  * A class for doing our grid. Due to the requirements of the grid, neither
@@ -43,7 +41,7 @@ import okhttp3.internal.Util;
  * just be using a custom layout for the sake of _not_ using an AbsoluteLayout
  * and wind up replicating all of its logic).
  */
-public class FavoriteGridSplayer {
+public class FavoriteGridSplayer implements View.OnDragListener {
     public static final String TAG = "FavoriteGridSplayer";
 
     private static final int ANIMATION_DURATION = 500;
@@ -62,6 +60,7 @@ public class FavoriteGridSplayer {
     public interface FavoriteStateCallback {
         void onFavoritesChanged();
         void requestLaunch(ComponentName cn);
+        Activity getActivityContext();
     }
 
     public FavoriteGridSplayer(final AbsoluteLayout layout, List<Favorite> favorites,
@@ -76,6 +75,7 @@ public class FavoriteGridSplayer {
                     layout(true);
             }
         });
+        this.layout.setOnDragListener(this);
         this.callback = callback;
         this.favoritesRef = favorites;
         this.columnCount = columnCount;
@@ -90,25 +90,33 @@ public class FavoriteGridSplayer {
      * Layout the items in the internal grid base don where they want to be placed.
      * @param animate Animate the layout (requires existing grid elements).
      */
-    private synchronized void layout(boolean animate){
+    private synchronized void layout(final boolean animate){
         //Downsides to changeable columns: theoretically it's possible that, unfortunately, we changed
         //the column count. Now, we could either do one of two things when this happens: drop everything that's
         //out of view or... move them all to the bottom of the screen... or wrap them on to the
         //next row (that's three, actually). I like the third!
 
+        final boolean dragActive = dragTarget != null;
+
         //(0) Sort everything according to row, and then according to the column it's in
         Collections.sort(favoritesRef, new Comparator<Favorite>() {
             @Override
             public int compare(Favorite o1, Favorite o2) {
-                return o1.getPositionY() - o2.getPositionY();
+                return o1.getPositionY(dragActive && o1 != dragTarget) - o2.getPositionY(dragActive && o2 != dragTarget);
             }
         });
         Collections.sort(favoritesRef, new Comparator<Favorite>() {
             @Override
             public int compare(Favorite o1, Favorite o2) {
-                return o1.getPositionX() - o2.getPositionX();
+                return o1.getPositionX(dragActive && o1 != dragTarget) - o2.getPositionX(dragActive && o2 != dragTarget);
             }
         });
+
+        if(dragActive) {
+            favoritesRef.remove(dragTarget);
+            favoritesRef.add(0, dragTarget); //Put it at the start so its position is respected
+        }
+
         // Also, invalidate filled map
         this.filledMap = new int[MAXIMUM_HEIGHT][columnCount];
         for(int i = 0; i < MAXIMUM_HEIGHT; i++){
@@ -134,15 +142,15 @@ public class FavoriteGridSplayer {
             int newX = -1;
             int newY = -1;
             placementSearch: {
-                for (int i = f.getPositionY(); i < MAXIMUM_HEIGHT; i++) {
-                    for (int j = f.getPositionX(); j < columnCount; j++) {
+                for (int i = f.getPositionY(dragActive && f != dragTarget); i < MAXIMUM_HEIGHT; i++) {
+                    for (int j = (i == f.getPositionY(dragActive && f != dragTarget) ? f.getPositionX(dragActive && f != dragTarget) : 0); j < columnCount; j++) {
                         if(j + f.getWidth() > columnCount) continue; //Too wide at this spot; let's not waste our time.
 
                         //Is the starting cell --> size of object okay?
                         boolean hasSpace = true;
                         innerSpaceSearch: {
-                            for (int k = f.getPositionY(); k < f.getPositionY() + f.getHeight(); k++) {
-                                for (int l = f.getPositionX(); l < f.getPositionX() + f.getWidth(); l++){
+                            for (int k = f.getPositionY(dragActive && f != dragTarget); k < f.getPositionY(dragActive && f != dragTarget) + f.getHeight(); k++) {
+                                for (int l = f.getPositionX(dragActive && f != dragTarget); l < f.getPositionX(dragActive && f != dragTarget) + f.getWidth(); l++){
                                     if(filledMap[i][j] != -1){
                                         hasSpace = false;
                                         break innerSpaceSearch;
@@ -165,10 +173,10 @@ public class FavoriteGridSplayer {
                 throw new RuntimeException("Better crash here 'cuz we ain't got no valid layout...");
             }
 
-            f.setPositionX(newX);
-            f.setPositionY(newY);
-            for (int i = f.getPositionY(); i < f.getPositionY() + f.getHeight(); i++) {
-                for (int j = f.getPositionX(); j < f.getPositionX() + f.getWidth(); j++){
+            f.setPositionX(newX, !dragActive);
+            f.setPositionY(newY, !dragActive);
+            for (int i = f.getPositionY(false); i < f.getPositionY(false) + f.getHeight(); i++) {
+                for (int j = f.getPositionX(false); j < f.getPositionX(false) + f.getWidth(); j++){
                     filledMap[i][j] = f.getId();
                 }
 
@@ -195,7 +203,7 @@ public class FavoriteGridSplayer {
                     for(int col = 0; col < columnCount; col++){
                         if(filledMap[row][col] != -1){
                             Favorite fav = idToFavorite.get(filledMap[row][col]);
-                            fav.setPositionY(fav.getPositionY() - 1);
+                            fav.setPositionY(fav.getPositionY(false) - 1, !dragActive && fav != dragTarget);
                         }
                     }
                 }
@@ -204,8 +212,8 @@ public class FavoriteGridSplayer {
                 for(Favorite f : favoritesRef){
                     if(f.getContainingFolder() != -1) continue;
 
-                    for (int fRow = f.getPositionY(); fRow < f.getPositionY() + f.getHeight(); fRow++) {
-                        for (int fCol = f.getPositionX(); fCol < f.getPositionX(); fCol++){
+                    for (int fRow = f.getPositionY(false); fRow < f.getPositionY(false) + f.getHeight(); fRow++) {
+                        for (int fCol = f.getPositionX(false); fCol < f.getPositionX(false); fCol++){
                             filledMap[fRow][fCol] = f.getId();
                         }
                     }
@@ -214,60 +222,66 @@ public class FavoriteGridSplayer {
             }
         }
 
+        //TODO: actually only call this when there's a material change to favorite layout
         callback.onFavoritesChanged();
 
         //(3) Find views for each favorite and move them to their proper place, or create them
-        int cellDimension = layout.getWidth() / columnCount;
-        if(cellDimension < 1) return; //Nothing to do here; no proper layout has occurred
+        callback.getActivityContext().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                int cellDimension = layout.getWidth() / columnCount;
+                if(cellDimension < 1) return; //Nothing to do here; no proper layout has occurred
 
-        for(final Favorite f : favoritesRef){
-            if(f.getContainingFolder() != -1) continue; //Don't display "foldered" things
+                for(final Favorite f : favoritesRef){
+                    if(f.getContainingFolder() != -1) continue; //Don't display "foldered" things
 
+                    View repr = null;
+                    boolean existed = false;
+                    if(favoriteToView.containsKey(f)){
+                        repr = favoriteToView.get(f);
+                        existed = true;
+                    } else {
+                        switch(f.getType()){
+                            case DatabaseHelper.FAVORITE_TYPE_APP:
+                                repr = LayoutInflater.from(ctx).inflate(R.layout.item_scr_favorite, layout, false);
+                                favoriteToView.put(f, repr);
+                                break;
+                            case DatabaseHelper.FAVORITE_TYPE_SHORTCUT:
+                            case DatabaseHelper.FAVORITE_TYPE_WIDGET:
+                            case DatabaseHelper.FAVORITE_TYPE_FOLDER:
+                                Utilities.throwNotImplemented();
+                                break;
+                        }
 
-            View repr = null;
-            boolean existed = false;
-            if(favoriteToView.containsKey(f)){
-                repr = favoriteToView.get(f);
-                existed = true;
-            } else {
-                switch(f.getType()){
-                    case DatabaseHelper.FAVORITE_TYPE_APP:
-                        repr = LayoutInflater.from(ctx).inflate(R.layout.item_scr_favorite, layout, false);
-                        favoriteToView.put(f, repr);
-                        break;
-                    case DatabaseHelper.FAVORITE_TYPE_SHORTCUT:
-                    case DatabaseHelper.FAVORITE_TYPE_WIDGET:
-                    case DatabaseHelper.FAVORITE_TYPE_FOLDER:
-                        Utilities.throwNotImplemented();
-                        break;
-                }
-
-                switch(f.getType()){
-                    case DatabaseHelper.FAVORITE_TYPE_APP:
-                        final View finalRepr = repr;
-                        ComponentName cn = f.getComponentName();
-                        final ImageView favAppIcon = (ImageView) repr.findViewById(R.id.favoriteAppIcon);
-                        favAppIcon.setImageBitmap(IconCache.getInstance().getAppIcon(
-                                cn.getPackageName(),
-                                cn.getClassName(),
-                                IconCache.IconFetchPriority.APP_DRAWER_ICONS,
-                                cellDimension,
-                                new IconCache.ItemRetrievalInterface() {
+                        switch(f.getType()){
+                            case DatabaseHelper.FAVORITE_TYPE_APP:
+                                final View finalRepr = repr;
+                                ComponentName cn = f.getComponentName();
+                                final ImageView favAppIcon = (ImageView) repr.findViewById(R.id.favoriteAppIcon);
+                                favAppIcon.setImageBitmap(IconCache.getInstance().getAppIcon(
+                                        cn.getPackageName(),
+                                        cn.getClassName(),
+                                        IconCache.IconFetchPriority.APP_DRAWER_ICONS,
+                                        cellDimension,
+                                        new IconCache.ItemRetrievalInterface() {
+                                            @Override
+                                            public void onRetrievalComplete(Bitmap result) {
+                                                favAppIcon.setImageBitmap(result);
+                                            }
+                                        }));
+                                repr.setOnClickListener(new View.OnClickListener() {
                                     @Override
-                                    public void onRetrievalComplete(Bitmap result) {
-                                        favAppIcon.setImageBitmap(result);
+                                    public void onClick(View v) {
+                                        callback.requestLaunch(f.getComponentName());
                                     }
-                                }));
-                        repr.setOnClickListener(new View.OnClickListener() {
-                            @Override
-                            public void onClick(View v) {
-                                callback.requestLaunch(f.getComponentName());
-                            }
-                        });
-                        repr.setOnLongClickListener(new View.OnLongClickListener() {
-                            @Override
-                            public boolean onLongClick(View v) {
-                                //TODO: Make this move or something else
+                                });
+                                repr.setOnLongClickListener(new View.OnLongClickListener() {
+                                    @Override
+                                    public boolean onLongClick(View v) {
+                                        //TODO: Add a radial menu to support choosing between resize, move, and delete
+                                        v.startDrag(ClipData.newPlainText("", ""), new View.DragShadowBuilder(v), f, 0);
+
+                                /*
                                 View container = finalRepr.findViewById(R.id.scrollerItemContainer);
                                 ObjectAnimator oa = ObjectAnimator.ofFloat(container, "scaleX", 1.0f, 0.0f);
                                 ObjectAnimator oa2 = ObjectAnimator.ofFloat(container, "scaleY", 1.0f, 0.0f);
@@ -299,47 +313,51 @@ public class FavoriteGridSplayer {
                                     }
                                 });
                                 set.start();
-                                return true;
-                            }
-                        });
-                        break;
-                    case DatabaseHelper.FAVORITE_TYPE_SHORTCUT:
-                    case DatabaseHelper.FAVORITE_TYPE_WIDGET:
-                    case DatabaseHelper.FAVORITE_TYPE_FOLDER:
-                        Utilities.throwNotImplemented();
-                        break;
+                                */
+                                        return true;
+                                    }
+                                });
+                                break;
+                            case DatabaseHelper.FAVORITE_TYPE_SHORTCUT:
+                            case DatabaseHelper.FAVORITE_TYPE_WIDGET:
+                            case DatabaseHelper.FAVORITE_TYPE_FOLDER:
+                                Utilities.throwNotImplemented();
+                                break;
+                        }
+                    }
+
+                    //Now layout the repr
+                    AbsoluteLayout.LayoutParams params = new AbsoluteLayout.LayoutParams(cellDimension * f.getWidth(),
+                            cellDimension * f.getHeight(),
+                            cellDimension * f.getPositionX(false),
+                            cellDimension * f.getPositionY(false));
+                    if(!existed) {
+                        repr.setLayoutParams(params);
+                        repr.setTag(f);
+                        layout.addView(repr);
+                        repr.requestLayout();
+
+                        //We also like cute animations -- so we do a scale from 0.2-100% in!
+                        if(animate) {
+                            View container = repr.findViewById(R.id.scrollerItemContainer);
+                            ObjectAnimator oa = ObjectAnimator.ofFloat(container, "scaleX", 0.2f, 1.0f);
+                            ObjectAnimator oa2 = ObjectAnimator.ofFloat(container, "scaleY", 0.2f, 1.0f);
+                            AnimatorSet set = new AnimatorSet();
+                            set.setDuration(ANIMATION_DURATION);
+                            set.setInterpolator(new BounceInterpolator());
+                            set.playTogether(oa, oa2);
+                            set.start();
+                        }
+                    } else {
+                        if(animate){
+                            Utilities.animateAbsoluteLayoutChange(repr, params, 250L);
+                        } else {
+                            repr.setLayoutParams(params);
+                        }
+                    }
                 }
             }
-
-            //Now layout the repr
-            AbsoluteLayout.LayoutParams params = new AbsoluteLayout.LayoutParams(cellDimension * f.getWidth(),
-                    cellDimension * f.getHeight(),
-                    cellDimension * f.getPositionX(),
-                    cellDimension * f.getPositionY());
-            if(!existed) {
-                repr.setLayoutParams(params);
-                layout.addView(repr);
-                repr.requestLayout();
-
-                //We also like cute animations -- so we do a scale from 0.2-100% in!
-                if(animate) {
-                    View container = repr.findViewById(R.id.scrollerItemContainer);
-                    ObjectAnimator oa = ObjectAnimator.ofFloat(container, "scaleX", 0.2f, 1.0f);
-                    ObjectAnimator oa2 = ObjectAnimator.ofFloat(container, "scaleY", 0.2f, 1.0f);
-                    AnimatorSet set = new AnimatorSet();
-                    set.setDuration(ANIMATION_DURATION);
-                    set.setInterpolator(new BounceInterpolator());
-                    set.playTogether(oa, oa2);
-                    set.start();
-                }
-            } else {
-                if(animate){
-                    Utilities.animateAbsoluteLayoutChange(repr, params, ANIMATION_DURATION);
-                } else {
-                    repr.setLayoutParams(params);
-                }
-            }
-        }
+        });
     }
 
     /**
@@ -381,5 +399,56 @@ public class FavoriteGridSplayer {
         favoritesRef.add(f);
         layout(true);
         return true;
+    }
+
+    Favorite dragTarget = null;
+    float dragX;
+    float dragY;
+
+    @Override
+    public boolean onDrag(View v, DragEvent event) {
+        switch(event.getAction()){
+            case DragEvent.ACTION_DRAG_STARTED:
+                Log.d(TAG, "Drag started");
+                Log.d(TAG, "dragTarget=" + dragTarget);
+                dragTarget = (Favorite) event.getLocalState();
+                break;
+            case DragEvent.ACTION_DRAG_LOCATION:
+                dragX = event.getX();
+                dragY = event.getY();
+                reactToDrag();
+                break;
+            case DragEvent.ACTION_DROP:
+                Log.d(TAG, "Drag ended/dropped");
+                Log.d(TAG, "dragTarget=" + dragTarget);
+                reactToDrag();
+                dragTarget = null;
+                layout(true); //Everything is good; just needs to be "committed" now
+                break;
+        }
+        return true;
+    }
+
+    private void reactToDrag(){
+        //Calculate if the target's in a different cell; if so set update and call
+        //layout(true) again
+        float actualX = dragX; //no adjustment needed
+        float actualY = dragY;
+
+        //"Cell" it should be in is easy enough
+        int cellDimension = layout.getWidth() / columnCount;
+        int xPosition = (int) Math.floor(actualX / cellDimension);
+        int yPosition = (int) Math.floor(actualY / cellDimension);
+        if(yPosition < 0) yPosition = 0;
+
+        //We actually set the real position on this guy
+        if(xPosition != dragTarget.getPositionX(false) || yPosition != dragTarget.getPositionY(false)){
+            Log.d(TAG, "Change noted; adjusting!!!");
+            Log.d(TAG, "Cell position = " + xPosition + ", " + yPosition);
+
+            dragTarget.setPositionX(xPosition, true);
+            dragTarget.setPositionY(yPosition, true);
+            layout(true);
+        }
     }
 }

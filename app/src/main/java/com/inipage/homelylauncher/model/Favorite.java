@@ -12,6 +12,8 @@ public class Favorite {
     private int mType;
     private int mPositionX;
     private int mPositionY;
+    private int mShadowXPos; //X position before a drag started
+    private int mShadowYPos; //Y position before a drag started
     private int mWidth;
     private int mHeight;
     private int mContainingFolder;
@@ -28,6 +30,8 @@ public class Favorite {
         this.mType = mType;
         this.mPositionX = mPositionX;
         this.mPositionY = mPositionY;
+        this.mShadowXPos = mPositionX;
+        this.mShadowYPos = mPositionY;
         this.mWidth = mWidth;
         this.mHeight = mHeight;
         this.mContainingFolder = mContainingFolder;
@@ -45,6 +49,8 @@ public class Favorite {
         this.mType = mType;
         this.mPositionX = mPositionX;
         this.mPositionY = mPositionY;
+        this.mShadowXPos = mPositionX;
+        this.mShadowYPos = mPositionY;
         this.mWidth = mWidth;
         this.mHeight = mHeight;
         this.mContainingFolder = mContainingFolder;
@@ -88,12 +94,12 @@ public class Favorite {
         return mDataString1;
     }
 
-    public int getPositionX() {
-        return mPositionX;
+    public int getPositionX(boolean getShadow) {
+        return getShadow ? mShadowXPos : mPositionX;
     }
 
-    public int getPositionY() {
-        return mPositionY;
+    public int getPositionY(boolean getShadow) {
+        return getShadow ? mShadowYPos : mPositionY;
     }
 
     public int getWidth() {
@@ -129,13 +135,15 @@ public class Favorite {
         return this;
     }
 
-    public Favorite setPositionX(int mPositionX) {
+    public Favorite setPositionX(int mPositionX, boolean replaceShadow) {
         this.mPositionX = mPositionX;
+        if(replaceShadow) this.mShadowXPos = mPositionX;
         return this;
     }
 
-    public Favorite setPositionY(int mPositionY) {
+    public Favorite setPositionY(int mPositionY, boolean replaceShadow) {
         this.mPositionY = mPositionY;
+        if(replaceShadow) this.mShadowYPos = mPositionY;
         return this;
     }
 
@@ -171,5 +179,10 @@ public class Favorite {
 
     public int getId() {
         return mId;
+    }
+
+    @Override
+    public String toString() {
+        return "mDS1: " + mDataString1 + "; mDS2: " + mDataString2 + "; mDI1: " + mDataInt1;
     }
 }

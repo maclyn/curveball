@@ -76,8 +76,8 @@ public class DatabaseEditor {
 
             cv.put(DatabaseHelper.COLUMN_WIDTH, f.getWidth());
             cv.put(DatabaseHelper.COLUMN_HEIGHT, f.getHeight());
-            cv.put(DatabaseHelper.COLUMN_POSITION_X, f.getPositionX());
-            cv.put(DatabaseHelper.COLUMN_POSITION_Y, f.getPositionY());
+            cv.put(DatabaseHelper.COLUMN_POSITION_X, f.getPositionX(false));
+            cv.put(DatabaseHelper.COLUMN_POSITION_Y, f.getPositionY(false));
             cv.put(DatabaseHelper.COLUMN_FAVORITE_TYPE, f.getType());
             cv.put(DatabaseHelper.COLUMN_DATA_STRING_1, f.getDataString1());
             cv.put(DatabaseHelper.COLUMN_DATA_STRING_2, f.getDataString2());

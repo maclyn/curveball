@@ -16,6 +16,7 @@ import android.view.View;
 import android.view.animation.BounceInterpolator;
 import android.widget.AbsoluteLayout;
 import android.widget.ImageView;
+import android.widget.Toast;
 
 import com.inipage.homelylauncher.DatabaseHelper;
 import com.inipage.homelylauncher.R;
@@ -402,8 +403,12 @@ public class FavoriteGridSplayer implements View.OnDragListener {
     }
 
     Favorite dragTarget = null;
-    float dragX;
-    float dragY;
+    float dragX = -1;
+    float dragY = -1;
+    int currentCellX = -1;
+    int currentCellY = -1;
+    int targetCellX = -1;
+    int targetCellY = -1;
 
     @Override
     public boolean onDrag(View v, DragEvent event) {
@@ -422,8 +427,31 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                 Log.d(TAG, "Drag ended/dropped");
                 Log.d(TAG, "dragTarget=" + dragTarget);
                 reactToDrag();
+
+                //If dropped where started, show menu
+                if(currentCellX == targetCellX && currentCellY == targetCellY) {
+                    Toast.makeText(ctx, "Would menu", Toast.LENGTH_SHORT).show();
+                }
+
                 dragTarget = null;
+                dragX = -1;
+                dragY = -1;
+                currentCellX = -1;
+                currentCellY = -1;
+                targetCellX = -1;
+                targetCellY = -1;
                 layout(true); //Everything is good; just needs to be "committed" now
+                break;
+            case DragEvent.ACTION_DRAG_ENDED:
+                if(!event.getResult()){ //We need to cancel stuff ourselves
+                    dragTarget = null;
+                    dragX = -1;
+                    dragY = -1;
+                    currentCellX = -1;
+                    currentCellY = -1;
+                    targetCellX = -1;
+                    targetCellY = -1;
+                }
                 break;
         }
         return true;
@@ -437,17 +465,21 @@ public class FavoriteGridSplayer implements View.OnDragListener {
 
         //"Cell" it should be in is easy enough
         int cellDimension = layout.getWidth() / columnCount;
-        int xPosition = (int) Math.floor(actualX / cellDimension);
-        int yPosition = (int) Math.floor(actualY / cellDimension);
-        if(yPosition < 0) yPosition = 0;
+        currentCellX = (int) Math.floor(actualX / cellDimension);
+        currentCellX = (int) Math.floor(actualY / cellDimension);
+        if(currentCellY < 0) currentCellY = 0;
+        if(targetCellX == -1 && targetCellY == -1){
+            targetCellX = currentCellX;
+            targetCellY = currentCellY;
+        }
 
         //We actually set the real position on this guy
-        if(xPosition != dragTarget.getPositionX(false) || yPosition != dragTarget.getPositionY(false)){
+        if(currentCellX != dragTarget.getPositionX(false) || currentCellY != dragTarget.getPositionY(false)){
             Log.d(TAG, "Change noted; adjusting!!!");
-            Log.d(TAG, "Cell position = " + xPosition + ", " + yPosition);
+            Log.d(TAG, "Cell position = " + currentCellX + ", " + currentCellY);
 
-            dragTarget.setPositionX(xPosition, true);
-            dragTarget.setPositionY(yPosition, true);
+            dragTarget.setPositionX(currentCellX, true);
+            dragTarget.setPositionY(currentCellY, true);
             layout(true);
         }
     }

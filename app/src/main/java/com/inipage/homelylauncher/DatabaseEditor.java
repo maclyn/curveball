@@ -3,13 +3,9 @@ package com.inipage.homelylauncher;
 
 import android.content.ComponentName;
 import android.content.ContentValues;
-import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.util.Log;
-import android.util.Pair;
 
-import com.inipage.homelylauncher.drawer.ApplicationHiderIcon;
 import com.inipage.homelylauncher.model.Favorite;
 
 import java.util.ArrayList;
@@ -76,8 +72,8 @@ public class DatabaseEditor {
 
             cv.put(DatabaseHelper.COLUMN_WIDTH, f.getWidth());
             cv.put(DatabaseHelper.COLUMN_HEIGHT, f.getHeight());
-            cv.put(DatabaseHelper.COLUMN_POSITION_X, f.getPositionX(false));
-            cv.put(DatabaseHelper.COLUMN_POSITION_Y, f.getPositionY(false));
+            cv.put(DatabaseHelper.COLUMN_POSITION_X, f.getX());
+            cv.put(DatabaseHelper.COLUMN_POSITION_Y, f.getY());
             cv.put(DatabaseHelper.COLUMN_FAVORITE_TYPE, f.getType());
             cv.put(DatabaseHelper.COLUMN_DATA_STRING_1, f.getDataString1());
             cv.put(DatabaseHelper.COLUMN_DATA_STRING_2, f.getDataString2());

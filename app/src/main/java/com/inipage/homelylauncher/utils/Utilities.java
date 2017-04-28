@@ -1,6 +1,8 @@
 package com.inipage.homelylauncher.utils;
 
 import android.animation.Animator;
+import android.animation.AnimatorSet;
+import android.animation.ObjectAnimator;
 import android.animation.TypeEvaluator;
 import android.animation.ValueAnimator;
 import android.app.Activity;
@@ -16,11 +18,9 @@ import android.util.Log;
 import android.util.TypedValue;
 import android.view.MotionEvent;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.AbsoluteLayout;
 
 import com.inipage.homelylauncher.Constants;
-import com.inipage.homelylauncher.R;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -234,6 +234,38 @@ public class Utilities {
 
     public static void throwNotImplemented(){
         throw new RuntimeException("Not implemented!");
+    }
+
+    public interface ScaleAnimation {
+        void onComplete();
+    }
+
+    public static void animateScaleChange(final View child, final ScaleAnimation listener, long time, float start, float end){
+        ObjectAnimator oa = ObjectAnimator.ofFloat(child, "scaleX", start, end);
+        ObjectAnimator oa2 = ObjectAnimator.ofFloat(child, "scaleY", start, end);
+        AnimatorSet set = new AnimatorSet();
+        set.setDuration(time);
+        set.playTogether(oa, oa2);
+        set.addListener(new Animator.AnimatorListener() {
+            @Override
+            public void onAnimationStart(Animator animation) {
+            }
+
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                listener.onComplete();
+            }
+
+            @Override
+            public void onAnimationCancel(Animator animation) {
+                listener.onComplete();
+            }
+
+            @Override
+            public void onAnimationRepeat(Animator animation) {
+            }
+        });
+        set.start();
     }
 
     public static void animateAbsoluteLayoutChange(final View alChild, final AbsoluteLayout.LayoutParams newParams, long duration){

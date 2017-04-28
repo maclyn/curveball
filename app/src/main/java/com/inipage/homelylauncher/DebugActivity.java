@@ -7,26 +7,28 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
-import android.graphics.Rect;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.support.design.internal.ScrimInsetsFrameLayout;
+import android.support.v4.hardware.display.DisplayManagerCompat;
+import android.support.v4.view.OnApplyWindowInsetsListener;
 import android.support.v4.view.ViewCompat;
 import android.support.v4.view.WindowInsetsCompat;
 import android.support.v7.view.SupportMenuInflater;
 import android.support.v7.view.menu.MenuBuilder;
 import android.support.v7.view.menu.MenuPopupHelper;
+import android.util.DisplayMetrics;
+import android.util.Log;
+import android.view.Display;
 import android.view.LayoutInflater;
-import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.View;
-import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
 import android.widget.AbsoluteLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
-import android.widget.PopupMenu;
+import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -63,12 +65,23 @@ import butterknife.OnLongClick;
 /**
  * A staging activity for changes that will eventually be used in the HomeActivity. Oh boy.
  */
-public class DebugActivity extends Activity implements WeatherController.WeatherPresenter, FavoriteGridSplayer.FavoriteStateCallback {
+public class DebugActivity extends Activity implements WeatherController.WeatherPresenter, FavoriteGridSplayer.FavoriteStateCallback, ViewTreeObserver.OnScrollChangedListener {
+    public static final String TAG = "DebugActivity";
+
     private final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("h:mm", Locale.getDefault());
     private final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("EEEE, MMMM d", Locale.getDefault());
 
+    @Bind(R.id.background)
+    View background;
+
+    @Bind(R.id.scrollContainer)
+    ScrollView scrollView;
+
     @Bind(R.id.top_scrim)
     View topScrim;
+
+    @Bind(R.id.headerView)
+    View headerView;
 
     @Bind(R.id.bottom_scrim)
     View bottomScrim;
@@ -81,6 +94,10 @@ public class DebugActivity extends Activity implements WeatherController.Weather
 
     @Bind(R.id.grid_layout)
     AbsoluteLayout favoritesGrid;
+
+    @Bind(R.id.overlay_layout)
+    AbsoluteLayout overlayLayout;
+    View attachedOverlay;
 
     //Header fields
     Timer timeUpdateTimer;
@@ -106,8 +123,9 @@ public class DebugActivity extends Activity implements WeatherController.Weather
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_debug);
         ButterKnife.bind(this);
+        getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+        background.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
 
-        setScrims();
         loadApps();
         loadFavorites();
         timeUpdateTimer = new Timer();
@@ -127,27 +145,68 @@ public class DebugActivity extends Activity implements WeatherController.Weather
             }
         };
         timeUpdateTimer.schedule(clockUpdateTask, new Date(), 1000L);
+        updateScrims();
+
+        if(scrollView.getViewTreeObserver().isAlive()) {
+            scrollView.getViewTreeObserver().addOnScrollChangedListener(this);
+        } else {
+            Log.d(TAG, "dead1");
+        }
     }
 
-    private void setScrims() {
-        ViewCompat.setOnApplyWindowInsetsListener(topScrim,
-            new android.support.v4.view.OnApplyWindowInsetsListener() {
-                Rect mInsets;
+    int top = -1;
+    int bottom = -1;
+    private void updateScrims(){
+        if(top != -1){
+            updateSpacing();
+            return;
+        }
 
-                @Override
-                public WindowInsetsCompat onApplyWindowInsets(View v, WindowInsetsCompat insets) {
-                    if (null == mInsets) {
-                        mInsets = new Rect();
+        //It appears setting this twice does not work
+        ViewCompat.setOnApplyWindowInsetsListener(topScrim,
+                new OnApplyWindowInsetsListener() {
+                    @Override
+                    public WindowInsetsCompat onApplyWindowInsets(View v, WindowInsetsCompat insets) {
+                        top = insets.getSystemWindowInsetTop();
+                        bottom = insets.getSystemWindowInsetBottom();
+
+                        updateSpacing();
+
+                        return insets.consumeSystemWindowInsets();
                     }
-                    topScrim.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, insets.getSystemWindowInsetTop()));
-                    bottomScrim.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, insets.getSystemWindowInsetBottom()));
-                    mInsets.set(insets.getSystemWindowInsetLeft(),
-                            insets.getSystemWindowInsetTop(),
-                            insets.getSystemWindowInsetRight(),
-                            insets.getSystemWindowInsetBottom());
-                    return insets.consumeSystemWindowInsets();
-                }
-            });
+                });
+    }
+
+    private void updateSpacing(){
+        LinearLayout.LayoutParams topParams = (LinearLayout.LayoutParams) topScrim.getLayoutParams();
+        topParams.height = top;
+        topScrim.setLayoutParams(topParams);
+
+        LinearLayout.LayoutParams bottomParams = (LinearLayout.LayoutParams) bottomScrim.getLayoutParams();
+        bottomParams.height = bottom;
+        bottomScrim.setLayoutParams(bottomParams);
+
+        //Set "space" to occupy...space [screen height - top scrim - bottom scrim - header size - [cell*space]]
+        DisplayManagerCompat dmc = DisplayManagerCompat.getInstance(DebugActivity.this);
+        int screenHeight = -1;
+        int screenWidth = -1;
+        for(Display d : dmc.getDisplays()){
+            DisplayMetrics metrics = new DisplayMetrics();
+            d.getRealMetrics(metrics);
+            screenWidth = metrics.widthPixels;
+            screenHeight = metrics.heightPixels;
+        }
+        int headerSize = headerView.getHeight();
+        float cellDimension = (screenWidth / 5);
+
+        LinearLayout.LayoutParams spaceParams = (LinearLayout.LayoutParams) space.getLayoutParams();
+        //[screen height - top scrim - bottom scrim - header size - [cell*space]]
+
+        int desiredSpace = (int) (screenHeight - top - bottom - headerSize - (cellDimension * 2));
+        if(desiredSpace < 0)
+            desiredSpace = 0;
+        spaceParams.height = desiredSpace;
+        space.setLayoutParams(spaceParams);
     }
 
     @Override
@@ -321,6 +380,48 @@ public class DebugActivity extends Activity implements WeatherController.Weather
     }
 
     @Override
+    public void attachOverlay(View toAttach, int centerX, int centerY, int width, int height) {
+        toAttach.setPivotY(centerY);
+        toAttach.setPivotX(centerX);
+
+        int x = centerX - (width / 2);
+        int y = centerY - (height / 2);
+        if(x < 0) x = 0;
+        if(x > (scrollView.getWidth() - width)) x = scrollView.getWidth() - width;
+        if(y < top) y = top;
+
+        AbsoluteLayout.LayoutParams params = new AbsoluteLayout.LayoutParams(width, height, x, y);
+        overlayLayout.addView(toAttach, params);
+        Utilities.animateScaleChange(toAttach, new Utilities.ScaleAnimation() {
+            @Override
+            public void onComplete() {
+            }
+        }, 500L, 0.0f, 1.0f);
+        overlayLayout.setClickable(true);
+        overlayLayout.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Log.d(TAG, "onClick!");
+                closeOverlay();
+            }
+        });
+        attachedOverlay = toAttach;
+    }
+
+    @Override
+    public void closeOverlay() {
+        overlayLayout.setClickable(false);
+        Utilities.animateScaleChange(attachedOverlay, new Utilities.ScaleAnimation() {
+            @Override
+            public void onComplete() {
+                overlayLayout.removeView(attachedOverlay);
+                overlayLayout.setOnClickListener(null);
+                overlayLayout.setClickable(false);
+            }
+        }, 500L, 1.0f, 0.0f);
+    }
+
+    @Override
     public Activity getActivityContext() {
         return this;
     }
@@ -365,5 +466,21 @@ public class DebugActivity extends Activity implements WeatherController.Weather
     @Override
     public void onFavoritesChanged() {
         DatabaseEditor.getInstance().saveFavorites(favorites);
+    }
+
+    @Override
+    public void onRendered() {
+        Log.d(TAG, "onRendered");
+        updateScrims();
+    }
+
+    @Override
+    public void onScrollChanged() {
+        int scrollY = scrollView.getScrollY();
+        if(scrollY < space.getHeight()){
+            float difference = space.getHeight() - scrollY;
+            float ratio = 1 - (difference / space.getHeight());
+            background.setAlpha(ratio);
+        }
     }
 }

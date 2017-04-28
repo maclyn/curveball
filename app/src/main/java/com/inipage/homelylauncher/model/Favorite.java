@@ -1,7 +1,6 @@
 package com.inipage.homelylauncher.model;
 
 import android.content.ComponentName;
-import android.database.Cursor;
 
 import com.inipage.homelylauncher.DatabaseHelper;
 
@@ -12,8 +11,6 @@ public class Favorite {
     private int mType;
     private int mPositionX;
     private int mPositionY;
-    private int mShadowXPos; //X position before a drag started
-    private int mShadowYPos; //Y position before a drag started
     private int mWidth;
     private int mHeight;
     private int mContainingFolder;
@@ -30,8 +27,6 @@ public class Favorite {
         this.mType = mType;
         this.mPositionX = mPositionX;
         this.mPositionY = mPositionY;
-        this.mShadowXPos = mPositionX;
-        this.mShadowYPos = mPositionY;
         this.mWidth = mWidth;
         this.mHeight = mHeight;
         this.mContainingFolder = mContainingFolder;
@@ -49,8 +44,6 @@ public class Favorite {
         this.mType = mType;
         this.mPositionX = mPositionX;
         this.mPositionY = mPositionY;
-        this.mShadowXPos = mPositionX;
-        this.mShadowYPos = mPositionY;
         this.mWidth = mWidth;
         this.mHeight = mHeight;
         this.mContainingFolder = mContainingFolder;
@@ -94,12 +87,12 @@ public class Favorite {
         return mDataString1;
     }
 
-    public int getPositionX(boolean getShadow) {
-        return getShadow ? mShadowXPos : mPositionX;
+    public int getX() {
+        return mPositionX;
     }
 
-    public int getPositionY(boolean getShadow) {
-        return getShadow ? mShadowYPos : mPositionY;
+    public int getY() {
+        return mPositionY;
     }
 
     public int getWidth() {
@@ -135,15 +128,13 @@ public class Favorite {
         return this;
     }
 
-    public Favorite setPositionX(int mPositionX, boolean replaceShadow) {
+    public Favorite setX(int mPositionX) {
         this.mPositionX = mPositionX;
-        if(replaceShadow) this.mShadowXPos = mPositionX;
         return this;
     }
 
-    public Favorite setPositionY(int mPositionY, boolean replaceShadow) {
+    public Favorite setY(int mPositionY) {
         this.mPositionY = mPositionY;
-        if(replaceShadow) this.mShadowYPos = mPositionY;
         return this;
     }
 
@@ -184,5 +175,12 @@ public class Favorite {
     @Override
     public String toString() {
         return "mDS1: " + mDataString1 + "; mDS2: " + mDataString2 + "; mDI1: " + mDataInt1;
+    }
+
+    public void updateFromShadow(FavoriteShadow fs) {
+        this.mPositionX = fs.getX();
+        this.mPositionY = fs.getY();
+        this.mWidth = fs.getWidth();
+        this.mHeight = fs.getHeight();
     }
 }

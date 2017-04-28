@@ -1,32 +1,32 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:fitsSystemWindows="false"
+    android:layout_height="wrap_content"
     tools:context="com.inipage.homelylauncher.DebugActivity">
 
     <View
         android:fitsSystemWindows="false"
         android:id="@+id/background"
-        android:background="#BF000000"
+        android:background="#a0000000"
+        android:alpha="0"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
     <ScrollView
-        android:clipToPadding="false"
-        android:fitsSystemWindows="true"
+        android:id="@+id/scrollContainer"
+        android:overScrollMode="never"
+        android:fitsSystemWindows="false"
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
         <LinearLayout
-            android:fitsSystemWindows="false"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical">
 
             <View
-                android:fitsSystemWindows="false"
                 android:id="@+id/top_scrim"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
@@ -40,19 +40,27 @@
 
             <AbsoluteLayout
                 android:id="@+id/grid_layout"
+                android:background="#a0000000"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
 
             <LinearLayout
                 android:id="@+id/app_list"
+                android:background="#a0000000"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical" />
 
             <View
                 android:id="@+id/bottom_scrim"
+                android:background="#a0000000"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content" />
         </LinearLayout>
     </ScrollView>
+
+    <AbsoluteLayout
+        android:id="@+id/overlay_layout"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 </RelativeLayout>

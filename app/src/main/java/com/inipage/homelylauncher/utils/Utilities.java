@@ -277,7 +277,9 @@ public class Utilities {
                                                         AbsoluteLayout.LayoutParams endValue) {
                 int currX = (int) (startValue.x + ((endValue.x - startValue.x) * fraction));
                 int currY = (int) (startValue.y + ((endValue.y - startValue.y) * fraction));
-                return new AbsoluteLayout.LayoutParams(startValue.width, startValue.height, currX, currY);
+                int currWidth = (int) ((startValue.width) + ((endValue.width - startValue.width) * fraction));
+                int currHeight = (int) ((startValue.height) + ((endValue.height - startValue.height) * fraction));
+                return new AbsoluteLayout.LayoutParams(currWidth, currHeight, currX, currY);
             }
         }, oldParams, newParams);
         animation.setTarget(alChild);

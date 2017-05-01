@@ -9,6 +9,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Color;
+import android.graphics.PointF;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.ShapeDrawable;
 import android.graphics.drawable.shapes.OvalShape;
@@ -72,6 +73,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
         void attachOverlay(View toAttach, int centerX, int centerY, int width, int height);
         void closeOverlay();
         Activity getActivityContext();
+        PointF getPointerPosition();
     }
 
     public FavoriteGridSplayer(final AbsoluteLayout layout,
@@ -165,7 +167,8 @@ public class FavoriteGridSplayer implements View.OnDragListener {
     private int findLowestPoint(List<FavoriteShadow> positions){
         int lowestPoint = 0;
         for(FavoriteShadow pos : positions){
-            if(pos.getY() > lowestPoint) lowestPoint = pos.getY();
+            int shadowLp = pos.getY() + pos.getHeight() - 1;
+            if(shadowLp > lowestPoint) lowestPoint = shadowLp;
         }
         return lowestPoint;
     }
@@ -221,15 +224,15 @@ public class FavoriteGridSplayer implements View.OnDragListener {
             int newY = -1;
             placementSearch: {
                 for (int i = f.getY(); i < MAXIMUM_HEIGHT; i++) {
-                    for (int j = (i == f.getY() ? f.getX() : 0); j < columnCount; j++) {
+                    for (int j = (i == f.getY() ? f.getX() : 0); j < columnCount; j++) { //Weird ternary operator: start at x pos. on first line of layout; if below that try searching from x=0
                         if(j + f.getWidth() > columnCount) continue; //Too wide at this spot; let's not waste our time.
 
                         //Is the starting cell --> size of object okay?
                         boolean hasSpace = true;
                         innerSpaceSearch: {
-                            for (int k = f.getY(); k < f.getY() + f.getHeight(); k++) {
-                                for (int l = f.getX(); l < f.getX() + f.getWidth(); l++){
-                                    if(filledMap[i][j] != null){
+                            for (int k = i; k < i + f.getHeight(); k++) {
+                                for (int l = j; l < j + f.getWidth(); l++){
+                                    if(filledMap[k][l] != null){
                                         hasSpace = false;
                                         break innerSpaceSearch;
                                     }
@@ -274,12 +277,13 @@ public class FavoriteGridSplayer implements View.OnDragListener {
             }
 
             if(empty){ //This row is useless!
-                //Adjust internal representations on Favorites
+                //Adjust internal representations on FavoriteShadows
                 for(int row = i; row <= lowestPoint; row++){
                     for(int col = 0; col < columnCount; col++){
                         if(filledMap[row][col] != null){
                             FavoriteShadow fav = filledMap[row][col];
-                            fav.setY(fav.getY() - 1);
+                            if(fav.getY() == row)
+                                fav.setY(fav.getY() - 1);
                         }
                     }
                 }
@@ -297,6 +301,9 @@ public class FavoriteGridSplayer implements View.OnDragListener {
         }
 
         shadows = rValue;
+
+        Log.d(TAG, "Designed layout:");
+        Log.d(TAG, toString());
     }
 
 
@@ -406,6 +413,8 @@ public class FavoriteGridSplayer implements View.OnDragListener {
     Favorite dragTarget = null;
     float dragX = -1;
     float dragY = -1;
+    float adjustmentX = -1;
+    float adjustmentY = -1;
     int currentCellX = -1;
     int currentCellY = -1;
     int targetCellX = -1;
@@ -484,7 +493,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                     color = palette.getDarkVibrantSwatch().getRgb();
                 } else if (palette.getLightVibrantSwatch() != null) {
                     color = palette.getLightVibrantSwatch().getRgb();
-                } 
+                }
                 showItemMenuImpl(menuTarget, color);
             }
         });
@@ -504,7 +513,28 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                 ShapeDrawable sd = new ShapeDrawable(ovalShape);
                 sd.getPaint().setColor(shapeColor);
                 v.findViewById(R.id.app_opts_bg).setBackground(sd);
-                int oneTwoEight = (int) Utilities.convertDpToPixel(128, ctx);
+                int viewSize = (int) Utilities.convertDpToPixel(180, ctx);
+                v.findViewById(R.id.scale_button).setOnClickListener(new View.OnClickListener() {
+                    @Override
+                    public void onClick(View v) {
+                        callback.closeOverlay();
+                        FavoriteShadow fs = lookupFavoriteShadow(menuTarget);
+                        if(fs.getWidth() > 1){
+                            fs.setWidth(1);
+                            fs.setHeight(1);
+                            menuTarget.setWidth(1);
+                            menuTarget.setHeight(1);
+                        } else {
+                            fs.setWidth(2);
+                            fs.setHeight(2);
+                            menuTarget.setWidth(2);
+                            menuTarget.setHeight(2);
+                        }
+                        designLayout(favRef);
+                        renderLayout(true);
+                        persistFavorites();
+                    }
+                });
                 v.findViewById(R.id.delete_button).setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View v) {
@@ -530,6 +560,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                                 favToView.remove(menuTarget);
                                 designLayout(favRef);
                                 renderLayout(true);
+                                persistFavorites();
                             }
 
                             @Override
@@ -540,7 +571,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                                 favToView.remove(menuTarget);
                                 designLayout(favRef);
                                 renderLayout(true);
-                                callback.onFavoritesChanged();
+                                persistFavorites();
                             }
 
                             @Override
@@ -550,17 +581,31 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                         set.start();
                     }
                 });
-                callback.attachOverlay(v, x, y, oneTwoEight, oneTwoEight);
+                callback.attachOverlay(v, x, y, viewSize, viewSize);
                 break;
             }
         }
     }
 
     private void reactToDrag(){
+        //Before we do anything, we need to adjust values received to center
+        //in top-left of icon [i.e. in [0, 0]]
+        if(targetCellX == -1){ //Calculate adjustment values from start
+            int cellDimension = layout.getWidth() / columnCount;
+
+            int desiredX = (dragTarget.getX() * cellDimension) + (cellDimension / 2);
+            int desiredY = (dragTarget.getY() * cellDimension) + (cellDimension / 2);
+
+            adjustmentX = desiredX - dragX;
+            adjustmentY = desiredY - dragY;
+        }
+
         //Calculate if the target's in a different cell; if so set update and call
         //layout(true) again
-        float actualX = dragX; //no adjustment needed
-        float actualY = dragY;
+        float actualX = dragX + adjustmentX;
+        float actualY = dragY + adjustmentY;
+
+        //Log.d(TAG, "aX, aY: " + actualX + "; " + actualY);
 
         //"Cell" it should be in is easy enough
         float cellDimension = layout.getWidth() / columnCount;
@@ -573,19 +618,13 @@ public class FavoriteGridSplayer implements View.OnDragListener {
             targetCellY = currentCellY;
         }
 
-//        Log.d(TAG, "In cell " + currentCellX + "; " + currentCellY);
-
         //We actually set the position on this guy
         if(currentCellX != dragTarget.getX() || currentCellY != dragTarget.getY()){
             Log.d(TAG, "Change noted; adjusting!!!");
             Log.d(TAG, "Cell position = " + currentCellX + ", " + currentCellY);
 
-            dragTarget.setX(currentCellX);
-            dragTarget.setY(currentCellY);
-
             designLayout(favRef, dragTarget, currentCellX, currentCellY);
             renderLayout(true);
-            Log.d(TAG, toString());
         }
     }
 
@@ -595,7 +634,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
         for(int i = 0; i <= lowestPoint; i++){
             String row = i + ": ";
             for(int j = 0; j < columnCount; j++){
-                row += "[" + (filledMap[i][j] == null ? "---@(-,-)" : filledMap[i][j]) + "]";
+                row += "[" + (filledMap[i][j] == null ? "---- w/ -x- @(-,-)" : filledMap[i][j]) + "]";
             }
             row += "\n";
             result += row;

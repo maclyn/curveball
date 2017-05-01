@@ -7,6 +7,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Bitmap;
+import android.graphics.PointF;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -37,6 +38,7 @@ import com.inipage.homelylauncher.icons.IconCache;
 import com.inipage.homelylauncher.model.Favorite;
 import com.inipage.homelylauncher.scroller.FavoriteGridSplayer;
 import com.inipage.homelylauncher.utils.Utilities;
+import com.inipage.homelylauncher.views.PointerInfoRelativeLayout;
 import com.inipage.homelylauncher.weather.WeatherController;
 import com.inipage.homelylauncher.weather.model.CleanedUpWeatherModel;
 import com.inipage.homelylauncher.weather.model.LTSForecastModel;
@@ -70,6 +72,9 @@ public class DebugActivity extends Activity implements WeatherController.Weather
 
     private final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("h:mm", Locale.getDefault());
     private final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("EEEE, MMMM d", Locale.getDefault());
+
+    @Bind(R.id.pointer_rl)
+    PointerInfoRelativeLayout pointerRl;
 
     @Bind(R.id.background)
     View background;
@@ -424,6 +429,11 @@ public class DebugActivity extends Activity implements WeatherController.Weather
     @Override
     public Activity getActivityContext() {
         return this;
+    }
+
+    @Override
+    public PointF getPointerPosition() {
+        return pointerRl.getPointLocation();
     }
 
     private void startAppImpl(Context context, ComponentName cn){

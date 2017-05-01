@@ -75,6 +75,13 @@ public class FavoriteShadow {
 
     @Override
     public String toString() {
-        return data.getId() + "@(" + x + "," + y + ")";
+        String id = String.valueOf(data.getId());
+        if(id.length() > 4){
+            id = id.substring(0, 3) + "+";
+        } else if (id.length() < 4){
+            while(id.length() < 4)
+                id += "-";
+        }
+        return id + " w/ " + width + "x" + height + " @(" + x + "," + y + ")";
     }
 }

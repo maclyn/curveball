@@ -67,6 +67,7 @@
             android:name=".DebugActivity"
             android:label="@string/title_activity_debug"
             android:theme="@style/HomeThemeAppCompatSource"
+            android:screenOrientation="portrait"
             android:exported="true">
 
             <intent-filter>

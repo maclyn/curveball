@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout
+<com.inipage.homelylauncher.views.PointerInfoRelativeLayout
+    android:id="@+id/pointer_rl"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -63,4 +64,4 @@
         android:id="@+id/overlay_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
-</RelativeLayout>
+</com.inipage.homelylauncher.views.PointerInfoRelativeLayout>

@@ -21,6 +21,8 @@ public class Constants {
     public static final String CHARGING_APP_PREFERENCE = "charging_app_pref";
     public static final String LOW_POWER_APP_PREFERENCE = "low_power_app_pref";
     public static final String PHONE_APP_PREFERENCE = "phone_app_pref";
+    public static final String ROWS_ABOVE_FOLD_PREFERENCE = "rows_fold_pref";
+    public static final String COLUMN_COUNT_PREFERENCE = "column_count_pref";
     //endregion
 
     //region Weather preferences

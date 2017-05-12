@@ -11,6 +11,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Color;
+import android.graphics.drawable.Drawable;
 import android.preference.PreferenceManager;
 import android.support.v4.content.ContextCompat;
 import android.util.DisplayMetrics;
@@ -29,6 +30,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.channels.FileChannel;
 import java.nio.charset.StandardCharsets;
+import java.util.Random;
 
 public class Utilities {
     private static final String TAG = "Utilities";
@@ -68,6 +70,36 @@ public class Utilities {
         return TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, dp, metrics);
     }
 
+    public static Float floatRange(float min, float max) {
+        if(max <  min) throw new RuntimeException("max < min. gawsh.");
+        return (new Random().nextFloat() * (max - min)) + min;
+    }
+
+    //Densities apps will likely have icons at
+    private static final int[] DENSITY_LIST = new int[] {
+            DisplayMetrics.DENSITY_LOW, DisplayMetrics.DENSITY_MEDIUM, DisplayMetrics.DENSITY_HIGH,
+            DisplayMetrics.DENSITY_XHIGH, DisplayMetrics.DENSITY_XXHIGH, DisplayMetrics.DENSITY_XXXHIGH
+    };
+
+    public static Drawable getDrawableForSize(Resources resources, int icon, int size) {
+        float minDpi = (size / 48F) * 160F;
+        minDpi -= 0.1F;
+
+        int densityIndex = DENSITY_LIST.length - 1;
+        for(int i = 0; i < DENSITY_LIST.length; i++) {
+            if(minDpi <= DENSITY_LIST[i]){
+                densityIndex = i;
+                break;
+            }
+        }
+
+        //TODO: Choose density appropriately
+        for(int i = 0; i < DENSITY_LIST.length; i++) {
+            Drawable d = resources.getDrawableForDensity(icon, DENSITY_LIST[densityIndex + i % DENSITY_LIST.length]);
+            if(d != null) return d;
+        }
+        return null;
+    }
 
     public enum LogLevel {
 		/** Some background task (e.g. icon fetching) has occured. **/

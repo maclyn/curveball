@@ -1,26 +1,20 @@
 package com.inipage.homelylauncher.drawer;
 
 import android.content.Context;
-import android.graphics.drawable.Drawable;
 import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
 import android.widget.ImageView;
-import android.widget.RelativeLayout;
 import android.widget.TextView;
 
 import com.inipage.homelylauncher.R;
 
 import java.util.List;
-import java.util.Map;
 
 public class ApplicationHideAdapter extends RecyclerView.Adapter<ApplicationHideAdapter.ApplicationVH> {
     List<ApplicationHiderIcon> apps;
     Context ctx;
-
-    private float iconSize;
 
     public class ApplicationVH extends RecyclerView.ViewHolder {
         TextView title;

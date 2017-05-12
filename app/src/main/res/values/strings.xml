@@ -203,4 +203,18 @@
     <string name="app_no_info">This app does not have info.</string>
     <string name="cannot_uninstall">Cannot uninstall this app.</string>
     <string name="bobby_table">Little Bobby TABLEs</string>
+    <string name="wallpaper">Wallpaper</string>
+    <string name="set_wallpaper">Set Wallpaper</string>
+    <string name="settings">Settings</string>
+    <string name="unhide">Unhide</string>
+    <string name="peeked_rows">Peeked Rows</string>
+    <string name="top_rows">Top Rows</string>
+    <string name="fold_row_num">%d Above Fold</string>
+    <string name="search_apps">Search apps</string>
+    <string name="column_count_desc">%d Columns</string>
+
+    <item type="id" name="FAVORITE_VIEW_TAG_DATA" />
+    <item type="id" name="FAVORITE_VIEW_TAG_DIR" />
+    <item type="id" name="FAVORITE_VIEW_TAG_ROTATION" />
 </resources>
+

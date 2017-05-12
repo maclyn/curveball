@@ -1,6 +1,9 @@
 package com.inipage.homelylauncher.icons;
 
 import android.content.ComponentName;
+import android.content.Context;
+import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Resources;
 import android.graphics.Bitmap;
@@ -190,6 +193,7 @@ public class IconCache {
     }
 
     //Helpful to cache
+    private Context context;
     private Resources baseResources;
     private PackageManager pm;
 
@@ -237,13 +241,20 @@ public class IconCache {
 
                 Drawable d;
                 switch(task.getType()){
-                    case APP_ICON_FULLY_QUALIFIED:
+                    //TODO: These don't respect size!
+                    case APP_ICON_FULLY_QUALIFIED: {
                         ComponentName cm = new ComponentName(task.getPackageName(), task.getComponentName());
-                        d = pm.getActivityIcon(cm);
+                        Context altCtx = context.createPackageContext(cm.getPackageName(), Context.CONTEXT_IGNORE_SECURITY);
+                        ActivityInfo ai = altCtx.getPackageManager().getActivityInfo(cm, 0);
+                        d = Utilities.getDrawableForSize(altCtx.getResources(), ai.icon == 0 ? ai.applicationInfo.icon : ai.icon, task.getWidth());
                         break;
-                    case APP_ICON_PARTIALLY_QUALIFIED:
-                        d = pm.getApplicationIcon(task.getPackageName());
+                    }
+                    case APP_ICON_PARTIALLY_QUALIFIED: {
+                        ApplicationInfo ai = pm.getApplicationInfo(task.getPackageName(), 0);
+                        Context altCtx = context.createPackageContext(task.getPackageName(), Context.CONTEXT_IGNORE_SECURITY);
+                        d = Utilities.getDrawableForSize(altCtx.getResources(), ai.icon, task.getWidth());
                         break;
+                    }
                     case PACKAGE_LOCAL_RESOURCE:
                         d = baseResources.getDrawable(task.getResourceId());
                         break;
@@ -255,6 +266,8 @@ public class IconCache {
                     default:
                         return null;
                 }
+
+                if(d == null) throw new Exception("eep");
 
                 Bitmap toDraw = Bitmap.createBitmap(task.getWidth(), task.getHeight(), Bitmap.Config.ARGB_8888);
                 Canvas canvas = new Canvas(toDraw);
@@ -286,6 +299,9 @@ public class IconCache {
                 return null;
             } catch (OutOfMemoryError e) { //OOM errors, usually
                 log(task, "OutOfMemory while retrieving icon");
+                return null;
+            } catch (Exception e) {
+                log(task, "General error: " + e.getMessage());
                 return null;
             }
         }
@@ -320,6 +336,7 @@ public class IconCache {
     };
 
     private IconCache() {
+        context = ApplicationClass.getInstance();
         pm = ApplicationClass.getInstance().getPackageManager();
         baseResources = ApplicationClass.getInstance().getResources();
 

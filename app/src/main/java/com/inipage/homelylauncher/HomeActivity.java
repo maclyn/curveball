@@ -36,10 +36,6 @@ import android.graphics.Bitmap;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.Drawable;
-import android.location.Criteria;
-import android.location.Location;
-import android.location.LocationListener;
-import android.location.LocationManager;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.BatteryManager;
@@ -49,7 +45,6 @@ import android.os.Looper;
 import android.preference.PreferenceManager;
 import android.provider.CalendarContract;
 import android.provider.Settings;
-import android.support.v4.app.ActivityCompat;
 import android.support.v4.graphics.drawable.DrawableCompat;
 import android.support.v7.graphics.Palette;
 import android.support.v7.widget.GridLayoutManager;
@@ -100,12 +95,9 @@ import com.inipage.homelylauncher.views.DockView;
 import com.inipage.homelylauncher.views.DragToOpenView;
 import com.inipage.homelylauncher.views.PushoverRelativeLayout;
 import com.inipage.homelylauncher.views.ShortcutGestureView;
-import com.inipage.homelylauncher.weather.WeatherApiFactory;
 import com.inipage.homelylauncher.weather.WeatherController;
 import com.inipage.homelylauncher.weather.model.CleanedUpWeatherModel;
 import com.inipage.homelylauncher.weather.model.LTSForecastModel;
-import com.inipage.homelylauncher.weather.model.LocationModel;
-import com.inipage.homelylauncher.weather.model.TimeModel;
 import com.jakewharton.processphoenix.ProcessPhoenix;
 import com.mobeta.android.dslv.DragSortListView;
 
@@ -131,9 +123,6 @@ import java.util.Vector;
 import butterknife.Bind;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
-import retrofit2.Call;
-import retrofit2.Callback;
-import retrofit2.Response;
 
 @SuppressWarnings("unchecked")
 public class HomeActivity extends Activity implements ShortcutGestureView.ShortcutGestureViewHost {
@@ -1444,7 +1433,7 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
 
                 if(newState == RecyclerView.SCROLL_STATE_DRAGGING && recyclerView.computeVerticalScrollOffset() == 0){
                     //toggleAppsContainer(false);
-                    Log.d(TAG, "at top");
+                    Log.d(TAG, "at topInset");
                 }
             }
 
@@ -2953,28 +2942,28 @@ public class HomeActivity extends Activity implements ShortcutGestureView.Shortc
     }
 
     /**
-     * @return The bottom of the interactable UI.
+     * @return The bottomInset of the interactable UI.
      */
     private int getNaturalBottom(){
         return sgv.getTop() + sgv.getHeight();
     }
 
     /**
-     * The absolute bottom of the UI.
+     * The absolute bottomInset of the UI.
      */
     private int getAbsoluteBottom(){
         return getResources().getDisplayMetrics().heightPixels;
     }
 
     /**
-     * The top of the interactable UI (i.e. just below status bar).
+     * The topInset of the interactable UI (i.e. just below status bar).
      */
     private int getNaturalTop(){
         return sgv.getTop(); //TODO: Is this right? In theory, this should be ~80
     }
 
     /**
-     * The absolute top of the UI (i.e. behind the status bar).
+     * The absolute topInset of the UI (i.e. behind the status bar).
      */
     private int getAbsoluteTop(){
         return 0;

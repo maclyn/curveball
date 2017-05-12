@@ -35,6 +35,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 /**
  * A class for doing our grid. Due to the requirements of the grid, neither
@@ -52,8 +53,17 @@ public class FavoriteGridSplayer implements View.OnDragListener {
     private static final int ANIMATION_DURATION = 500;
     private static final int MAXIMUM_HEIGHT = 100;
 
+    private static final float ROTATION_MAX_EXTENT = 9;
+
+    private static final int FAVORITE_TAG_WIGGLE_FLOAT = R.id.FAVORITE_VIEW_TAG_ROTATION;
+    private static final int FAVORITE_TAG_WIGGLE_DIR_INT = R.id.FAVORITE_VIEW_TAG_DIR;
+    private static final int FAVORITE_TAG_DATA = R.id.FAVORITE_VIEW_TAG_DATA;
+
     private Context ctx;
-    private AbsoluteLayout layout; /** I have a really good reason for this. **/
+    private AbsoluteLayout layout;
+    /**
+     * I have a really good reason for this.
+     **/
     private FavoriteStateCallback callback;
     private int columnCount;
 
@@ -68,19 +78,26 @@ public class FavoriteGridSplayer implements View.OnDragListener {
 
     public interface FavoriteStateCallback {
         void onFavoritesChanged();
+
         void onRendered();
+
         void requestLaunch(ComponentName cn);
+
         void attachOverlay(View toAttach, int centerX, int centerY, int width, int height);
+
         void closeOverlay();
+
         Activity getActivityContext();
+
         PointF getPointerPosition();
     }
 
     public FavoriteGridSplayer(final AbsoluteLayout layout,
                                List<Favorite> favorites,
                                FavoriteStateCallback callback,
-                               int columnCount){
+                               int columnCount) {
         this.layout = layout;
+        this.layout.removeAllViews();
         this.ctx = this.layout.getContext();
         this.layout.setOnDragListener(this);
         this.callback = callback;
@@ -91,7 +108,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
             @Override
             public void onLayoutChange(View v, int left, int top, int right, int bottom,
                                        int oldLeft, int oldTop, int oldRight, int oldBottom) {
-                if(left != oldLeft || right != oldRight) { //We're only looking for the initial layout call
+                if (left != oldLeft || right != oldRight) { //We're only looking for the initial layout call
                     renderLayout(true);
                 }
             }
@@ -103,17 +120,18 @@ public class FavoriteGridSplayer implements View.OnDragListener {
 
     /**
      * Add an application to the favorites grid. Note that we modify favorites here.
-     * @param packageName The app's package name.
+     *
+     * @param packageName  The app's package name.
      * @param activityName The app's activity.
      * @return Whether or not we successfully added it.
      */
-    public boolean addApp(String packageName, String activityName){
+    public boolean addApp(String packageName, String activityName) {
         //Place it at a sensible place -- last row or make a new one if we have to
         int lowestPoint = findLowestPoint(shadows);
 
         int lastRowPlace = -1;
-        for(int i = 0; i < columnCount; i++){
-            if(filledMap[lowestPoint][i] == null){
+        for (int i = 0; i < columnCount; i++) {
+            if (filledMap[lowestPoint][i] == null) {
                 lastRowPlace = i;
                 break;
             }
@@ -121,7 +139,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
 
         int newX;
         int newY;
-        if(lastRowPlace != -1){
+        if (lastRowPlace != -1) {
             newY = lowestPoint;
             newX = lastRowPlace;
         } else {
@@ -149,38 +167,38 @@ public class FavoriteGridSplayer implements View.OnDragListener {
      * Indicate favorites need to be saved. Works by updating the favorites list, and letting our
      * host context know that list is ready to be persisted.
      */
-    private void persistFavorites(){
+    private void persistFavorites() {
         //Move data from shadows -> favorites
-        for(FavoriteShadow fs : shadows){
+        for (FavoriteShadow fs : shadows) {
             fs.getData().updateFromShadow(fs);
         }
         callback.onFavoritesChanged();
     }
 
-    private FavoriteShadow lookupFavoriteShadow(Favorite f){
-        for(FavoriteShadow fs : shadows){
-            if(f.getId() == fs.getData().getId()) return fs;
+    private FavoriteShadow lookupFavoriteShadow(Favorite f) {
+        for (FavoriteShadow fs : shadows) {
+            if (f.getId() == fs.getData().getId()) return fs;
         }
         return null;
     }
 
-    private int findLowestPoint(List<FavoriteShadow> positions){
+    private int findLowestPoint(List<FavoriteShadow> positions) {
         int lowestPoint = 0;
-        for(FavoriteShadow pos : positions){
+        for (FavoriteShadow pos : positions) {
             int shadowLp = pos.getY() + pos.getHeight() - 1;
-            if(shadowLp > lowestPoint) lowestPoint = shadowLp;
+            if (shadowLp > lowestPoint) lowestPoint = shadowLp;
         }
         return lowestPoint;
     }
 
-    private void designLayout(List<Favorite> favorites){
+    private void designLayout(List<Favorite> favorites) {
         designLayout(favorites, null, -1, -1);
     }
 
     /**
      * Create a layout of items in the internal grid base on where they want to be placed.
      */
-    private void designLayout(List<Favorite> favorites, Favorite firstToLayout, int xBias, int yBias){
+    private void designLayout(List<Favorite> favorites, Favorite firstToLayout, int xBias, int yBias) {
         //Downsides to changeable columns: theoretically it's possible that, unfortunately, we changed
         //the column count. Now, we could either do one of two things when this happens: drop everything that's
         //out of view or... move them all to the bottom of the screen... or wrap them on to the
@@ -189,13 +207,14 @@ public class FavoriteGridSplayer implements View.OnDragListener {
         List<FavoriteShadow> rValue = new ArrayList<>(favorites.size());
 
         //(0) Sort everything, putting firstToLayout first when relevant
-        for(Favorite f : favorites){
-            if(firstToLayout == null || f.getId() != firstToLayout.getId()) rValue.add(new FavoriteShadow(f));
+        for (Favorite f : favorites) {
+            if (firstToLayout == null || f.getId() != firstToLayout.getId())
+                rValue.add(new FavoriteShadow(f));
         }
 
         //(0.5) Sort our list by position
         Collections.sort(rValue, FavoriteShadow.getComparator());
-        if(firstToLayout != null){
+        if (firstToLayout != null) {
             FavoriteShadow biasedShadow = new FavoriteShadow(firstToLayout);
             biasedShadow.setX(xBias);
             biasedShadow.setY(yBias);
@@ -204,8 +223,8 @@ public class FavoriteGridSplayer implements View.OnDragListener {
 
         // Also, invalidate filled map
         filledMap = new FavoriteShadow[MAXIMUM_HEIGHT][columnCount];
-        for(int i = 0; i < MAXIMUM_HEIGHT; i++){
-            for(int j = 0; j < columnCount; j++){
+        for (int i = 0; i < MAXIMUM_HEIGHT; i++) {
+            for (int j = 0; j < columnCount; j++) {
                 filledMap[i][j] = null;
             }
         }
@@ -213,26 +232,29 @@ public class FavoriteGridSplayer implements View.OnDragListener {
         //(1) Verify everything is properly placed, and, if not, move the invalid items.
         //This will cause a cascading invalid placement failure, but this is okay as the check
         //will simply solve itself
-        for(FavoriteShadow f : rValue){
+        for (FavoriteShadow f : rValue) {
             //First pre-check: are we wider than the space allows?
-            if(f.getWidth() > columnCount){
+            if (f.getWidth() > columnCount) {
                 f.setWidth(columnCount);
             }
 
             //Second: start placement search from positionX and positionY downward
             int newX = -1;
             int newY = -1;
-            placementSearch: {
+            placementSearch:
+            {
                 for (int i = f.getY(); i < MAXIMUM_HEIGHT; i++) {
                     for (int j = (i == f.getY() ? f.getX() : 0); j < columnCount; j++) { //Weird ternary operator: start at x pos. on first line of layout; if below that try searching from x=0
-                        if(j + f.getWidth() > columnCount) continue; //Too wide at this spot; let's not waste our time.
+                        if (j + f.getWidth() > columnCount)
+                            continue; //Too wide at this spot; let's not waste our time.
 
                         //Is the starting cell --> size of object okay?
                         boolean hasSpace = true;
-                        innerSpaceSearch: {
+                        innerSpaceSearch:
+                        {
                             for (int k = i; k < i + f.getHeight(); k++) {
-                                for (int l = j; l < j + f.getWidth(); l++){
-                                    if(filledMap[k][l] != null){
+                                for (int l = j; l < j + f.getWidth(); l++) {
+                                    if (filledMap[k][l] != null) {
                                         hasSpace = false;
                                         break innerSpaceSearch;
                                     }
@@ -240,24 +262,25 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                             }
                         }
 
-                        if(hasSpace) {
+                        if (hasSpace) {
                             newX = j;
                             newY = i;
                             break placementSearch;
-                        } else {} //No space at the selected i, j; continue our sad search
+                        } else {
+                        } //No space at the selected i, j; continue our sad search
                     }
                 }
             }
 
             //Mark changes complete
-            if(newX == -1 || newY == -1){
+            if (newX == -1 || newY == -1) {
                 throw new RuntimeException("Better crash here 'cuz we ain't got no valid layout...");
             }
 
             f.setX(newX);
             f.setY(newY);
             for (int i = f.getY(); i < f.getY() + f.getHeight(); i++) {
-                for (int j = f.getX(); j < f.getX() + f.getWidth(); j++){
+                for (int j = f.getX(); j < f.getX() + f.getWidth(); j++) {
                     filledMap[i][j] = f;
                 }
             }
@@ -267,31 +290,31 @@ public class FavoriteGridSplayer implements View.OnDragListener {
 
         //(2) Trim "holes" in layout
         //Essentially, if we have an entire row without anything we should delete it
-        for(int i = 0; i < lowestPoint; i++){
+        for (int i = 0; i < lowestPoint; i++) {
             boolean empty = true;
-            for(int j = 0; j < columnCount; j++){
-                if(filledMap[i][j] != null){
+            for (int j = 0; j < columnCount; j++) {
+                if (filledMap[i][j] != null) {
                     empty = false;
                     break;
                 }
             }
 
-            if(empty){ //This row is useless!
+            if (empty) { //This row is useless!
                 //Adjust internal representations on FavoriteShadows
-                for(int row = i; row <= lowestPoint; row++){
-                    for(int col = 0; col < columnCount; col++){
-                        if(filledMap[row][col] != null){
+                for (int row = i; row <= lowestPoint; row++) {
+                    for (int col = 0; col < columnCount; col++) {
+                        if (filledMap[row][col] != null) {
                             FavoriteShadow fav = filledMap[row][col];
-                            if(fav.getY() == row)
+                            if (fav.getY() == row)
                                 fav.setY(fav.getY() - 1);
                         }
                     }
                 }
 
                 //Rebuild filledMap with valid data
-                for(FavoriteShadow f : shadows){
+                for (FavoriteShadow f : shadows) {
                     for (int fRow = f.getY(); fRow < f.getY() + f.getHeight(); fRow++) {
-                        for (int fCol = f.getX(); fCol < f.getX(); fCol++){
+                        for (int fCol = f.getX(); fCol < f.getX(); fCol++) {
                             filledMap[fRow][fCol] = f;
                         }
                     }
@@ -307,23 +330,23 @@ public class FavoriteGridSplayer implements View.OnDragListener {
     }
 
 
-    private void renderLayout(final boolean animate){
+    private void renderLayout(final boolean animate) {
         //(3) Find views for each favorite and move them to their proper place, or create them
         callback.getActivityContext().runOnUiThread(new Runnable() {
             @Override
             public void run() {
                 int cellDimension = layout.getWidth() / columnCount;
-                if(cellDimension < 1) return; //Nothing to do here; no proper layout has occurred
+                if (cellDimension < 1) return; //Nothing to do here; no proper layout has occurred
 
-                for(final FavoriteShadow fs : shadows){
+                for (final FavoriteShadow fs : shadows) {
                     final Favorite f = fs.getData();
                     View repr = null;
                     boolean existed = false;
-                    if(favToView.containsKey(f)){
+                    if (favToView.containsKey(f)) {
                         repr = favToView.get(f);
                         existed = true;
                     } else {
-                        switch(f.getType()){
+                        switch (f.getType()) {
                             case DatabaseHelper.FAVORITE_TYPE_APP:
                                 repr = LayoutInflater.from(ctx).inflate(R.layout.item_scr_favorite, layout, false);
                                 favToView.put(f, repr);
@@ -335,7 +358,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                                 break;
                         }
 
-                        switch(f.getType()){
+                        switch (f.getType()) {
                             case DatabaseHelper.FAVORITE_TYPE_APP:
                                 final View finalRepr = repr;
                                 ComponentName cn = f.getComponentName();
@@ -344,7 +367,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                                         cn.getPackageName(),
                                         cn.getClassName(),
                                         IconCache.IconFetchPriority.APP_DRAWER_ICONS,
-                                        cellDimension,
+                                        cellDimension * f.getWidth(),
                                         new IconCache.ItemRetrievalInterface() {
                                             @Override
                                             public void onRetrievalComplete(Bitmap result) {
@@ -360,7 +383,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                                 repr.setOnLongClickListener(new View.OnLongClickListener() {
                                     @Override
                                     public boolean onLongClick(View v) {
-                                        v.startDrag(ClipData.newPlainText("", ""), new View.DragShadowBuilder(v), f, 0);
+                                        v.startDrag(ClipData.newPlainText("", ""), new View.DragShadowBuilder(), f, 0);
                                         return true;
                                     }
                                 });
@@ -379,14 +402,14 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                             cellDimension * fs.getHeight(),
                             cellDimension * fs.getX(),
                             cellDimension * fs.getY());
-                    if(!existed) {
+                    if (!existed) {
                         repr.setLayoutParams(params);
-                        repr.setTag(f);
+                        repr.setTag(FAVORITE_TAG_DATA, f);
                         layout.addView(repr);
                         repr.requestLayout();
 
                         //We also like cute animations -- so we do a scale from 0.2-100% in!
-                        if(animate) {
+                        if (animate) {
                             View container = repr.findViewById(R.id.scrollerItemContainer);
                             ObjectAnimator oa = ObjectAnimator.ofFloat(container, "scaleX", 0.2f, 1.0f);
                             ObjectAnimator oa2 = ObjectAnimator.ofFloat(container, "scaleY", 0.2f, 1.0f);
@@ -397,7 +420,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                             set.start();
                         }
                     } else {
-                        if(animate){
+                        if (animate) {
                             Utilities.animateAbsoluteLayoutChange(repr, params, 250L);
                         } else {
                             repr.setLayoutParams(params);
@@ -422,7 +445,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
 
     @Override
     public boolean onDrag(View v, DragEvent event) {
-        switch(event.getAction()){
+        switch (event.getAction()) {
             case DragEvent.ACTION_DRAG_STARTED:
                 Log.d(TAG, "Drag started");
                 dragTarget = (Favorite) event.getLocalState();
@@ -440,7 +463,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                 reactToDrag();
 
                 //If dropped where started, show menu
-                if(currentCellX == targetCellX && currentCellY == targetCellY) {
+                if (currentCellX == targetCellX && currentCellY == targetCellY) {
                     showItemMenu(dragTarget);
                 }
 
@@ -452,10 +475,16 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                 targetCellX = -1;
                 targetCellY = -1;
 
+                for (Map.Entry<Favorite, View> ent : favToView.entrySet()) {
+                    ent.getValue().setRotation(0);
+                    ent.getValue().setTag(FAVORITE_TAG_WIGGLE_FLOAT, 0F);
+                    ent.getValue().setTag(FAVORITE_TAG_WIGGLE_DIR_INT, 0);
+                }
+
                 persistFavorites();
                 break;
             case DragEvent.ACTION_DRAG_ENDED:
-                if(!event.getResult()){ //We need to cancel stuff ourselves
+                if (!event.getResult()) { //We need to cancel stuff ourselves
                     dragTarget = null;
                     dragX = -1;
                     dragY = -1;
@@ -469,10 +498,10 @@ public class FavoriteGridSplayer implements View.OnDragListener {
         return true;
     }
 
-    private void showItemMenu(final Favorite menuTarget){
+    private void showItemMenu(final Favorite menuTarget) {
         Bitmap target = null;
 
-        switch(menuTarget.getType()){
+        switch (menuTarget.getType()) {
             case DatabaseHelper.FAVORITE_TYPE_APP:
                 target = ((BitmapDrawable) ((ImageView) favToView.get(menuTarget).findViewById(R.id.favoriteAppIcon)).getDrawable()).getBitmap();
                 break;
@@ -504,7 +533,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
         int[] location = new int[2];
         target.getLocationInWindow(location);
 
-        switch(menuTarget.getType()) {
+        switch (menuTarget.getType()) {
             case DatabaseHelper.FAVORITE_TYPE_APP: {
                 View v = LayoutInflater.from(ctx).inflate(R.layout.view_app_opts, null);
                 int x = location[0] + (target.getWidth() / 2);
@@ -518,8 +547,8 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                     @Override
                     public void onClick(View v) {
                         callback.closeOverlay();
-                        FavoriteShadow fs = lookupFavoriteShadow(menuTarget);
-                        if(fs.getWidth() > 1){
+                        final FavoriteShadow fs = lookupFavoriteShadow(menuTarget);
+                        if (fs.getWidth() > 1) {
                             fs.setWidth(1);
                             fs.setHeight(1);
                             menuTarget.setWidth(1);
@@ -530,6 +559,17 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                             menuTarget.setWidth(2);
                             menuTarget.setHeight(2);
                         }
+                        IconCache.getInstance().getAppIcon(
+                                fs.getData().getComponentName().getPackageName(),
+                                fs.getData().getComponentName().getClassName(),
+                                IconCache.IconFetchPriority.APP_DRAWER_ICONS,
+                                layout.getWidth() / columnCount * fs.getWidth(),
+                                new IconCache.ItemRetrievalInterface() {
+                                    @Override
+                                    public void onRetrievalComplete(Bitmap result) {
+                                        ((ImageView) favToView.get(fs.getData()).findViewById(R.id.favoriteAppIcon)).setImageBitmap(result);
+                                    }
+                                });
                         designLayout(favRef);
                         renderLayout(true);
                         persistFavorites();
@@ -587,10 +627,10 @@ public class FavoriteGridSplayer implements View.OnDragListener {
         }
     }
 
-    private void reactToDrag(){
+    private void reactToDrag() {
         //Before we do anything, we need to adjust values received to center
         //in top-left of icon [i.e. in [0, 0]]
-        if(targetCellX == -1){ //Calculate adjustment values from start
+        if (targetCellX == -1) { //Calculate adjustment values from start
             int cellDimension = layout.getWidth() / columnCount;
 
             int desiredX = (dragTarget.getX() * cellDimension) + (cellDimension / 2);
@@ -598,6 +638,11 @@ public class FavoriteGridSplayer implements View.OnDragListener {
 
             adjustmentX = desiredX - dragX;
             adjustmentY = desiredY - dragY;
+
+            for (Map.Entry<Favorite, View> ent : favToView.entrySet()) {
+                ent.getValue().setTag(FAVORITE_TAG_WIGGLE_FLOAT, Utilities.floatRange(-ROTATION_MAX_EXTENT, ROTATION_MAX_EXTENT));
+                ent.getValue().setTag(FAVORITE_TAG_WIGGLE_DIR_INT, new Random().nextBoolean() ? 1 : -1);
+            }
         }
 
         //Calculate if the target's in a different cell; if so set update and call
@@ -611,20 +656,48 @@ public class FavoriteGridSplayer implements View.OnDragListener {
         float cellDimension = layout.getWidth() / columnCount;
         currentCellX = (int) Math.floor(actualX / cellDimension);
         currentCellY = (int) Math.floor(actualY / cellDimension);
-        if(currentCellY < 0) currentCellY = 0;
-        if(currentCellX < 0) currentCellX = 0;
-        if(targetCellX == -1 && targetCellY == -1){
+        if (currentCellY < 0) currentCellY = 0;
+        if (currentCellX < 0) currentCellX = 0;
+        if (targetCellX == -1 && targetCellY == -1) {
             targetCellX = currentCellX;
             targetCellY = currentCellY;
         }
 
         //We actually set the position on this guy
-        if(currentCellX != dragTarget.getX() || currentCellY != dragTarget.getY()){
+        if (currentCellX != dragTarget.getX() || currentCellY != dragTarget.getY()) {
             Log.d(TAG, "Change noted; adjusting!!!");
             Log.d(TAG, "Cell position = " + currentCellX + ", " + currentCellY);
 
+            dragTarget.setX(currentCellX);
+            dragTarget.setY(currentCellY);
+
             designLayout(favRef, dragTarget, currentCellX, currentCellY);
             renderLayout(true);
+        }
+    }
+
+    public void animate() {
+        if(dragTarget != null) {
+            for (Map.Entry<Favorite, View> ent : favToView.entrySet()) {
+                //when gud people do bad things
+                if(ent == null || ent.getValue() == null ||
+                        ent.getValue().getTag(FAVORITE_TAG_WIGGLE_FLOAT) == null ||
+                        ent.getValue().getTag(FAVORITE_TAG_WIGGLE_DIR_INT) == null) continue;
+
+                float newVal = (float) ent.getValue().getTag(FAVORITE_TAG_WIGGLE_FLOAT);
+                int newDir = (int) ent.getValue().getTag(FAVORITE_TAG_WIGGLE_DIR_INT);
+                newVal += (newDir > 0 ? (ROTATION_MAX_EXTENT / 60 * 10) : -((ROTATION_MAX_EXTENT / 60 * 10)));
+                if(newVal < -ROTATION_MAX_EXTENT){
+                    newVal = -ROTATION_MAX_EXTENT;
+                    newDir = 1;
+                } else if (newVal > ROTATION_MAX_EXTENT) {
+                    newVal = ROTATION_MAX_EXTENT;
+                    newDir = -1;
+                }
+                ent.getValue().setRotation(newVal);
+                ent.getValue().setTag(FAVORITE_TAG_WIGGLE_FLOAT, newVal);
+                ent.getValue().setTag(FAVORITE_TAG_WIGGLE_DIR_INT, newDir);
+            }
         }
     }
 

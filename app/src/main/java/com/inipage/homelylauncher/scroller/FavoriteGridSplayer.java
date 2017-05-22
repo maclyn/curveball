@@ -24,6 +24,7 @@ import android.widget.AbsoluteLayout;
 import android.widget.ImageView;
 
 import com.inipage.homelylauncher.DatabaseHelper;
+import com.inipage.homelylauncher.DebugActivity;
 import com.inipage.homelylauncher.R;
 import com.inipage.homelylauncher.icons.IconCache;
 import com.inipage.homelylauncher.model.Favorite;
@@ -83,7 +84,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
 
         void requestLaunch(ComponentName cn);
 
-        void attachOverlay(View toAttach, int centerX, int centerY, int width, int height);
+        void attachOverlay(DebugActivity.OverlayType overlayType, View toAttach, int centerX, int centerY, int width, int height);
 
         void closeOverlay();
 
@@ -621,7 +622,7 @@ public class FavoriteGridSplayer implements View.OnDragListener {
                         set.start();
                     }
                 });
-                callback.attachOverlay(v, x, y, viewSize, viewSize);
+                callback.attachOverlay(DebugActivity.OverlayType.ALTER_FAV, v, x, y, viewSize, viewSize);
                 break;
             }
         }

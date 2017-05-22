@@ -12,7 +12,7 @@ import com.inipage.homelylauncher.model.ContextualElement;
 
 import java.util.List;
 
-public class ContextualView extends View implements PointerInfoRelativeLayout.ScrollViewPullListener {
+public class ContextualView extends View {
     public static final String TAG = "ContextualView";
 
     public interface ContextualViewListener {
@@ -37,14 +37,6 @@ public class ContextualView extends View implements PointerInfoRelativeLayout.Sc
         super(context, attrs, defStyleAttr, defStyleRes);
     }
 
-    public void attachContextualList(List<ContextualElement> elements){
-        this.elements = elements;
-        invalidate();
-    }
-
-    public void noteContextualListChanged(){
-        invalidate();
-    }
 
     @Override
     protected void onDraw(Canvas canvas) {
@@ -68,25 +60,4 @@ public class ContextualView extends View implements PointerInfoRelativeLayout.Sc
 
         }
     }
-
-    @Override
-    public void onPullStart(float currentY, float startY, float height) {
-        Log.d(TAG, "onPullStart");
-    }
-
-    @Override
-    public void onPullMove(float currentY, float startY, float height) {
-        Log.d(TAG, "onPullMove " + currentY + " " + startY + " " + height);
-    }
-
-    @Override
-    public void onPullAccept(float finalY, float startY, float height) {
-        Log.d(TAG, "onPullAccept " + finalY + " " + startY + " " + height);
-    }
-
-    @Override
-    public void onPullCancel() {
-        Log.d(TAG, "onPullCancel");
-    }
-
 }

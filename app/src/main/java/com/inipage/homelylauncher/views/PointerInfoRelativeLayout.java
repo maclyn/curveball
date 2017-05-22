@@ -24,7 +24,11 @@ public class PointerInfoRelativeLayout extends RelativeLayout {
         void onPullCancel();
     }
 
-    ScrollView sv;
+    public interface SearchViewHostListener {
+        boolean canStartPull();
+    }
+
+    SearchViewHostListener hostListener;
     ScrollViewPullListener listener;
     float x = -1;
     float y = -1;
@@ -93,8 +97,8 @@ public class PointerInfoRelativeLayout extends RelativeLayout {
         switch(ev.getAction()){
             case MotionEvent.ACTION_DOWN:
                 startY = ev.getY();
-                if(sv != null){
-                    if(!ViewCompat.canScrollVertically(sv, -1)){ //Only can do it if we start at the top
+                if(hostListener != null){
+                    if(hostListener.canStartPull()){ //Only can do it if we start at the top
                         consideringEvent = true;
                     } else {
                         consideringEvent = false;
@@ -126,8 +130,8 @@ public class PointerInfoRelativeLayout extends RelativeLayout {
         return super.onInterceptTouchEvent(ev); //This will be false
     }
 
-    public void attachScrollView(ScrollView sv, ScrollViewPullListener listener){
-        this.sv = sv;
+    public void attachSearchTarget(SearchViewHostListener hostListener, ScrollViewPullListener listener){
+        this.hostListener = hostListener;
         this.listener = listener;
     }
 

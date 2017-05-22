@@ -15,6 +15,11 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <com.inipage.homelylauncher.views.SearchPullView
+        android:id="@+id/search_pull_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
     <com.inipage.homelylauncher.views.InformativeScrollView
         android:id="@+id/scrollContainer"
         android:overScrollMode="never"

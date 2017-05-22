@@ -212,6 +212,9 @@
     <string name="fold_row_num">%d Above Fold</string>
     <string name="search_apps">Search apps</string>
     <string name="column_count_desc">%d Columns</string>
+    <string name="search_for_apps_and_the_web">Search apps and the web</string>
+    <string name="no_search_app">No search app installed on your phone.</string>
+    <string name="no_web_app_installed">No web browser!</string>
 
     <item type="id" name="FAVORITE_VIEW_TAG_DATA" />
     <item type="id" name="FAVORITE_VIEW_TAG_DIR" />

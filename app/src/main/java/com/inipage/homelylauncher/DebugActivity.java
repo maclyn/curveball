@@ -1,6 +1,8 @@
 package com.inipage.homelylauncher;
 
 import android.app.Activity;
+import android.app.SearchManager;
+import android.content.ActivityNotFoundException;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
@@ -24,18 +26,26 @@ import android.support.v7.view.SupportMenuInflater;
 import android.support.v7.view.menu.MenuBuilder;
 import android.support.v7.view.menu.MenuPopupHelper;
 import android.support.v7.widget.LinearLayoutManager;
+import android.support.v7.widget.RecyclerView;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.util.DisplayMetrics;
 import android.util.Log;
 import android.util.Pair;
 import android.view.Display;
 import android.view.Gravity;
+import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewTreeObserver;
+import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.AbsoluteLayout;
+import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
+import android.widget.RelativeLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -48,9 +58,12 @@ import com.inipage.homelylauncher.icons.IconCache;
 import com.inipage.homelylauncher.model.ContextualElement;
 import com.inipage.homelylauncher.model.Favorite;
 import com.inipage.homelylauncher.scroller.FavoriteGridSplayer;
+import com.inipage.homelylauncher.search.SearchResult;
+import com.inipage.homelylauncher.search.SearchResultAdapter;
 import com.inipage.homelylauncher.utils.Utilities;
 import com.inipage.homelylauncher.views.ContextualView;
 import com.inipage.homelylauncher.views.PointerInfoRelativeLayout;
+import com.inipage.homelylauncher.views.SearchPullView;
 import com.inipage.homelylauncher.weather.WeatherController;
 import com.inipage.homelylauncher.weather.model.CleanedUpWeatherModel;
 import com.inipage.homelylauncher.weather.model.LTSForecastModel;
@@ -66,8 +79,6 @@ import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
 import java.util.Timer;
 import java.util.TimerTask;
 
@@ -76,10 +87,12 @@ import butterknife.ButterKnife;
 import butterknife.OnClick;
 import butterknife.OnLongClick;
 
+import static com.inipage.homelylauncher.DebugActivity.OverlayType.NONE;
+
 /**
  * A staging activity for changes that will eventually be used in the HomeActivity. Oh boy.
  */
-public class DebugActivity extends Activity implements WeatherController.WeatherPresenter, FavoriteGridSplayer.FavoriteStateCallback, ViewTreeObserver.OnScrollChangedListener, ContextualView.ContextualViewListener {
+public class DebugActivity extends Activity implements WeatherController.WeatherPresenter, FavoriteGridSplayer.FavoriteStateCallback, ViewTreeObserver.OnScrollChangedListener, ContextualView.ContextualViewListener, SearchPullView.SearchPullListener, PointerInfoRelativeLayout.SearchViewHostListener, SearchResultAdapter.SearchAdapterListener {
     public static final String TAG = "DebugActivity";
 
     private final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("h:mm", Locale.getDefault());
@@ -93,6 +106,9 @@ public class DebugActivity extends Activity implements WeatherController.Weather
 
     @Bind(R.id.background)
     View background;
+
+    @Bind(R.id.search_pull_view)
+    SearchPullView pullView;
 
     @Bind(R.id.scrollContainer)
     ScrollView scrollView;
@@ -155,6 +171,16 @@ public class DebugActivity extends Activity implements WeatherController.Weather
     @Bind(R.id.weatherIcon)
     ImageView conditionIv;
 
+    View searchScreen;
+    View searchTopScrim;
+    View searchBottomScrim;
+    EditText searchBoxEt;
+    View searchBoxClear;
+    RecyclerView searchResultsRv;
+    View gSearchBtn;
+    View webSearchBtn;
+    View playSearchBtn;
+
     List<ComponentName> hiddenApps = new ArrayList<>();
     List<ApplicationIcon> cachedApps = new ArrayList<>();
     PatriciaTrie<ApplicationIcon> appsTree = new PatriciaTrie<>();
@@ -166,6 +192,32 @@ public class DebugActivity extends Activity implements WeatherController.Weather
     SharedPreferences.Editor editor;
 
     @Override
+    public void onPullAccepted() {
+        showSearchScreen();
+    }
+
+    @Override
+    public boolean canStartPull() {
+        return !ViewCompat.canScrollVertically(scrollView, -1) && currentOverlay == OverlayType.NONE;
+    }
+
+    @Override
+    public void onResultChosen(SearchResult result) {
+        if(result.getType() == SearchResult.SearchResultType.APP_RESULT){
+            startApp(result.getAppData(), this);
+            closeOverlay();
+        } else if (result.getType() == SearchResult.SearchResultType.WEB_SUGGESTION) {
+            startWebSearch(result.getTitle());
+        }
+    }
+
+    public enum OverlayType {
+        ALTER_FAV, SEARCH_BOX, NONE
+    }
+
+    private OverlayType currentOverlay = NONE;
+
+    @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_debug);
@@ -174,6 +226,16 @@ public class DebugActivity extends Activity implements WeatherController.Weather
         background.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION);
         reader = PreferenceManager.getDefaultSharedPreferences(this);
         editor = reader.edit();
+
+        /*
+        scrollView.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+            @Override
+            public void onLayoutChange(View v, int left, int top, int right, int bottom, int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                Log.d(TAG, "onLayoutChanged for background " + top + " " + left + " " + bottom + " " + right);
+                Log.d(TAG, "scrollView at " + scrollView.getWidth() + " x " + scrollView.getHeight());
+            }
+        });
+        */
 
         loadApps();
         loadFavorites();
@@ -206,7 +268,7 @@ public class DebugActivity extends Activity implements WeatherController.Weather
                 });
             }
         };
-        animationUpdateTimer.schedule(animationUpdateTask, new Date(), 1000L / 60L);
+        animationUpdateTimer.schedule(animationUpdateTask, new Date(), 1000L / 30L);
         updateScrims();
 
         if(scrollView.getViewTreeObserver().isAlive()) {
@@ -250,6 +312,101 @@ public class DebugActivity extends Activity implements WeatherController.Weather
         registerReceiver(storageReceiver, storageFilter);
 
         scrollView.setOverScrollMode(View.OVER_SCROLL_ALWAYS);
+
+        //Inflate the search screen
+        searchScreen = LayoutInflater.from(this).inflate(R.layout.overlay_search, null);
+        searchTopScrim = searchScreen.findViewById(R.id.search_box_scrim_space);
+        searchBottomScrim = searchScreen.findViewById(R.id.search_bottom_scrim);
+        searchBoxEt = (EditText) searchScreen.findViewById(R.id.search_box);
+        searchResultsRv = (RecyclerView) searchScreen.findViewById(R.id.search_results);
+        searchBoxClear = searchScreen.findViewById(R.id.search_box_clear);
+        gSearchBtn = searchScreen.findViewById(R.id.search_type_app);
+        webSearchBtn = searchScreen.findViewById(R.id.search_type_web);
+        playSearchBtn = searchScreen.findViewById(R.id.search_type_store);
+        //TODO: Attach buttons, onTextChanged, onInputMethod
+        searchBoxEt.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                String change = s.toString();
+                if (change.length() > 0) {
+                    searchBoxClear.setVisibility(View.VISIBLE);
+                } else {
+                    searchBoxClear.setVisibility(View.GONE);
+                }
+                searchResultsRv.setAdapter(new SearchResultAdapter(change, DebugActivity.this,
+                        DebugActivity.this, cachedApps));
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+            }
+        });
+        searchResultsRv.setLayoutManager(new LinearLayoutManager(this));
+        searchBoxEt.setOnEditorActionListener(new TextView.OnEditorActionListener() {
+            @Override
+            public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+                if (actionId == EditorInfo.IME_ACTION_GO ||
+                        (actionId == EditorInfo.IME_NULL && event.getAction() == KeyEvent.ACTION_DOWN)) {
+                    if(searchBoxEt.getText().length() == 0) return false;
+
+                    if(searchResultsRv.getAdapter() == null || searchResultsRv.getAdapter().getItemCount() == 0) {
+                        gSearchBtn.performClick();
+                    } else {
+                        ((SearchResultAdapter) searchResultsRv.getAdapter()).launchTop();
+                    }
+                }
+                return false;
+            }
+        });
+        searchBoxClear.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                searchBoxEt.setText("");
+            }
+        });
+        gSearchBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(Intent.ACTION_WEB_SEARCH);
+                intent.putExtra(SearchManager.QUERY, searchBoxEt.getText().toString());
+                try {
+                    startActivity(intent);
+                    searchBoxEt.setText("");
+                    closeOverlay();
+                } catch (ActivityNotFoundException anfe){
+                    Toast.makeText(v.getContext(), R.string.no_search_app, Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
+        webSearchBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String text = searchBoxEt.getText().toString();
+                startWebSearch(text);
+            }
+        });
+        playSearchBtn.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                String text = searchBoxEt.getText().toString();
+                String uri = "market://search?q=" + text;
+
+                Intent intent = new Intent(Intent.ACTION_VIEW);
+                intent.setData(Uri.parse(uri));
+                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                try {
+                    startActivity(intent);
+                    searchBoxEt.setText("");
+                    closeOverlay();
+                } catch (ActivityNotFoundException anfe) {
+                    Toast.makeText(v.getContext(), R.string.store_not_installed, Toast.LENGTH_SHORT).show();
+                }
+            }
+        });
 
         //Add settings buttons
         wallpaperButton.setOnClickListener(new View.OnClickListener() {
@@ -298,7 +455,30 @@ public class DebugActivity extends Activity implements WeatherController.Weather
             }
         });
         rowsAboveFold = reader.getInt(Constants.ROWS_ABOVE_FOLD_PREFERENCE, 2);
-        pointerRl.attachScrollView(scrollView, contextView);
+        pointerRl.attachSearchTarget(this, pullView);
+    }
+
+    private void startWebSearch(String text) {
+        String uri = "https://www.google.com/search?q=" + text;
+
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setData(Uri.parse(uri));
+        intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        try {
+            startActivity(intent);
+            searchBoxEt.setText("");
+            closeOverlay();
+        } catch (ActivityNotFoundException anfe) {
+            Toast.makeText(this, R.string.no_web_app_installed, Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void readjustOverlay() {
+        if(currentOverlay == OverlayType.SEARCH_BOX){
+            //Update layout params
+            attachedOverlay.setLayoutParams(new AbsoluteLayout.LayoutParams(scrollView.getWidth(), scrollView.getHeight(), 0, 0));
+            attachedOverlay.requestLayout();
+        }
     }
 
     int topInset = -1;
@@ -337,37 +517,50 @@ public class DebugActivity extends Activity implements WeatherController.Weather
     int rowsAboveFold = -1;
     int columnCount = -1;
     private void updateSpacing(){
-        LinearLayout.LayoutParams topParams = (LinearLayout.LayoutParams) topScrim.getLayoutParams();
-        topParams.height = topInset;
-        topScrim.setLayoutParams(topParams);
+        //If we're showing the search box, we don't actually want the change in bottom scrim space
+        //from keyboard showing to update other parts of the UI
+        if(currentOverlay == OverlayType.SEARCH_BOX){
+            LinearLayout.LayoutParams topScrimParams  = (LinearLayout.LayoutParams) searchTopScrim.getLayoutParams();
+            topScrimParams.height = topInset;
+            searchTopScrim.requestLayout();
 
-        LinearLayout.LayoutParams bottomParams = (LinearLayout.LayoutParams) bottomScrim.getLayoutParams();
-        bottomParams.height = bottomInset;
-        bottomScrim.setLayoutParams(bottomParams);
+            RelativeLayout.LayoutParams bottomScrimParams = (RelativeLayout.LayoutParams) searchBottomScrim.getLayoutParams();
+            bottomScrimParams.height = bottomInset;
+            bottomScrim.requestLayout();
+        } else {
+            LinearLayout.LayoutParams topParams = (LinearLayout.LayoutParams) topScrim.getLayoutParams();
+            topParams.height = topInset;
+            topScrim.setLayoutParams(topParams);
 
-        //Set "space" to occupy...space [screen height - topInset scrim - bottomInset scrim - header size - [cell*space]]
-        DisplayManagerCompat dmc = DisplayManagerCompat.getInstance(DebugActivity.this);
-        int screenHeight = -1;
-        int screenWidth = -1;
-        for(Display d : dmc.getDisplays()){
-            DisplayMetrics metrics = new DisplayMetrics();
-            d.getRealMetrics(metrics);
-            screenWidth = metrics.widthPixels;
-            screenHeight = metrics.heightPixels;
+            LinearLayout.LayoutParams bottomParams = (LinearLayout.LayoutParams) bottomScrim.getLayoutParams();
+            bottomParams.height = bottomInset;
+            bottomScrim.setLayoutParams(bottomParams);
+
+            //Set "space" to occupy...space [screen height - topInset scrim - bottomInset scrim - header size - [cell*space]]
+            DisplayManagerCompat dmc = DisplayManagerCompat.getInstance(DebugActivity.this);
+            int screenHeight = -1;
+            int screenWidth = -1;
+            for(Display d : dmc.getDisplays()){
+                DisplayMetrics metrics = new DisplayMetrics();
+                d.getRealMetrics(metrics);
+                screenWidth = metrics.widthPixels;
+                screenHeight = metrics.heightPixels;
+            }
+            int headerSize = headerView.getHeight();
+            float cellDimension = (screenWidth / columnCount);
+
+            LinearLayout.LayoutParams spaceParams = (LinearLayout.LayoutParams) space.getLayoutParams();
+            //[screen height - topInset scrim - bottomInset scrim - header size - [cell*space]]
+
+            int desiredSpace = (int) (screenHeight - topInset - bottomInset - headerSize - (cellDimension * rowsAboveFold));
+            if(desiredSpace < 0)
+                desiredSpace = 0;
+            spaceParams.height = desiredSpace;
+            space.setLayoutParams(spaceParams);
+
+            pullView.setTopScrimSize(this, this, topInset);
+            foldRowsNumTextView.setText(getString(R.string.fold_row_num, rowsAboveFold));
         }
-        int headerSize = headerView.getHeight();
-        float cellDimension = (screenWidth / columnCount);
-
-        LinearLayout.LayoutParams spaceParams = (LinearLayout.LayoutParams) space.getLayoutParams();
-        //[screen height - topInset scrim - bottomInset scrim - header size - [cell*space]]
-
-        int desiredSpace = (int) (screenHeight - topInset - bottomInset - headerSize - (cellDimension * rowsAboveFold));
-        if(desiredSpace < 0)
-            desiredSpace = 0;
-        spaceParams.height = desiredSpace;
-        space.setLayoutParams(spaceParams);
-
-        foldRowsNumTextView.setText(getString(R.string.fold_row_num, rowsAboveFold));
     }
 
     @Override
@@ -393,6 +586,12 @@ public class DebugActivity extends Activity implements WeatherController.Weather
     public boolean onWeatherLongClick(){
         WeatherController.requestWeather(this, this, true);
         return true;
+    }
+
+    @Override
+    public void onBackPressed() {
+        //Don't call super
+        closeOverlay();
     }
 
     /**
@@ -438,7 +637,7 @@ public class DebugActivity extends Activity implements WeatherController.Weather
                 cachedApps = apps.first;
                 hiddenApps = apps.second;
 
-                populateAppList(null);
+                populateAppList();
             }
         }.execute();
     }
@@ -461,20 +660,11 @@ public class DebugActivity extends Activity implements WeatherController.Weather
         favManager = new FavoriteGridSplayer(favoritesGrid, favorites, this, columnCount);
     }
 
-    private void populateAppList(String query){
+    private void populateAppList(){
         appList.removeAllViews(); //I'm a bad person. I should feel bad.
         float iconSize = Utilities.convertDpToPixel(48, this);
 
-        List<ApplicationIcon> result;
-        if(query != null) {
-            Set<Map.Entry<String, ApplicationIcon>> set = appsTree.prefixMap(query.toLowerCase(Locale.getDefault())).entrySet();
-            result = new ArrayList<>(set.size());
-            for(Map.Entry<String, ApplicationIcon> entry : set){
-                result.add(entry.getValue());
-            }
-        } else {
-            result = cachedApps;
-        }
+        List<ApplicationIcon> result = cachedApps;
 
         for(final ApplicationIcon ai : result){
             //Future potential employers: I know. This is bad.
@@ -564,41 +754,72 @@ public class DebugActivity extends Activity implements WeatherController.Weather
         startAppImpl(this, cn);
     }
 
+    public void showSearchScreen(){
+        LinearLayout.LayoutParams topParams = (LinearLayout.LayoutParams) searchTopScrim.getLayoutParams();
+        topParams.height = topInset;
+        searchTopScrim.requestLayout();
+
+        RelativeLayout.LayoutParams bottomParams = (RelativeLayout.LayoutParams) searchBottomScrim.getLayoutParams();
+        bottomParams.height = bottomInset;
+        bottomScrim.requestLayout();
+
+        attachOverlay(OverlayType.SEARCH_BOX, searchScreen, -1, -1, -1, -1);
+    }
+
     @Override
-    public void attachOverlay(final View toAttach, int centerX, int centerY, int width, int height) {
-        int x = centerX - (width / 2);
-        int y = centerY - (height / 2);
-
-        int pivotX =  width / 2;
-        int pivotY = height / 2;
-
-        if(x < 0){
-            pivotX += x; //move it left
-            x = 0;
-        }
-        if(x > (scrollView.getWidth() - width)){
-            pivotX += (x - (scrollView.getWidth() - width)); //move it right
-            x = scrollView.getWidth() - width;
-        }
-        if(y < topInset){
-            pivotY += (y - topInset);
-            y = topInset;
+    public void attachOverlay(OverlayType overlayType, final View toAttach, int centerX, int centerY, int width, int height) {
+        if(this.currentOverlay != NONE || overlayType == OverlayType.NONE){
+            throw new RuntimeException("Invalid overlay state");
         }
 
-        //pivot relateive to center; to grow from center pivotX = width / 2; pivotY = height /2
+        this.currentOverlay = overlayType;
 
-        AbsoluteLayout.LayoutParams params = new AbsoluteLayout.LayoutParams(width, height, x, y);
-        overlayLayout.addView(toAttach, params);
+        if(overlayType == OverlayType.ALTER_FAV) {
+            int x = centerX - (width / 2);
+            int y = centerY - (height / 2);
 
-        toAttach.setPivotX(pivotX);
-        toAttach.setPivotY(pivotY);
+            int pivotX = width / 2;
+            int pivotY = height / 2;
 
-        Utilities.animateScaleChange(toAttach, new Utilities.ScaleAnimation() {
-            @Override
-            public void onComplete() {
+            if (x < 0) {
+                pivotX += x; //move it left
+                x = 0;
             }
-        }, 500L, 0.0f, 1.0f);
+            if (x > (scrollView.getWidth() - width)) {
+                pivotX += (x - (scrollView.getWidth() - width)); //move it right
+                x = scrollView.getWidth() - width;
+            }
+            if (y < topInset) {
+                pivotY += (y - topInset);
+                y = topInset;
+            }
 
+            //pivot relative to center; to grow from center pivotX = width / 2; pivotY = height /2
+            AbsoluteLayout.LayoutParams params = new AbsoluteLayout.LayoutParams(width, height, x, y);
+            overlayLayout.addView(toAttach, params);
+
+            toAttach.setPivotX(pivotX);
+            toAttach.setPivotY(pivotY);
+
+            Utilities.animateScaleChange(toAttach, new Utilities.ScaleAnimation() {
+                @Override
+                public void onComplete() {
+                }
+            }, 500L, 0.0f, 1.0f);
+        } else if (overlayType == OverlayType.SEARCH_BOX) {
+            AbsoluteLayout.LayoutParams params = new AbsoluteLayout.LayoutParams(overlayLayout.getWidth(), overlayLayout.getHeight(), 0, 0);
+            overlayLayout.addView(toAttach, params);
+
+            Utilities.animateAlphaChange(toAttach, new Utilities.ScaleAnimation() {
+                @Override
+                public void onComplete() {
+                    searchBoxEt.requestFocus();
+                    ((InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE)).showSoftInput(searchBoxEt, 0);
+                }
+            }, 500L, 0.0f, 1.0f);
+        }
+
+        attachedOverlay = toAttach;
         overlayLayout.setClickable(true);
         overlayLayout.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -607,20 +828,34 @@ public class DebugActivity extends Activity implements WeatherController.Weather
                 closeOverlay();
             }
         });
-        attachedOverlay = toAttach;
     }
 
     @Override
     public void closeOverlay() {
         overlayLayout.setClickable(false);
-        Utilities.animateScaleChange(attachedOverlay, new Utilities.ScaleAnimation() {
-            @Override
-            public void onComplete() {
-                overlayLayout.removeView(attachedOverlay);
-                overlayLayout.setOnClickListener(null);
-                overlayLayout.setClickable(false);
-            }
-        }, 500L, 1.0f, 0.0f);
+
+        if(currentOverlay == OverlayType.ALTER_FAV) {
+            Utilities.animateScaleChange(attachedOverlay, new Utilities.ScaleAnimation() {
+                @Override
+                public void onComplete() {
+                    overlayLayout.removeView(attachedOverlay);
+                    overlayLayout.setOnClickListener(null);
+                    overlayLayout.setClickable(false);
+                }
+            }, 500L, 1.0f, 0.0f);
+        } else if (currentOverlay == OverlayType.SEARCH_BOX) {
+            Utilities.animateAlphaChange(attachedOverlay, new Utilities.ScaleAnimation() {
+                @Override
+                public void onComplete() {
+                    searchBoxEt.setText("");
+                    overlayLayout.removeView(attachedOverlay);
+                    overlayLayout.setOnClickListener(null);
+                    overlayLayout.setClickable(false);
+                }
+            }, 500L, 1.0F, 0.0F);
+        }
+
+        currentOverlay = OverlayType.NONE;
     }
 
     @Override

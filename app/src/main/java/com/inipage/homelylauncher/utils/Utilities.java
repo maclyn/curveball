@@ -272,6 +272,33 @@ public class Utilities {
         void onComplete();
     }
 
+    public static void animateAlphaChange(final View child, final ScaleAnimation listener, long time, float start, float end){
+        ObjectAnimator oa = ObjectAnimator.ofFloat(child, "alpha", start, end);
+        AnimatorSet set = new AnimatorSet();
+        set.setDuration(time);
+        set.playTogether(oa);
+        set.addListener(new Animator.AnimatorListener() {
+            @Override
+            public void onAnimationStart(Animator animation) {
+            }
+
+            @Override
+            public void onAnimationEnd(Animator animation) {
+                listener.onComplete();
+            }
+
+            @Override
+            public void onAnimationCancel(Animator animation) {
+                listener.onComplete();
+            }
+
+            @Override
+            public void onAnimationRepeat(Animator animation) {
+            }
+        });
+        set.start();
+    }
+
     public static void animateScaleChange(final View child, final ScaleAnimation listener, long time, float start, float end){
         ObjectAnimator oa = ObjectAnimator.ofFloat(child, "scaleX", start, end);
         ObjectAnimator oa2 = ObjectAnimator.ofFloat(child, "scaleY", start, end);

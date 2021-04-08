@@ -1,3 +1,5 @@
+# Archived -- [see rewritten version](https://github.com/maclyn/curveball-launcher)
+
 # Curveball Launcher
 By Maclyn Brandwein
 
